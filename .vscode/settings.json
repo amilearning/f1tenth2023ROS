@@ -1,0 +1,13 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/hjpc/competition/f1tenth_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/hjpc/forcespro"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/hjpc/competition/f1tenth_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/hjpc/forcespro"
+    ],
+    "cmake.sourceDirectory": "${workspaceFolder}/highspeed_ctrl"
+}
