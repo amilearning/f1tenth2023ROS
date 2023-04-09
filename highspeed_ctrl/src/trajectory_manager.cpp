@@ -1,6 +1,6 @@
 #include "trajectory_manager.h"
 
-TrajectoryManager::TrajectoryManager(const ros::NodeHandle& nh_traj) : traj_nh(nh_traj), path_logger(0.1){
+TrajectoryManager::TrajectoryManager(const ros::NodeHandle& nh_traj) : traj_nh(nh_traj), path_logger(0.05), frenet_ready(false){
     // create publishers and subscribers
     is_recording_ = false;
     path_record_init_srv = traj_nh.advertiseService("/path_record_init_srv", &TrajectoryManager::startRecordingCallback, this);
@@ -40,6 +40,10 @@ visualization_msgs::Marker TrajectoryManager::getLocalPathMarker(){
 
 Trajectory TrajectoryManager::getlookaheadPath(){
     return lookahead_traj;
+}
+
+Trajectory TrajectoryManager::getglobalPath(){
+    return tmp_ref_traj;
 }
 
 // Delete the driven traj
@@ -146,12 +150,16 @@ bool TrajectoryManager::savePathCallback(std_srvs::Trigger::Request& req, std_sr
     return true;  
 }
 
+bool TrajectoryManager::is_recording()
+{
+    return is_recording_;
+}
 visualization_msgs::Marker TrajectoryManager::traj_to_marker(const Trajectory & traj, const std_msgs::ColorRGBA & color_){
   // Create marker message
   visualization_msgs::Marker marker;
   marker.header.frame_id = "map";
   marker.header.stamp = ros::Time::now();
-  marker.ns = "trajectory";
+//   marker.ns = "trajectory";
   marker.type = visualization_msgs::Marker::LINE_STRIP;
   marker.action = visualization_msgs::Marker::ADD;
   marker.pose.orientation.w = 1.0;

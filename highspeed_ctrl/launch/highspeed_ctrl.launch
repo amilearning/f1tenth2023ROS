@@ -9,8 +9,29 @@
 
   <node name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen">      
         <!-- <remap from="AA" to="BB"/> -->
-        <!-- <param name="controll_setup" value="1.7"/>  -->
-        
+      <param name="Pminimum_lookahead_distance" value="0.5"/> 
+      <param name="Pmaximum_lookahead_distance" value="2.0"/> 
+      <param name="Pspeed_to_lookahead_ratio" value="1.2"/> 
+      <param name="Pemergency_stop_distance" value="0.0"/> 
+      <param name="Pspeed_thres_traveling_direction" value="0.0"/> 
+      <param name="Pmax_acceleration" value="50.0"/> 
+      <param name="Pdistance_front_rear_wheel" value="0.33"/> 
+      <param name="vel_lookahead_ratio" value="1.0"/> 
+
+
+      <param name="path_smoothing_times_" value="1"/> 
+      <param name="curvature_smoothing_num_35" value="35"/> 
+      <param name="path_filter_moving_ave_num_" value="1"/> 
+      <param name="lookahead_path_length" value="5.0"/> 
+      <param name="wheelbase" value="0.33"/> 
+      <param name="lf" value="0.165"/> 
+      <param name="lr" value="0.165"/> 
+      <param name="mass" value="2.0"/> 
+      <param name="dt" value="0.05"/> 
+
+
+
+    
   </node>
   
 </launch>

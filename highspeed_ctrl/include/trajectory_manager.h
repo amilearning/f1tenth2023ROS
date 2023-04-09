@@ -40,6 +40,7 @@
 #include "std_msgs/ColorRGBA.h"
 #include "lowpass_filter.h"
 #include "trajectory.h"
+#include "utils.h"
 
 class PathLogger {
 public:
@@ -50,6 +51,7 @@ public:
         x_filter.initialize(dt, lpf_cutoff_hz);
         y_filter.initialize(dt, lpf_cutoff_hz);
         yaw_filter.initialize(dt, lpf_cutoff_hz);
+        vx_filter.initialize(dt, lpf_cutoff_hz);
         ref_traj.clear();
     }
 
@@ -69,10 +71,12 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
         x_tmp = x_filter.filter(odom.pose.pose.position.x);
         y_tmp = y_filter.filter(odom.pose.pose.position.y); 
-        yaw_tmp = yaw_filter.filter(yaw);
-
+        // yaw_tmp = yaw_filter.filter(yaw);
+        
+        vx_tmp = vx_filter.filter(odom.twist.twist.linear.x);
+        yaw_tmp = normalizeRadian(yaw);
         if (distance >= threshold_ && is_record) {
-            ref_traj.push_back(x_tmp,y_tmp, 0.0, y_tmp, 0.0, 0.0, 0.0, 0.0);
+            ref_traj.push_back(x_tmp,y_tmp, 0.0, yaw_tmp, vx_tmp, 0.0, 0.0, 0.0, 0.0);
             
             // path_.push_back(std::make_tuple(odom.pose.pose.position.x, odom.pose.pose.position.y, yaw));
             last_odom = odom;
@@ -123,7 +127,7 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     // Write the path to the file
     for (unsigned int i = 0; i < trajectory_size; ++i) {
         
-        ofs << ref_traj.x[i] << " " << ref_traj.y[i] << " " << ref_traj.yaw[i] << "\n";
+        ofs << ref_traj.x[i] << " " << ref_traj.y[i] << " " << ref_traj.yaw[i] << " " << ref_traj.vx[i] <<  "\n";
     }
 
     // Close the file
@@ -139,12 +143,15 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     // Clear the current path
     ref_traj.clear();
     // Read the path from the file
-    double x, y,  yaw;
-    while (ifs >> x >> y >>yaw ) {
-        ref_traj.push_back(x,y,0.0, yaw, 0.0, 0.0, 0.0, 0.0);
+    double x, y,  yaw, vx;
+    while (ifs >> x >> y >>yaw >> vx ) {
+        ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0);
         
         
     }
+    // encode frenet coordinate 
+    calcTrajectoryFrenet(ref_traj, 5);
+    
     std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
     // Close the file
     ifs.close();
@@ -156,8 +163,8 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     double threshold_;
     Trajectory ref_traj;    
     nav_msgs::Odometry last_odom;
-    Butterworth2dFilter x_filter,y_filter, yaw_filter;    
-    double x_tmp, y_tmp, yaw_tmp; 
+    Butterworth2dFilter x_filter,y_filter, yaw_filter,  vx_filter;    
+    double x_tmp, y_tmp, yaw_tmp, vx_tmp; 
 
 };
 
@@ -180,10 +187,12 @@ public:
     
     void updatelookaheadPath(const VehicleState& vehicle_state, const double& length);
     Trajectory getlookaheadPath(); 
+    Trajectory getglobalPath();
     visualization_msgs::Marker getLocalPathMarker();
     
     visualization_msgs::Marker getGlobalPathMarker();
     int getRefTrajSize(); 
+    bool is_recording();
     // // extract a lookahead path in frenet coordinate given the current position (odometry)
     // void extractLookaheadPath(const nav_msgs::msg::Odometry& odom, nav_msgs::msg::Path& lookahead_path);
 
@@ -194,21 +203,23 @@ public:
     // Service callback functions
     
     PathLogger path_logger;
+        bool frenet_ready;
+    
 
 private:
     // ROS node and publishers/subscribers
     
     ros::NodeHandle traj_nh;
     ros::ServiceServer path_record_init_srv, path_record_stop_srv, path_save_srv,path_read_srv ;
-    
 
-    // Path recording variables
     bool is_recording_;
+    // Path recording variables
+    
     
     // Mutex for thread safety
     std::mutex mutex_;
-    Trajectory lookahead_traj;
-    Trajectory tmp_ref_traj;
+    Trajectory lookahead_traj; // local lookahead centerline
+    Trajectory tmp_ref_traj;  // global centerline
     
     
 };

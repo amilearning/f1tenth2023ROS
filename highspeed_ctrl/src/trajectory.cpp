@@ -18,7 +18,7 @@
 
 void Trajectory::push_back(const double &xp, const double &yp, const double &zp,
                               const double &yawp, const double &vxp, const double &vyp, const double &kp,
-                              const double &tp)
+                              const double &tp, const double &sp)
 {
   x.push_back(xp);
   y.push_back(yp);
@@ -28,6 +28,7 @@ void Trajectory::push_back(const double &xp, const double &yp, const double &zp,
   vy.push_back(vyp);
   k.push_back(kp);
   relative_time.push_back(tp);
+  s.push_back(sp);
 };
 
 void Trajectory::clear()
@@ -40,6 +41,7 @@ void Trajectory::clear()
   vy.clear();
   k.clear();
   relative_time.clear();
+  s.clear();
 };
 
 void Trajectory::erase_to(const int & idx){
@@ -54,7 +56,7 @@ void Trajectory::erase_to(const int & idx){
   vy.erase(vx.begin(), vy.begin() + idx);
   k.erase(k.begin(), k.begin() + idx);
   relative_time.erase(relative_time.begin(), relative_time.begin() + idx);
-  
+  s.erase(s.begin(), s.begin() + idx);  
 }
 
 
@@ -70,6 +72,11 @@ unsigned int Trajectory::size() const
     std::cerr << "[MPC trajectory] trajectory size is inappropriate" << std::endl;
     return 0;
   }
+}
+
+double Trajectory::dist( double x_ref,  double y_ref, int traj_index) const{
+   return sqrt(pow(x_ref - x[traj_index], 2) + pow(y_ref - y[traj_index], 2));
+   
 }
 
 
@@ -89,7 +96,8 @@ Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
         vx[i],
         vy[i],
         k[i],
-        relative_time[i]
+        relative_time[i],
+        s[i]
       );
     }
   }

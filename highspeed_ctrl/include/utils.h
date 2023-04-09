@@ -28,9 +28,18 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
-
+#include "state.h"
 #include "trajectory.h"
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
 
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_interp2d.h>
+#include <gsl/gsl_spline2d.h>
+#include <gsl/gsl_errno.h>
+
+double dist(double x1, double y1, double x2, double y2);
+double projectToLine(double x, double y, double cx1, double cy1, double cx2, double cy2, double& px, double& py);
 
 double normalizeRadian(const double _angle);
 
@@ -76,6 +85,9 @@ void calcTrajectoryYawFromXY(Trajectory &traj);
  * @param [in] curvature_smoothing_num index distance for 3 points for curvature calculation
  */
 void calcTrajectoryCurvature(Trajectory &traj, int curvature_smoothing_num);
+
+void calcTrajectoryS(Trajectory &traj);
+void calcTrajectoryFrenet(Trajectory &traj, int curvature_smoothing_num);
 
 /**
  * @brief convert waypoints to MPCTrajectory
@@ -151,28 +163,11 @@ bool calcNearestPoseInterp(const Trajectory &traj, const geometry_msgs::Pose &se
                            unsigned int &nearest_index, double &min_dist_error, double &nearest_yaw_error, double &nearest_time);
 
 
-// visualization_msgs::Marker getPathPointMarker(PathPoint pathpoint_){
-//                 std_msgs::ColorRGBA  lookahead_point_color;        
-//                 lookahead_point_color.b = 1.0;
-//                 lookahead_point_color.a = 1.0;
-//                 visualization_msgs::Marker marker;
-//                 marker.header.frame_id = "map";
-//                 marker.header.stamp =  ros::Time::now();    
-//                 marker.type = visualization_msgs::Marker::SPHERE;
-//                 marker.action = visualization_msgs::Marker::ADD;
-//                 // Set the pose of the marker to the position of the point
-//                 marker.pose.position.x = pathpoint_[0];
-//                 marker.pose.position.y = pathpoint_[1];
-//                 marker.pose.position.z = 0.0;
+void computeFrenet(VehicleState & state, const Trajectory& center_traj);
 
-//                 // Set the scale of the marker
-//                 marker.scale.x = 0.3;
-//                 marker.scale.y = 0.3;
-//                 marker.scale.z = 0.1;
+void frenToCartician(VehicleState & cart_state,const VehicleState & fren_state, const Trajectory& center_traj);
+void frenToCarticians(std::vector<VehicleState> & states, const Trajectory& center_traj);
 
-//                 // Set the color of the marker
-//                 marker.color = lookahead_point_color;
-//                 return marker;
+std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double>& y);
 
-//     }
-    
+void genInterpolatedGrid(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z);

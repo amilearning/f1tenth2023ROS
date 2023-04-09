@@ -70,9 +70,13 @@
 
 #include "lowpass_filter.h"
 #include "trajectory_manager.h"
+#include "pure_pursuit.h"   
 #include "utils.h"
 #include "polyfit.h"
 #include "state.h"
+#include "trajectory.h"
+#include "vehicle_dynamics.h"
+
 
 #include "FORCESNLPsolver.h"
 #include "FORCESNLPsolver_memory.h"
@@ -84,7 +88,7 @@
 class Ctrl 
 {  
 private:
-ros::NodeHandle nh_ctrl_, nh_traj_;
+ros::NodeHandle nh_ctrl_, nh_traj_, nh_p;
 
 
 VehicleState cur_state, prev_state; //< @brief vehicle status
@@ -92,11 +96,11 @@ VehicleState cur_state, prev_state; //< @brief vehicle status
 bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex mtx_;
 ros::Subscriber  waypointSub,  odomSub;
-ros::Publisher  ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
+ros::Publisher  pred_traj_marker_pub, target_pointmarker_pub, ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
 
 
 
-
+PurePursuit pp_ctrl;
 TrajectoryManager traj_manager;
 hmcl_msgs::Lane current_waypoints_;
 
@@ -114,10 +118,11 @@ double lookahead_path_length, wheelbase, lf, lr, mass, dt;
 
 
 bool config_switch;
+VehicleDynamics ego_vehicle;
 
 
 public:
-Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj);
+Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_p_);
 ~Ctrl();
 void ControlLoop();
 
@@ -130,6 +135,7 @@ void callbackRefPath(const hmcl_msgs::Lane::ConstPtr &msg);
 
 void dyn_callback(highspeed_ctrl::testConfig& config, uint32_t level);
 
+visualization_msgs::MarkerArray PathPrediction(const VehicleState state, int n_step);
 
 
 };

@@ -17,6 +17,7 @@
 #pragma once
 #include <vector>
 #include <iostream>
+#include <cmath>
 
 /** 
  * @class trajectory class for mpc follower
@@ -33,6 +34,7 @@ public:
   std::vector<double> vy;            //!< @brief vy velocity vy vector(local) 
   std::vector<double> k;             //!< @brief k curvature k vector
   std::vector<double> relative_time; //!< @brief relative_time duration time from start point
+  std::vector<double> s; // progress   
 
   void erase_to(const int & idx);
   /**
@@ -40,7 +42,7 @@ public:
    */
   void push_back(const double &xp, const double &yp, const double &zp,
                  const double &yawp, const double &vxp, const double &vyp, const double &kp,
-                 const double &tp);
+                 const double &tp, const double &sp);
   /**
    * @brief clear for all values
    */
@@ -54,4 +56,5 @@ public:
    * @return size, or 0 if the size for each components are inconsistent
    */
   unsigned int size() const;
+  double dist( double x_ref,  double y_ref, int traj_index) const;
 };

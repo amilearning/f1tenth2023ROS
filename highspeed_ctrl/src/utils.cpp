@@ -16,6 +16,39 @@
 
 #include "utils.h"
 
+
+double dist(double x1, double y1, double x2, double y2)
+{
+  return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
+}
+
+// Function to calculate the projection of a point onto a line
+double projectToLine(double x, double y, double cx1, double cy1, double cx2, double cy2, double& px, double& py)
+{
+  double r_numerator = (x - cx1)*(cx2 - cx1) + (y - cy1)*(cy2 - cy1);
+  double r_denomenator = pow(cx2 - cx1, 2) + pow(cy2 - cy1, 2);
+  double r = r_numerator / r_denomenator;
+
+  double px_temp = cx1 + r*(cx2 - cx1);
+  double py_temp = cy1 + r*(cy2 - cy1);
+
+  double s = r*sqrt(r_denomenator);
+  double distance = dist(x, y, px_temp, py_temp);
+
+  if (distance < 1e-6) {
+    px = x;
+    py = y;
+    s = 0.0;
+  }
+  else {
+    px = px_temp;
+    py = py_temp;
+  }
+  return distance;
+}
+
+
+
 double normalizeRadian(const double _angle)
 {
   double n_angle = std::fmod(_angle, 2 * M_PI);
@@ -34,6 +67,7 @@ void convertEulerAngleToMonotonic(std::vector<double> &a)
     a[i] = a[i - 1] + normalizeRadian(da);
   }
 }
+
 
 template <typename T1, typename T2>
 bool interp1d(const T1 &index, const T2 &values, const double &ref, double &ret)
@@ -153,7 +187,8 @@ bool interp1dTraj(const std::vector<double> &index, const Trajectory &values,
     const double k = ((d_index - a) * values.k[i - 1] + a * values.k[i]) / d_index;
     const double t = ref_time[j];
     double vy = 0.0;
-    ret.push_back(x, y, z, yaw, vx, vy, k, t);
+    double s = 0.0;
+    ret.push_back(x, y, z, yaw, vx, vy, k, t, s);
   }
   return true;
 }
@@ -181,31 +216,67 @@ double find_distance(geometry_msgs::Point p1,geometry_msgs::Point p2){
 } 
 void calcTrajectoryCurvature(Trajectory &traj, int curvature_smoothing_num)
 {
-  unsigned int traj_k_size = traj.x.size();
-  traj.k.clear();
 
-  /* calculate curvature by circle fitting from three points */
-  geometry_msgs::Point p1, p2, p3;
-  for (unsigned int i = curvature_smoothing_num; i < traj_k_size - curvature_smoothing_num; ++i)
-  {
-    p1.x = traj.x[i - curvature_smoothing_num];
-    p2.x = traj.x[i];
-    p3.x = traj.x[i + curvature_smoothing_num];
-    p1.y = traj.y[i - curvature_smoothing_num];
-    p2.y = traj.y[i];
-    p3.y = traj.y[i + curvature_smoothing_num];
-    double den = std::max(find_distance(p1, p2) * find_distance(p2, p3) * find_distance(p3, p1), 0.0001);
-    const double curvature = 2.0 * ((p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x)) / den;
-    traj.k.push_back(curvature);
-  }
+  
+  std::vector<double> x = traj.x;
+  std::vector<double> y = traj.y;
+  std::vector<double> curv = compute_curvature(x,y);
+      std::cout << "curv = [";
+    for (std::vector<double>::const_iterator it = curv.begin(); it != curv.end(); ++it) {
+        std::cout << *it;
+        if (it != curv.end() - 1) {
+            std::cout << ", ";
+        }
+    }
+    std::cout << "]" << std::endl;
+
+  traj.k = curv;
+
+  // unsigned int traj_k_size = traj.x.size();
+  // traj.k.clear();
+
+  // /* calculate curvature by circle fitting from three points */
+  // geometry_msgs::Point p1, p2, p3;
+  // for (unsigned int i = curvature_smoothing_num; i < traj_k_size - curvature_smoothing_num; ++i)
+  // {
+  //   p1.x = traj.x[i - curvature_smoothing_num];
+  //   p2.x = traj.x[i];
+  //   p3.x = traj.x[i + curvature_smoothing_num];
+  //   p1.y = traj.y[i - curvature_smoothing_num];
+  //   p2.y = traj.y[i];
+  //   p3.y = traj.y[i + curvature_smoothing_num];
+  //   double den = std::max(find_distance(p1, p2) * find_distance(p2, p3) * find_distance(p3, p1), 0.0001);
+  //   const double curvature = 2.0 * ((p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x)) / den;
+  //   traj.k.push_back(curvature);
+  // }
 
   /* first and last curvature is copied from next value */
-  for (int i = 0; i < curvature_smoothing_num; ++i)
-  {
-    traj.k.insert(traj.k.begin(), traj.k.front());
-    traj.k.push_back(traj.k.back());
-  }
+  // for (int i = 0; i < curvature_smoothing_num; ++i)
+  // {
+  //   traj.k.insert(traj.k.begin(), traj.k.front());
+  //   traj.k.push_back(traj.k.back());
+  // }
 }
+
+void calcTrajectoryS(Trajectory &traj)
+{
+  unsigned int traj_k_size = traj.x.size();
+  traj.s.clear();
+  double accumulated_dist = 0.0;
+  traj.s.push_back(0.0);
+  for (int i = 1; i < traj_k_size; i++) {
+    accumulated_dist +=     dist(traj.x[i],traj.y[i], traj.x[i-1], traj.y[i-1]);
+    traj.s.push_back(accumulated_dist);
+  }
+
+}
+
+void calcTrajectoryFrenet(Trajectory &traj, int curvature_smoothing_num){
+  calcTrajectoryS(traj);
+  calcTrajectoryCurvature(traj, curvature_smoothing_num);
+}
+
+
 
 void convertWaypointsToMPCTraj(const hmcl_msgs::Lane &lane, Trajectory &mpc_traj)
 {
@@ -220,7 +291,8 @@ void convertWaypointsToMPCTraj(const hmcl_msgs::Lane &lane, Trajectory &mpc_traj
     const double yaw = tf2::getYaw(wp.pose.pose.orientation);
     const double vx = wp.twist.twist.linear.x;
     double vy = 0.0;
-    mpc_traj.push_back(x, y, z, yaw, vx, vy, k_tmp, t_tmp);
+    double s_tmp= 0.0;
+    mpc_traj.push_back(x, y, z, yaw, vx, vy, k_tmp, t_tmp,s_tmp);
   }
 }
 
@@ -296,7 +368,8 @@ void convertWaypointsToMPCTrajWithResample(const hmcl_msgs::Lane &path, const st
     const double curvature_tmp = 0.0;
     const double t = ((ref_index_dist - a) * path_time.at(j - 1) + a * path_time.at(j)) / ref_index_dist;
     double vy = 0.0;
-    ref_traj.push_back(x, y, z, yaw, vx, vy, curvature_tmp, t);
+    double s= 0.0;
+    ref_traj.push_back(x, y, z, yaw, vx, vy, curvature_tmp, t, s);
     point += d_ref_index;
   }
 }
@@ -368,6 +441,7 @@ bool calcNearestPose(const Trajectory &traj, const geometry_msgs::Pose &self_pos
   nearest_pose.orientation = tf2::toMsg(q); 
   return true;
 };
+
 
 bool calcNearestPoseInterp(const Trajectory &traj, const geometry_msgs::Pose &self_pose, geometry_msgs::Pose &nearest_pose,
                                      unsigned int &nearest_index, double &min_dist_error, double &nearest_yaw_error, double &nearest_time)
@@ -509,3 +583,263 @@ bool calcNearestPoseInterp(const Trajectory &traj, const geometry_msgs::Pose &se
 
 
 
+
+//////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
+
+// Function to calculate the Frenet coordinates
+void computeFrenet(VehicleState & state, const Trajectory& center_traj){
+  // double x, double y, const vector<double>& cx, const vector<double>& cy, double& s, double& ey, double& epsi)
+  if(center_traj.size() < 5){    
+    return;
+  }
+  // Find the nearest point on the centerline to the vehicle position  
+  double x = state.pose.position.x;
+  double y = state.pose.position.y;
+  double min_dist = center_traj.dist(x,y,0);
+  int min_index = 0;
+  for (int i = 1; i < center_traj.size(); i++) {
+    double d = center_traj.dist(x,y,i);
+    if (d < min_dist) {
+      min_dist = d;
+      min_index = i;
+    }
+  }
+  // Calculate the projection of the vehicle position onto the centerline
+  double px = 0.0, py = 0.0;
+  double fey = 0.0;
+  
+  if (min_index == 0) {
+    fey = projectToLine(x, y, center_traj.x[min_index],
+    center_traj.y[min_index ],
+    center_traj.x[min_index+1],
+    center_traj.y[min_index+1], px, py);
+  }else {    
+    fey = projectToLine(x, y, center_traj.x[min_index - 1],
+    center_traj.y[min_index - 1],
+    center_traj.x[min_index],
+    center_traj.y[min_index], px, py);
+  }
+  double ey = 0.0;
+    Eigen::Vector2d xy_query(x, y);
+    Eigen::Vector2d xy_waypoint(px, py);
+     Eigen::Matrix2d rot_global_to_frenet;
+    rot_global_to_frenet << std::cos(center_traj.yaw[min_index]), std::sin(center_traj.yaw[min_index]),
+                            -std::sin(center_traj.yaw[min_index]), std::cos(center_traj.yaw[min_index]);
+
+    // Calculate the error in xy deviation in global frame
+    Eigen::Vector2d error_xy = xy_query - xy_waypoint;
+    // Calculate the error in Frenet frame
+    Eigen::Vector2d error_frenet = rot_global_to_frenet * error_xy;
+
+    ey =  error_frenet(1);
+
+
+  // calculate interpolated 's' 
+    // state.s = center_traj.s[]
+    double a_dist, b_dist;
+    double s= 0.0;
+    if(min_index ==0){
+         s= 0.0;
+    }else{  
+      s=center_traj.s[min_index-1]+ dist(px,py,center_traj.x[min_index-1],center_traj.y[min_index-1]);
+    }
+  
+
+
+  state.ey = ey;
+  state.s = s;
+  state.epsi = normalizeRadian(state.yaw-center_traj.yaw[min_index]);
+  state.k = center_traj.k[min_index];
+
+}
+
+
+
+// Function to calculate the Frenet coordinates
+void frenToCartician(VehicleState & cart_state,const VehicleState & fren_state, const Trajectory& center_traj){
+  // double x, double y, const vector<double>& cx, const vector<double>& cy, double& s, double& ey, double& epsi)
+  if(center_traj.size() < 5){    
+    return;
+  }
+
+
+
+  double s = fren_state.s;
+  double ey =fren_state.ey;
+  double epsi = fren_state.epsi;
+
+  unsigned int s_closest_idx = 1;
+  while (s > center_traj.s[s_closest_idx])
+  { 
+    if(s_closest_idx < center_traj.s.size()-1)
+    ++s_closest_idx;
+    else{
+      break;
+    }
+  }
+
+  
+  double x_on_centerline, y_on_centerline, yaw_on_centerline;
+  interp1d(center_traj.s, center_traj.x, s, x_on_centerline);
+  interp1d(center_traj.s, center_traj.y, s, y_on_centerline);
+  // x_on_centerline = center_traj.x[s_closest_idx];
+  // y_on_centerline = center_traj.y[s_closest_idx];
+  
+  yaw_on_centerline = center_traj.yaw[s_closest_idx];
+  // interp1d(center_traj.s, center_traj.yaw, s, yaw_on_centerline);
+  // yaw_on_centerline = normalizeRadian(yaw_on_centerline);
+  
+  double x,y;
+ 
+  if(ey >= 0){
+x = x_on_centerline+ fabs(ey)*cos(M_PI/2.0+yaw_on_centerline); 
+y = y_on_centerline+ fabs(ey)*sin(M_PI/2.0+yaw_on_centerline);
+  }else{
+x = x_on_centerline+ fabs(ey)*cos(-M_PI/2.0+yaw_on_centerline); 
+y = y_on_centerline+ fabs(ey)*sin(-M_PI/2.0+yaw_on_centerline);
+  }
+   
+
+  double yaw =  normalizeRadian(yaw_on_centerline + epsi);
+ 
+  cart_state.pose.position.x = x;
+  cart_state.pose.position.y = y;
+  tf2::Quaternion q;
+  q.setRPY(0, 0, yaw);  
+  q.normalize();
+  cart_state.pose.orientation = tf2::toMsg(q); 
+  cart_state.yaw = yaw;
+
+
+}
+
+void frenToCarticians(std::vector<VehicleState> & states, const Trajectory& center_traj){
+  // std::cout << "frentocart"<<std::endl;
+  for(int i=0;i < states.size(); i++){
+    VehicleState tmp_state = states[i];
+    // std::cout << "ey = " << tmp_state.ey << std::endl;
+    frenToCartician(states[i], tmp_state, center_traj);
+  }
+}
+
+
+
+
+std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double>& y) {
+    // the distance between x, y should be evenly spaced.
+    // Resample input data to ensure evenly spaced points
+    int n_interp =x.size();
+    std::vector<double> t(n_interp);
+    for (int i = 0; i < n_interp; i++) {
+        t[i] = static_cast<double>(i) / static_cast<double>(n_interp-1);
+    }
+
+    gsl_interp_accel* accel_x = gsl_interp_accel_alloc();
+    gsl_interp_accel* accel_y = gsl_interp_accel_alloc();
+    gsl_spline* spline_x = gsl_spline_alloc(gsl_interp_cspline, x.size());
+    gsl_spline* spline_y = gsl_spline_alloc(gsl_interp_cspline, y.size());
+  
+    gsl_spline_init(spline_x,  t.data(),x.data(), x.size());
+       
+    gsl_spline_init(spline_y,  t.data(), y.data(), y.size());
+       
+
+    std::vector<double> fx(n_interp);
+    std::vector<double> fy(n_interp);
+    for (int i = 0; i < n_interp; i++) {
+      try {
+        fx[i] = gsl_spline_eval(spline_x, t[i], accel_x);           
+         } catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown error occurred" << std::endl;
+    }
+
+       try {
+        fy[i] = gsl_spline_eval(spline_y, t[i], accel_y);  
+         } catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown error occurred" << std::endl;
+    }
+
+
+    }
+
+    // Compute first and second derivatives
+    std::vector<double> dx(n_interp);
+    std::vector<double> dy(n_interp);
+    std::vector<double> ddx(n_interp);
+    std::vector<double> ddy(n_interp);
+
+    for (int i = 0; i < n_interp; i++) {
+        dx[i] = gsl_spline_eval_deriv(spline_x, t[i], accel_x);
+        dy[i] = gsl_spline_eval_deriv(spline_y, t[i], accel_y);
+    }
+
+    for (int i = 1; i < n_interp-1; i++) {
+        ddx[i] = gsl_spline_eval_deriv2(spline_x, t[i], accel_x);
+        ddy[i] = gsl_spline_eval_deriv2(spline_y, t[i], accel_y);
+    }
+
+    // Compute curvature
+    std::vector<double> curvature(n_interp);
+    for (int i = 1; i < n_interp-1; i++) {
+        curvature[i] = (dx[i]*ddy[i] - dy[i]*ddx[i]) / pow(dx[i]*dx[i] + dy[i]*dy[i], 1.5);
+    }
+
+    gsl_spline_free(spline_x);
+    gsl_spline_free(spline_y);
+    gsl_interp_accel_free(accel_x);
+    gsl_interp_accel_free(accel_y);
+
+    return curvature;
+}
+
+
+
+// void genInterpolatedGrid(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z){
+//     // z <- f(x,y) mapping
+//     const gsl_interp2d_type *T = gsl_interp2d_bilinear;
+//     double resolution = 0.1;  
+//   const size_t N = int( ((std::max(x)-std::min(x))*(std::max(y)-std::min(y)) ) / (resolution * resolution)); /* number of points to interpolate */
+//   // const double xa[] = { 0.0, 1.0 }; /* define unit square */
+//   // const double ya[] = { 0.0, 1.0 };
+//   const size_t nx = x.size(); /* x grid points */
+//   const size_t ny = y.size(); /* y grid points */
+//   double *za = malloc(nx * ny * sizeof(double));
+//   gsl_spline2d *spline = gsl_spline2d_alloc(T, nx, ny);
+//   gsl_interp_accel *xacc = gsl_interp_accel_alloc();
+//   gsl_interp_accel *yacc = gsl_interp_accel_alloc();
+//   size_t i, j;
+
+//   /* set z grid values */
+//   gsl_spline2d_set(spline, za, 0, 0, 0.0);
+//   gsl_spline2d_set(spline, za, 0, 1, 1.0);
+//   gsl_spline2d_set(spline, za, 1, 1, 0.5);
+//   gsl_spline2d_set(spline, za, 1, 0, 1.0);
+
+//   /* initialize interpolation */
+//   gsl_spline2d_init(spline, xa, ya, za, nx, ny);
+
+//   /* interpolate N values in x and y and print out grid for plotting */
+//   for (i = 0; i < N; ++i)
+//     {
+//       double xi = i / (N - 1.0);
+
+//       for (j = 0; j < N; ++j)
+//         {
+//           double yj = j / (N - 1.0);
+//           double zij = gsl_spline2d_eval(spline, xi, yj, xacc, yacc);
+
+//           printf("%f %f %f\n", xi, yj, zij);
+//         }
+//       printf("\n");
+//     }
+
+//   gsl_spline2d_free(spline);
+//   gsl_interp_accel_free(xacc);
+//   gsl_interp_accel_free(yacc);
+//   free(za);
+// }

@@ -3,6 +3,10 @@ project(highspeed_ctrl)
 
 find_package(Eigen3 REQUIRED)
 
+set(GSL_ROOT_DIR /home/hjpc/gsl)
+
+find_package(GSL REQUIRED)
+
 if(NOT EIGEN3_FOUND)
   # Fallback to cmake_modules
   find_package(cmake_modules REQUIRED)
@@ -48,15 +52,20 @@ include_directories(
   include/FORCESNLPsolver/include    
   include/FORCESNLPsolver  
   ${Boost_INCLUDE_DIRS}
+  ${GSL_INCLUDE_DIRS}
 )
-add_executable(dynamic_reconfigure_node src/utils.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
+
+link_directories(${GSL_LIBRARY_DIRS})
+
+
+add_executable(dynamic_reconfigure_node src/pure_pursuit.cpp src/utils.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
 add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)
-target_link_libraries(dynamic_reconfigure_node ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
 SET(CMAKE_CXX_FLAGS "-O2 -g -Wall ${CMAKE_CXX_FLAGS}")
 
-add_executable(highspeed_ctrl src/utils.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
+add_executable(highspeed_ctrl src/utils.cpp src/pure_pursuit.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
 add_dependencies(highspeed_ctrl ${catkin_EXPORTED_TARGETS})
-target_link_libraries(highspeed_ctrl ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+target_link_libraries(highspeed_ctrl ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
 
 
 

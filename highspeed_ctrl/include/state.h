@@ -21,6 +21,10 @@ struct VehicleState {
     double wz; // vel in local
     double accel;
     double delta;  
+    double s; // progress in frenet 
+    double ey; // deviation to centerline 
+    double epsi; // deviation angle to centerline heading
+    double k; // curvature of the cloeset centerline
 };
 
 
