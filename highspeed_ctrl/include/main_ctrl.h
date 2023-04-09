@@ -112,7 +112,7 @@ int path_filter_moving_ave_num_, curvature_smoothing_num_, path_smoothing_times_
 
 
 double error_deriv_lpf_curoff_hz;
-std::string vel_cmd_topic, control_topic, pose_topic, vehicle_states_topic, waypoint_topic, odom_topic, status_topic, simstatus_topic, steer_cmd_topic;
+std::string pp_lookup_table_file_name, vel_cmd_topic, control_topic, pose_topic, vehicle_states_topic, waypoint_topic, odom_topic, status_topic, simstatus_topic, steer_cmd_topic;
 
 double lookahead_path_length, wheelbase, lf, lr, mass, dt;
 

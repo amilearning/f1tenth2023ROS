@@ -67,6 +67,57 @@ void PurePursuit::update_vehicleState(const VehicleState & state){
     cur_state = state;
 }
 
+void PurePursuit::readLookuptable(const std::string& filename){
+  
+  std::vector<double> x_data, y_data, z_data;
+  if(lookup_tb.read_dictionary_file(filename, x_data,y_data,z_data))
+    { 
+      lookup_tb.setValues(x_data,y_data,z_data);}
+    
+}
+
+double PurePursuit::getAngleDiffToTargetPoint(){
+  double target_heading = std::atan2((m_target_point[1] -cur_state.pose.position.y),
+  (m_target_point[0] -cur_state.pose.position.x));
+  double velocity_heading;
+
+  tf::Quaternion q(cur_state.pose.orientation.x,
+                  cur_state.pose.orientation.y,
+                  cur_state.pose.orientation.z,
+                  cur_state.pose.orientation.w);
+  q.normalize();
+  // Extract the yaw angle from the quaternion object    
+  double roll, pitch, yaw;
+  tf::Matrix3x3(q).getRPY(roll, pitch, yaw);  
+  bool odom_twist_in_local = true;
+  if(odom_twist_in_local){
+  Eigen::Matrix2d Rbg;
+  Rbg << cos(-1*yaw), -sin(-1*yaw),
+                        sin(-1*yaw), cos(-1*yaw);
+  Eigen::Vector2d local_vx_vy;
+  local_vx_vy << cur_state.vx, cur_state.vy; 
+  Eigen::Vector2d global_vx_vy = Rbg*local_vx_vy;
+   velocity_heading = std::atan2(global_vx_vy[1],global_vx_vy[0]);    
+  }else{
+    velocity_heading = std::atan2(cur_state.vy,cur_state.vx);
+  }
+    target_heading = normalizeRadian(target_heading);
+    velocity_heading = normalizeRadian(velocity_heading);
+    return normalizeRadian(target_heading-velocity_heading);
+}
+
+
+
+bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx){
+  if(lookup_tb.is_ready){    
+  double desired_alat = 2*vx*vx*sin(diff_angel)/(lookahead_dist+1e-7);
+  delta = lookup_tb.eval(desired_alat, vx);
+  return true;
+  }
+  else{
+    return false;
+  }  
+}
 
 ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 { 
@@ -87,7 +138,14 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
         // ackermann_msg.drive.speed =  opt_vel/5.0;
         cmd_msg.drive.speed =  compute_target_speed();
 
-        cmd_msg.drive.steering_angle = compute_steering_rad();
+        if(lookup_tb.is_ready){
+            double angle_diff = getAngleDiffToTargetPoint();
+            double target_delta;
+            getLookupTablebasedDelta(target_delta, angle_diff, m_lookahead_distance,cur_state.vx);
+             cmd_msg.drive.steering_angle = target_delta;
+        }else{
+          cmd_msg.drive.steering_angle = compute_steering_rad();
+        }        
         // std::cout << "drive.steering_angle  =  " << cmd_msg.drive.steering_angle  << std::endl;
     // Use velocity of the next immediate trajectory point as the target velocity
     // ROS_INFO("steering = %f", cmd_msg.drive.steering_angle);
@@ -101,6 +159,7 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
   return cmd_msg;
 }
+
 
 visualization_msgs::Marker PurePursuit::getTargetPointhMarker(){
   

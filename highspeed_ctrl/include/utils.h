@@ -38,6 +38,9 @@
 #include <gsl/gsl_spline2d.h>
 #include <gsl/gsl_errno.h>
 
+
+
+
 double dist(double x1, double y1, double x2, double y2);
 double projectToLine(double x, double y, double cx1, double cy1, double cx2, double cy2, double& px, double& py);
 
@@ -170,4 +173,5 @@ void frenToCarticians(std::vector<VehicleState> & states, const Trajectory& cent
 
 std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double>& y);
 
-void genInterpolatedGrid(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z);
+void genInterpolatedGrid(const std::vector<double>& x_min_max, 
+                         const std::vector<double>& y_min_max,const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z);

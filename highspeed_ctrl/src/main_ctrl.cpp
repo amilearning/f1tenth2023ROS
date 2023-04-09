@@ -45,6 +45,13 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   nh_p.param<double>("lr", lr, 0.165);
   nh_p.param<double>("mass", mass, 2.0);    
   nh_p.param<double>("dt", dt, 0.04); 
+
+  nh_p.param<std::string>("pp_lookup_table_file_name", pp_lookup_table_file_name, "lookuptb.txt");   
+
+  std::string package_path = ros::package::getPath("highspeed_ctrl");
+  std::string lookuptable = package_path + "/path/" +pp_lookup_table_file_name;
+  pp_ctrl.readLookuptable(lookuptable);
+ 
   
   waypointSub = nh_traj.subscribe(waypoint_topic, 2, &Ctrl::callbackRefPath, this);
   
@@ -201,6 +208,7 @@ void Ctrl::callbackRefPath(const hmcl_msgs::Lane::ConstPtr &msg)
 
 int main (int argc, char** argv)
 {
+
 
   
 

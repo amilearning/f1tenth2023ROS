@@ -18,7 +18,7 @@
 #include <ros/package.h>
 #include <ros/ros.h>
 #include <ros/time.h>
-
+#include <tf/tf.h>
 #include "std_srvs/Trigger.h"
 #include <vector>
 #include <Eigen/Dense>
@@ -29,9 +29,154 @@
 #include "std_msgs/ColorRGBA.h"
 #include "state.h"
 #include "trajectory.h"
+#include "utils.h"
 
 #include <visualization_msgs/Marker.h>
 
+#include <iostream>
+#include <fstream>
+#include <string>
+
+
+
+
+
+
+
+class BicubicSplineLookupTable{
+public:
+    BicubicSplineLookupTable() : spline(nullptr), xacc(nullptr), yacc(nullptr), nx(0), ny(0), is_ready(false) {}
+
+    void setValues(std::vector<double>& x, std::vector<double>& y, std::vector<double>& z) {
+        const gsl_interp2d_type *T = gsl_interp2d_bicubic;
+        nx = x.size();
+        ny = y.size();
+
+        if (spline != nullptr) {
+            gsl_spline2d_free(spline);
+        }
+        if (xacc != nullptr) {
+            gsl_interp_accel_free(xacc);
+        }
+        if (yacc != nullptr) {
+            gsl_interp_accel_free(yacc);
+        }
+
+        spline = gsl_spline2d_alloc(T, nx, ny);
+        xacc = gsl_interp_accel_alloc();
+        yacc = gsl_interp_accel_alloc();
+
+        gsl_spline2d_init(spline, x.data(), y.data(), z.data(), nx, ny);
+        ROS_INFO("PP lookuptable ready");
+        is_ready = true;
+    }
+
+    double eval(double xval, double yval) {
+      if(!is_ready){
+        ROS_WARN("Lookuptable is not ready" );        
+        return 0.0;
+      }
+        return gsl_spline2d_eval(spline, xval, yval, xacc, yacc);
+    }
+
+ 
+
+bool read_dictionary_file(const std::string& filename, std::vector<double>& x, std::vector<double>& y, std::vector<double>& z) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Warning: unable to open file " << filename << std::endl;
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        size_t pos = line.find("=");
+        if (pos == std::string::npos) {
+            continue;
+        }
+        std::string field = line.substr(0, pos);
+        std::string values_str = line.substr(pos+1);
+        std::istringstream iss(values_str);
+
+        if (field == "alat") {
+            double value;
+            while (iss >> value) {
+                x.push_back(value);
+                if (iss.peek() == ',') {
+                    iss.ignore();
+                }
+            }
+        }
+        else if (field == "vx") {
+            double value;
+            while (iss >> value) {
+                y.push_back(value);
+                if (iss.peek() == ',') {
+                    iss.ignore();
+                }
+            }
+        }
+        else if (field == "delta") {
+            double value;
+            while (iss >> value) {
+                z.push_back(value);
+                if (iss.peek() == ',') {
+                    iss.ignore();
+                }
+            }
+        }
+    }
+
+    file.close();
+
+    if (z.size() != x.size() * y.size()) {
+        std::cerr << "Warning: size of extracted z array is not equal to the multiplication of the size of x and y" << std::endl;
+        return false;
+    }else{
+      return true;
+    }
+    
+}
+
+   ~BicubicSplineLookupTable() {
+        if (spline != nullptr) {
+            gsl_spline2d_free(spline);
+        }
+        if (xacc != nullptr) {
+            gsl_interp_accel_free(xacc);
+        }
+        if (yacc != nullptr) {
+            gsl_interp_accel_free(yacc);
+        }
+    }
+
+    bool is_ready;
+private:
+    gsl_spline2d *spline;
+    gsl_interp_accel *xacc;
+    gsl_interp_accel *yacc;
+    size_t nx;
+    size_t ny;
+    
+};
+
+// std::vector<double> x = {-2.0, -1.0, 0.0, 1.0, 2.0};
+// std::vector<double> y = {-2.0, -1.0, 0.0, 1.0, 2.0};
+// std::vector<double> z = {0.0, 3.0, 4.0, 3.0, 0.0, -3.0, 0.0, 1.0, 0.0, -3.0, -4.0, -1.0, 0.0, -1.0, -4.0, -3.0, 0.0, 1.0, 0.0, -3.0, 0.0, 3.0, 4.0, 3.0, 0.0};
+
+// BiCubicSpline spline;
+// spline.setValues(x, y, z);
+// double val = spline.eval(-1.5, 1.0);
+
+
+
+
+
+
+
+
+
+  ///////////////
 
 /// \brief Given a trajectory and the current state, compute the control command
 class PurePursuit
@@ -40,6 +185,7 @@ public:
   PurePursuit(const ros::NodeHandle& nh_ctrl);
   void update_vehicleState(const VehicleState & state);
   void update_ref_traj(const Trajectory & ref);
+  void readLookuptable(const std::string& filename);
   
   ackermann_msgs::AckermannDriveStamped compute_command();
   PathPoint get_target_point();
@@ -57,7 +203,8 @@ private:
   void compute_lookahead_distance(const double current_velocity);
 
   bool compute_target_point(const double & lookahead_distance, PathPoint & target_point_, int & near_idx);
-
+  bool getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx);
+  double getAngleDiffToTargetPoint();
   double compute_points_distance_squared(
     const PathPoint & point1,
     const PathPoint & point2);
@@ -72,6 +219,9 @@ private:
   /// \param[in] current_point The current position and velocity information
   /// \return the computed steering angle (radian)
    double compute_steering_rad();
+
+ 
+   
   
 
   double m_lookahead_distance;
@@ -81,7 +231,7 @@ private:
   const double dt;
   Trajectory local_traj;
   VehicleState cur_state;
-  
+  BicubicSplineLookupTable lookup_tb;
 
 
      double    minimum_lookahead_distance,

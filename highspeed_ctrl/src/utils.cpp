@@ -799,47 +799,82 @@ std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double
 
 
 
-// void genInterpolatedGrid(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z){
-//     // z <- f(x,y) mapping
-//     const gsl_interp2d_type *T = gsl_interp2d_bilinear;
-//     double resolution = 0.1;  
-//   const size_t N = int( ((std::max(x)-std::min(x))*(std::max(y)-std::min(y)) ) / (resolution * resolution)); /* number of points to interpolate */
-//   // const double xa[] = { 0.0, 1.0 }; /* define unit square */
-//   // const double ya[] = { 0.0, 1.0 };
-//   const size_t nx = x.size(); /* x grid points */
-//   const size_t ny = y.size(); /* y grid points */
-//   double *za = malloc(nx * ny * sizeof(double));
-//   gsl_spline2d *spline = gsl_spline2d_alloc(T, nx, ny);
-//   gsl_interp_accel *xacc = gsl_interp_accel_alloc();
-//   gsl_interp_accel *yacc = gsl_interp_accel_alloc();
-//   size_t i, j;
+void genInterpolatedGrid(const std::vector<double>& x_min_max, 
+                         const std::vector<double>& y_min_max,
+                         const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z){
 
-//   /* set z grid values */
-//   gsl_spline2d_set(spline, za, 0, 0, 0.0);
-//   gsl_spline2d_set(spline, za, 0, 1, 1.0);
-//   gsl_spline2d_set(spline, za, 1, 1, 0.5);
-//   gsl_spline2d_set(spline, za, 1, 0, 1.0);
+          const gsl_interp2d_type *T = gsl_interp2d_bicubic;
+  double xa[] = {-2.0, -1.0, 0.0, 1.0, 2.0};
+  double ya[] = {-2.0, -1.0, 0.0, 1.0, 2.0};
+  double za[] = {0.0, 3.0, 4.0, 3.0, 0.0, -3.0, 0.0, 1.0, 0.0, -3.0, -4.0, -1.0, 0.0, -1.0, -4.0, -3.0, 0.0, 1.0, 0.0, -3.0, 0.0, 3.0, 4.0, 3.0, 0.0};
+  // double xval[] = {1.0, 1.5, 2.0};
+  // double yval[] = {1.0, 1.5, 2.0};
+  // double zval[] = {1.2, 1.3, 1.4};
+  size_t nx = sizeof(xa) / sizeof(xa[0]);
+  size_t ny = sizeof(ya) / sizeof(ya[0]);
+  // size_t test_size = sizeof(xval) / sizeof(xval[0]);
 
-//   /* initialize interpolation */
-//   gsl_spline2d_init(spline, xa, ya, za, nx, ny);
+  gsl_spline2d *spline = gsl_spline2d_alloc(T, nx, ny);
+  gsl_interp_accel *xacc = gsl_interp_accel_alloc();
+  gsl_interp_accel *yacc = gsl_interp_accel_alloc();
 
-//   /* interpolate N values in x and y and print out grid for plotting */
-//   for (i = 0; i < N; ++i)
-//     {
-//       double xi = i / (N - 1.0);
+  gsl_spline2d_init(spline, xa, ya, za, nx, ny);
 
-//       for (j = 0; j < N; ++j)
-//         {
-//           double yj = j / (N - 1.0);
-//           double zij = gsl_spline2d_eval(spline, xi, yj, xacc, yacc);
+  printf("-1.5 and 1.0 : %f\n", gsl_spline2d_eval(spline,-1.5,1.0,xacc, yacc));
+  printf("1.0 and -1.5 : %f\n", gsl_spline2d_eval(spline,1.0,-1.5,xacc, yacc));
 
-//           printf("%f %f %f\n", xi, yj, zij);
-//         }
-//       printf("\n");
-//     }
+    gsl_spline2d_free(spline);
+  gsl_interp_accel_free(xacc);
+  gsl_interp_accel_free(yacc);
+    // free(za);
 
-//   gsl_spline2d_free(spline);
-//   gsl_interp_accel_free(xacc);
-//   gsl_interp_accel_free(yacc);
-//   free(za);
-// }
+
+  //   if(x.size() != y.size() || x.size()!= z.size() || y.size() != z.size()){
+  //     std::cout << "Size does not match 2D interpolation Fail"<<std::endl;
+  //   }
+  //   // z <- f(x,y) mapping
+  //   const gsl_interp2d_type *T = gsl_interp2d_bilinear;
+  //   double resolution = 0.1;  
+
+  // // const size_t N = 100;             /* number of points to interpolate */
+  // const double xa[] = { x_min_max[0]-1, x_min_max[1]+1}; 
+  // const double ya[] = { y_min_max[0]-1, y_min_max[1]+1}; 
+  // const size_t nx = sizeof(xa) / sizeof(xa[0]); /* x grid points */
+  // const size_t ny = sizeof(ya) / sizeof(ya[0]); /* y grid points */
+
+  // const size_t N =int((*max_element(x.begin(), x.end())-*min_element(x.begin(), x.end()))*
+  //                      (*max_element(y.begin(), y.end())-*min_element(y.begin(), y.end()))/
+  //                      (resolution * resolution)); /* number of points to interpolate */
+  // // const double xa[] = { 0.0, 1.0 }; /* define unit square */
+  // // const double ya[] = { 0.0, 1.0 };
+  // // const size_t nx = x.size(); /* x grid points */
+  // // const size_t ny = y.size(); /* y grid points */
+  // // double *za = malloc(nx * ny * sizeof(double));
+  // double *za = static_cast<double*>(malloc(nx * ny * sizeof(double)));
+
+  // gsl_spline2d *spline = gsl_spline2d_alloc(T, nx, ny);
+  // gsl_interp_accel *xacc = gsl_interp_accel_alloc();
+  // gsl_interp_accel *yacc = gsl_interp_accel_alloc();
+  // size_t i, j;
+
+  // /* set z grid values */
+  // for (int i=0;i<x.size();i++){    
+  //     gsl_spline2d_set(spline, za, x[i], y[i], z[i]);
+  // }
+  // /* initialize interpolation */
+  // gsl_spline2d_init(spline, x.data(), y.data(), z.data(), nx, ny);
+
+  // /* interpolate N values in x and y and print out grid for plotting */
+  // for (int i=0; i < x.size(); ++i){
+  //     double zij = gsl_spline2d_eval(spline, x[i], y[i], xacc, yacc);
+  //     if(z[i]- zij < 1e-2){
+  //       std::cout << "interpolation has big error or fail"<<std::endl;
+  //     }
+  // }
+  // std::cout << "interpolation done without failure"<<std::endl;
+  
+  // gsl_spline2d_free(spline);
+  // gsl_interp_accel_free(xacc);
+  // gsl_interp_accel_free(yacc);
+  // free(za);
+}
