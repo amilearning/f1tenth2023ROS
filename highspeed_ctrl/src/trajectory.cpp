@@ -62,6 +62,8 @@ void Trajectory::erase_to(const int & idx){
 
 unsigned int Trajectory::size() const
 {
+ 
+  
   if (x.size() == y.size() && x.size() == z.size() && x.size() == yaw.size() &&
       x.size() == vx.size() && x.size() == k.size() && x.size() == relative_time.size())
   {

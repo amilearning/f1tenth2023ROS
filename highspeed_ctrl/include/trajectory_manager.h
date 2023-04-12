@@ -42,6 +42,7 @@
 #include "trajectory.h"
 #include "utils.h"
 
+
 class PathLogger {
 public:
     PathLogger(double threshold) : threshold_(threshold) {
@@ -185,12 +186,15 @@ public:
     void log_odom(const nav_msgs::Odometry& odom);
     visualization_msgs::Marker traj_to_marker(const Trajectory & traj, const std_msgs::ColorRGBA & color_);
     
-    void updatelookaheadPath(const VehicleState& vehicle_state, const double& length);
+    void updatelookaheadPath(const VehicleState& vehicle_state, const double& length,  const double& curv_lookahead_path_length);
     Trajectory getlookaheadPath(); 
     Trajectory getglobalPath();
+    bool getCurvatureKeypoints(KeyPoints & key_pts);
     visualization_msgs::Marker getLocalPathMarker();
     
     visualization_msgs::Marker getGlobalPathMarker();
+    visualization_msgs::Marker getCenterLineInfo();
+    visualization_msgs::Marker keyptsToMarker(const KeyPoints & key_pts);
     int getRefTrajSize(); 
     bool is_recording();
     // // extract a lookahead path in frenet coordinate given the current position (odometry)
@@ -218,8 +222,9 @@ private:
     
     // Mutex for thread safety
     std::mutex mutex_;
-    Trajectory lookahead_traj; // local lookahead centerline
+    Trajectory lookahead_traj; // local lookahead centerline (mainly used py pp_ctrl)
     Trajectory tmp_ref_traj;  // global centerline
+    Trajectory curv_info_traj; // local lookahead centerline for curvature estimation
     
     
 };

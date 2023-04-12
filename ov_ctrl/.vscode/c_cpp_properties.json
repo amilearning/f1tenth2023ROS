@@ -1,0 +1,31 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/hjpc/ovt_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/hjpc/ovt_ws/src/any_node/any_node/include/**",
+        "/home/hjpc/ovt_ws/src/any_node/any_node_example/include/**",
+        "/home/hjpc/ovt_ws/src/any_node/any_worker/include/**",
+        "/home/hjpc/ovt_ws/src/autorally_control/include/**",
+        "/home/hjpc/ovt_ws/src/lowlevel_ctrl/include/**",
+        "/home/hjpc/ovt_ws/src/message_logger/include/**",
+        "/home/hjpc/ovt_ws/src/ov_ctrl/include/**",
+        "/home/hjpc/ovt_ws/src/any_node/param_io/include/**",
+        "/home/hjpc/ovt_ws/src/pid/include/**",
+        "/home/hjpc/ovt_ws/src/any_node/signal_handler/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

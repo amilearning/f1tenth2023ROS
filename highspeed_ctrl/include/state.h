@@ -34,7 +34,9 @@ struct ControlInput {
     
 };
 
-
+struct KeyPoints{
+    Eigen::MatrixXd s_curv; 
+};
 
 
 

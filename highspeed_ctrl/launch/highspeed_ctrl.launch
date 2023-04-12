@@ -23,6 +23,9 @@
       <param name="curvature_smoothing_num_35" value="35"/> 
       <param name="path_filter_moving_ave_num_" value="1"/> 
       <param name="lookahead_path_length" value="5.0"/> 
+      <param name="curv_lookahead_path_length" value="10.0"/> 
+
+      
       <param name="wheelbase" value="0.33"/> 
       <param name="lf" value="0.165"/> 
       <param name="lr" value="0.165"/> 

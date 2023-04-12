@@ -1,0 +1,54 @@
+
+debug_accel_zero: False  # Limit the acceleration so vehicles do not move 
+debug_mode : False
+is_simulation: True # switch off for real vehicle, and swith on for Gazebo simulation
+
+# 
+# input_prediction_swith: True 
+gt_input_prediction : False # False: enable target vehicle's input prediciton, True: target vehicle's inputs are known
+
+#For main 
+track_width : 2.0
+prediction_horizon : 10
+dt : 0.1
+mppi_n_sample: 5000
+torch_device: cuda:0
+simple_vehicle_state_dim : 4 # s(0), ey(1), epsi(2), curvature(3)
+state_history_length : 5 # store up to 5 time step --> {dt * state_history_length}(s) 
+vehicle_state_dim : 6 # s(0), ey(1), epsi(2), vx(3), vy(4), psi_dot(5)
+input_lookahead: 3
+
+opponent_dist_max : 1.8
+obstacle_safe_distance: 0.7
+
+#  FOR RacingGP
+learning_rate: 0.001
+
+fake_input_noise : False
+ 
+batch_size : 512 
+cuda : cuda:0
+saved_vae_model_dir : /home/hjpc/research/overtaking_ws/src/ov_ctrl/include/models/vae/
+vae_model_file_name : lstmvaeddb19c35.model
+
+gp_model_load : True
+saved_gp_model_dir : /home/hjpc/research/overtaking_ws/src/ov_ctrl/include/models/gp/
+gp_model_file_name : race_gp_model_215.pth
+gp_liklihood_file_name : race_gp_liklihood_215.pth
+
+input_dim_gp: 9 # including dimension of thetas (latent_size_for_vae_lstm)
+learning_rate_gp : 0.05
+num_inducing : 50
+ 
+input_size_for_vae : 7
+hidden_size_for_vae_lstm : 7
+latent_size_for_vae_lstm : 2
+learning_rate_vae : 0.001
+
+
+# Params for normalizing data 
+dist_to_activate_overtaking_strategy : 10.0
+s_diff_clip_min : -10  ## this better be opposite of " dist_to_activate_overtaking_strategy "
+ey_clip_min : -1.5  # this better be opposite of " track_width " : 1.5
+
+

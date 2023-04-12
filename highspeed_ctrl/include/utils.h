@@ -15,7 +15,7 @@
  */
 
 #pragma once
-
+#include <numeric>
 #include <cmath>
 #include <vector>
 #include <ros/ros.h>
@@ -37,7 +37,7 @@
 #include <gsl/gsl_interp2d.h>
 #include <gsl/gsl_spline2d.h>
 #include <gsl/gsl_errno.h>
-
+#include <gsl/gsl_filter.h>
 
 
 
@@ -171,7 +171,11 @@ void computeFrenet(VehicleState & state, const Trajectory& center_traj);
 void frenToCartician(VehicleState & cart_state,const VehicleState & fren_state, const Trajectory& center_traj);
 void frenToCarticians(std::vector<VehicleState> & states, const Trajectory& center_traj);
 
-std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double>& y);
+std::vector<double> compute_curvature(std::vector<double>& x_unfiltered, std::vector<double>& y_unfiltered);
+
+
+std::vector<double> moving_average(std::vector<double> data, int window_size);
+
 
 void genInterpolatedGrid(const std::vector<double>& x_min_max, 
                          const std::vector<double>& y_min_max,const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z);

@@ -108,15 +108,52 @@ double PurePursuit::getAngleDiffToTargetPoint(){
 
 
 
-bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx){
+bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy){
   if(lookup_tb.is_ready){    
-  double desired_alat = 2*vx*vx*sin(diff_angel)/(lookahead_dist+1e-7);
-  delta = lookup_tb.eval(desired_alat, vx);
+  double vt = sqrt(vx*vx + vy*vy);
+  double desired_alat = 2*vt*vt*sin(diff_angel)/(lookahead_dist+1e-7);
+  delta = lookup_tb.eval(desired_alat, vt);
   return true;
   }
   else{
     return false;
   }  
+}
+
+ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command(){
+
+  if (local_traj.size() < 2 && local_traj.x.size() < 2){
+    // ROS_INFO("local traj size not enough");
+    return cmd_msg; 
+  }
+  const auto start = std::chrono::system_clock::now();
+//   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
+  int near_idx;
+  compute_lookahead_distance(cur_state.vx);  // update m_lookahead_distance 
+  const auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
+  
+  if (is_success) {
+    // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
+        cmd_msg.header.stamp = ros::Time::now();
+        // ackermann_msg.drive.speed =  opt_vel/5.0;
+        cmd_msg.drive.speed =  compute_target_speed();
+        
+        if(lookup_tb.is_ready){
+            double angle_diff = getAngleDiffToTargetPoint();
+            double target_delta;
+            getLookupTablebasedDelta(target_delta, angle_diff, m_lookahead_distance,cur_state.vx, cur_state.vy);
+             cmd_msg.drive.steering_angle = target_delta;
+        }else{
+          cmd_msg.drive.steering_angle = compute_steering_rad();
+        }        
+
+  } else {
+        cmd_msg.header.stamp = ros::Time::now();        
+        cmd_msg.drive.speed =  0.0;
+        cmd_msg.drive.steering_angle =cur_state.delta;
+    
+  }
+  return cmd_msg;
 }
 
 ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
@@ -134,21 +171,9 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
   if (is_success) {
     // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
         cmd_msg.header.stamp = ros::Time::now();
-        
-        // ackermann_msg.drive.speed =  opt_vel/5.0;
         cmd_msg.drive.speed =  compute_target_speed();
-
-        if(lookup_tb.is_ready){
-            double angle_diff = getAngleDiffToTargetPoint();
-            double target_delta;
-            getLookupTablebasedDelta(target_delta, angle_diff, m_lookahead_distance,cur_state.vx);
-             cmd_msg.drive.steering_angle = target_delta;
-        }else{
           cmd_msg.drive.steering_angle = compute_steering_rad();
-        }        
-        // std::cout << "drive.steering_angle  =  " << cmd_msg.drive.steering_angle  << std::endl;
-    // Use velocity of the next immediate trajectory point as the target velocity
-    // ROS_INFO("steering = %f", cmd_msg.drive.steering_angle);
+ 
   } else {
         cmd_msg.header.stamp = ros::Time::now();        
         cmd_msg.drive.speed =  0.0;

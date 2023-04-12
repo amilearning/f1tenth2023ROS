@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+<group ns="target">
+    <node pkg="ov_ctrl" type="tar_main_node.py" name="target_ov_ctrl_node" output="screen">                
+        <param name="ego_vehicle_name" type="str" value="target" />
+        <param name="target_vehicle_name" type="str" value="ego" />
+    </node>
+</group>
+
+
+    
+</launch>

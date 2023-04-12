@@ -221,6 +221,8 @@ void calcTrajectoryCurvature(Trajectory &traj, int curvature_smoothing_num)
   std::vector<double> x = traj.x;
   std::vector<double> y = traj.y;
   std::vector<double> curv = compute_curvature(x,y);
+  
+  
       std::cout << "curv = [";
     for (std::vector<double>::const_iterator it = curv.begin(); it != curv.end(); ++it) {
         std::cout << *it;
@@ -274,6 +276,7 @@ void calcTrajectoryS(Trajectory &traj)
 void calcTrajectoryFrenet(Trajectory &traj, int curvature_smoothing_num){
   calcTrajectoryS(traj);
   calcTrajectoryCurvature(traj, curvature_smoothing_num);
+  
 }
 
 
@@ -722,13 +725,31 @@ void frenToCarticians(std::vector<VehicleState> & states, const Trajectory& cent
     frenToCartician(states[i], tmp_state, center_traj);
   }
 }
+  
+std::vector<double> moving_average(std::vector<double> data, int window_size) {
+    std::vector<double> weights(window_size, 1.0 / window_size);
+    // std::vector<double> filtered_data(data.size() - window_size + 1, 0.0);
+    std::vector<double> filtered_data(data.size(), 0.0);
+    for (int i = 0; i < filtered_data.size(); i++) {
+        filtered_data[i] = std::inner_product(data.begin() + i, data.begin() + i + window_size, weights.begin(), 0.0);
+    }
+
+    for (int i=data.size()-window_size-1; i < data.size(); i++){
+        filtered_data[i] = data[data.size()-1];
+        
+    }
+    return filtered_data;
+}
 
 
+std::vector<double> compute_curvature(std::vector<double>& x_unfiltered, std::vector<double>& y_unfiltered) {
+    int window_size = 10;
+    std::vector<double> x = moving_average(x_unfiltered, window_size);
+    std::vector<double> y = moving_average(y_unfiltered, window_size);
 
-
-std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double>& y) {
     // the distance between x, y should be evenly spaced.
     // Resample input data to ensure evenly spaced points
+
     int n_interp =x.size();
     std::vector<double> t(n_interp);
     for (int i = 0; i < n_interp; i++) {
@@ -794,7 +815,9 @@ std::vector<double> compute_curvature(std::vector<double>& x, std::vector<double
     gsl_interp_accel_free(accel_x);
     gsl_interp_accel_free(accel_y);
 
-    return curvature;
+    std::vector<double> filtered_curvature = moving_average(curvature, window_size);
+
+    return filtered_curvature;
 }
 
 

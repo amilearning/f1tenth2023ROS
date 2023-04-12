@@ -188,6 +188,8 @@ public:
   void readLookuptable(const std::string& filename);
   
   ackermann_msgs::AckermannDriveStamped compute_command();
+  ackermann_msgs::AckermannDriveStamped compute_model_based_command();
+  
   PathPoint get_target_point();
    visualization_msgs::Marker getTargetPointhMarker();
 
@@ -203,7 +205,7 @@ private:
   void compute_lookahead_distance(const double current_velocity);
 
   bool compute_target_point(const double & lookahead_distance, PathPoint & target_point_, int & near_idx);
-  bool getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx);
+  bool getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy);
   double getAngleDiffToTargetPoint();
   double compute_points_distance_squared(
     const PathPoint & point1,

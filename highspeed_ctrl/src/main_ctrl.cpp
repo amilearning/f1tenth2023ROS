@@ -29,7 +29,8 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   my_steering_ok_(false),
   my_position_ok_(false),
   my_odom_ok_(false),
-  ego_vehicle(0.1)
+  ego_vehicle(0.1),
+  ctrl_select(0)
 {
   
   nh_p.param<std::string>("status_topic", status_topic, "/vehicle_status");  
@@ -40,6 +41,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   nh_p.param<int>("curvature_smoothing_num_", curvature_smoothing_num_, 35);
   nh_p.param<int>("path_filter_moving_ave_num_", path_filter_moving_ave_num_, 35);  
   nh_p.param<double>("lookahead_path_length", lookahead_path_length, 5.0);
+  nh_p.param<double>("curv_lookahead_path_length", curv_lookahead_path_length, 10.0);
   nh_p.param<double>("wheelbase", wheelbase, 0.33);
   nh_p.param<double>("lf", lf, 0.165);
   nh_p.param<double>("lr", lr, 0.165);
@@ -55,8 +57,13 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   
   waypointSub = nh_traj.subscribe(waypoint_topic, 2, &Ctrl::callbackRefPath, this);
   
+
   odomSub = nh_traj.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
+  
+  fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("/fren_pose",1);
   global_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("global_traj", 1);
+  centerlin_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/centerline_info", 1);
+  keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
   target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("target_point", 1);
   local_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("local_traj", 1);
   pred_traj_marker_pub = nh_traj.advertise<visualization_msgs::MarkerArray>("predicted_traj", 1);
@@ -90,6 +97,16 @@ void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odom
           if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording()){
          
             computeFrenet(vehicle_state, traj_manager.getglobalPath());
+            geometry_msgs::PoseStamped fren_pose_;
+            fren_pose_.header = odom.header;
+            fren_pose_.pose.position.x = vehicle_state.s;
+            fren_pose_.pose.position.y = vehicle_state.ey;
+            fren_pose_.pose.position.z = vehicle_state.epsi;
+            fren_pose_.pose.orientation.x = vehicle_state.vx;
+            fren_pose_.pose.orientation.y = vehicle_state.vy;
+            fren_pose_.pose.orientation.z = vehicle_state.wz;
+            fren_pose_.pose.orientation.w = vehicle_state.delta;            
+            fren_pub.publish(fren_pose_);
             traj_manager.frenet_ready = true;
           }      
           // std:cout << "yaw" << vehicle_state.yaw <<" epsi= " <<  vehicle_state.epsi << "s = " <<vehicle_state.s << std::endl;
@@ -149,23 +166,43 @@ void Ctrl::ControlLoop()
     while (ros::ok()){         
         auto start = std::chrono::steady_clock::now();        
         
-        traj_manager.updatelookaheadPath(cur_state,lookahead_path_length);
+        traj_manager.updatelookaheadPath(cur_state,lookahead_path_length, curv_lookahead_path_length);
+        KeyPoints curv_key_pts;        
+        if(traj_manager.getCurvatureKeypoints(curv_key_pts)){
+          visualization_msgs::Marker key_pts_marker = traj_manager.keyptsToMarker(curv_key_pts);
+          keypts_info_pub.publish(key_pts_marker);
+        }
         visualization_msgs::Marker global_traj_marker = traj_manager.getGlobalPathMarker();
+        visualization_msgs::Marker centerline_info_marker = traj_manager.getCenterLineInfo();
         visualization_msgs::Marker local_traj_marker = traj_manager.getLocalPathMarker();
         global_traj_marker_pub.publish(global_traj_marker);
         local_traj_marker_pub.publish(local_traj_marker);
+        if(centerline_info_marker.points.size() > 5){
+            centerlin_info_pub.publish(centerline_info_marker);
+        }
+        
     
 
-        // Purepursuit Computation 
+
+          ackermann_msgs::AckermannDriveStamped pp_cmd;
+        if(ctrl_select == 1){
+                  // Purepursuit Computation 
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
         visualization_msgs::Marker targetPoint_marker = pp_ctrl.getTargetPointhMarker();
         target_pointmarker_pub.publish(targetPoint_marker);
-       
-        ackermann_msgs::AckermannDriveStamped pp_cmd = pp_ctrl.compute_command();
+           pp_cmd = pp_ctrl.compute_command();
+        }else if(ctrl_select ==2){
+                // Model based Purepursuit Computation 
+        pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
+        visualization_msgs::Marker targetPoint_marker = pp_ctrl.getTargetPointhMarker();
+        target_pointmarker_pub.publish(targetPoint_marker);
+          pp_cmd = pp_ctrl.compute_model_based_command();
+        }
+        
         // pp_cmd.drive.speed = 0.0;
         // pp_cmd.drive.steering_angle = 0.0;
 
-        if(!traj_manager.is_recording()){
+        if(!traj_manager.is_recording() && ctrl_select > 0){
           ackmanPub.publish(pp_cmd);
           cur_state.delta = pp_cmd.drive.steering_angle;          
         }
@@ -187,6 +224,8 @@ void Ctrl::ControlLoop()
 
 void Ctrl::dyn_callback(highspeed_ctrl::testConfig &config, uint32_t level)
 {
+  ROS_INFO("Dynamiconfigure updated");  
+  ctrl_select = config.ctrl_switch_param;
   return ;
   // ROS_INFO("Dynamiconfigure updated");
   // config_switch = config.config_switch;

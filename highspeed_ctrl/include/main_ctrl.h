@@ -96,7 +96,7 @@ VehicleState cur_state, prev_state; //< @brief vehicle status
 bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex mtx_;
 ros::Subscriber  waypointSub,  odomSub;
-ros::Publisher  pred_traj_marker_pub, target_pointmarker_pub, ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
+ros::Publisher  keypts_info_pub, fren_pub, centerlin_info_pub, pred_traj_marker_pub, target_pointmarker_pub, ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
 
 
 
@@ -114,11 +114,13 @@ int path_filter_moving_ave_num_, curvature_smoothing_num_, path_smoothing_times_
 double error_deriv_lpf_curoff_hz;
 std::string pp_lookup_table_file_name, vel_cmd_topic, control_topic, pose_topic, vehicle_states_topic, waypoint_topic, odom_topic, status_topic, simstatus_topic, steer_cmd_topic;
 
-double lookahead_path_length, wheelbase, lf, lr, mass, dt;
+double curv_lookahead_path_length, lookahead_path_length, wheelbase, lf, lr, mass, dt;
 
 
 bool config_switch;
 VehicleDynamics ego_vehicle;
+
+int ctrl_select;
 
 
 public:
