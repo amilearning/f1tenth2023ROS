@@ -11,16 +11,23 @@
         <remap from="/vesc/ackermann_cmd" to="/vesc/high_level/ackermann_cmd_mux/input/nav_0"/>
 
         
+      <param name="waypoint_topic" value="/track_info"/> 
 
-
-      <param name="Pminimum_lookahead_distance" value="1.0"/> 
-      <param name="Pmaximum_lookahead_distance" value="1.1"/> 
-      <param name="Pspeed_to_lookahead_ratio" value="1.0"/> 
+      <param name="Pminimum_lookahead_distance" value="0.8"/> 
+      <param name="Pmaximum_lookahead_distance" value="2.5"/> 
+      <param name="Pspeed_to_lookahead_ratio" value="0.6"/> 
+      
       <param name="Pemergency_stop_distance" value="0.0"/> 
       <param name="Pspeed_thres_traveling_direction" value="0.0"/> 
       <param name="Pmax_acceleration" value="50.0"/> 
       <param name="Pdistance_front_rear_wheel" value="0.33"/> 
-      <param name="vel_lookahead_ratio" value="1.0"/> 
+
+      <param name="vel_lookahead_ratio" value="0.5"/>       
+      <param name="speed_minimum_lookahead_distance" value="0.0"/> 
+      <param name="speed_maximum_lookahead_distance" value="2.5"/> 
+
+      <param name="x_vel_filter_cutoff" value="10.0"/> 
+      <param name="y_vel_filter_cutoff" value="8.0"/> 
 
       <param name="odom_topic" value="/pose_odom_virtual"/> 
 

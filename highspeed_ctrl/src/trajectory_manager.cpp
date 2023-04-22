@@ -196,17 +196,24 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
     double total_dist = 0.0;
     int start_idx = closest_idx;
     int end_idx = closest_idx;
+    int max_count = 0;
     while (total_dist < length) {
-        
+        ++max_count;
         if (end_idx < tmp_ref_traj.size() - 1) {
             double dist = std::sqrt(std::pow(tmp_ref_traj.x[end_idx] - tmp_ref_traj.x[end_idx+1], 2.0) +std::pow(tmp_ref_traj.y[end_idx] - tmp_ref_traj.y[end_idx+1], 2.0));
             if (total_dist + dist < length) {
                 total_dist += dist;
                 ++end_idx;
             } else {
+                
                 break;
             }
         }else{
+            // loop again to begin of track
+            end_idx = 0;
+            // break;
+        }
+        if(max_count > 1e6){
             break;
         }
     }
@@ -230,6 +237,7 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
             }
         }else{
             break;
+            
         }
     }
 

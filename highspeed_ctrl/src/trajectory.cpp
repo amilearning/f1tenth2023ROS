@@ -103,9 +103,47 @@ Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
       );
     }
   }
-  else
-  {
-    std::cerr << "[MPC trajectory] Invalid indices for get_segment" << std::endl;
+ else if(start_idx > end_idx)
+  { // start_idx >= end_idx  --> (start ~ end of traj) + (begining_of_traj + end) 
+         for (size_t i = start_idx; i < x.size(); ++i){
+           segment.push_back(x[i],
+                                y[i],
+                                z[i],
+                                yaw[i],
+                                vx[i],
+                                vy[i],
+                                k[i],
+                                relative_time[i],
+                                s[i]
+          );
+         }
+
+         for (size_t i = 0; i <= end_idx; ++i){
+           segment.push_back(x[i],
+                                y[i],
+                                z[i],
+                                yaw[i],
+                                vx[i],
+                                vy[i],
+                                k[i],
+                                relative_time[i],
+                                s[i]
+          );
+         }
+
+    
+  }
+  else{
+    segment.push_back(x[start_idx],
+                                y[start_idx],
+                                z[start_idx],
+                                yaw[start_idx],
+                                vx[start_idx],
+                                vy[start_idx],
+                                k[start_idx],
+                                relative_time[start_idx],
+                                s[start_idx]
+          );
   }
 
   return segment;

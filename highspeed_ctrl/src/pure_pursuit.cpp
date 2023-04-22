@@ -38,11 +38,16 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
+    
     debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
     ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
     ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
     ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
     ctrl_nh.param<double>("Pemergency_stop_distance", emergency_stop_distance,0.0);
+    
+    ctrl_nh.param<double>("speed_minimum_lookahead_distance", speed_minimum_lookahead_distance,0.0);
+    ctrl_nh.param<double>("speed_maximum_lookahead_distance", speed_maximum_lookahead_distance,0.4);
+    
     // ctrl_nh.param<double>("Pspeed_thres_traveling_direction", 0.0);
     ctrl_nh.param<double>("Pmax_acceleration", max_acceleration, 50.0);
     ctrl_nh.param<double>("Pdistance_front_rear_wheel",distance_front_rear_wheel,  0.33);
@@ -59,6 +64,8 @@ bool PurePursuit::updateParamCallback(std_srvs::Trigger::Request& req, std_srvs:
     ctrl_nh.getParam("vel_lookahead_ratio",vel_lookahead_ratio);    
     ctrl_nh.getParam("Pminimum_lookahead_distance",minimum_lookahead_distance);    
     ctrl_nh.getParam("Pmaximum_lookahead_distance",maximum_lookahead_distance);    
+    ctrl_nh.getParam("speed_minimum_lookahead_distance",speed_minimum_lookahead_distance);    
+    ctrl_nh.getParam("speed_maximum_lookahead_distance",speed_maximum_lookahead_distance);  
     ctrl_nh.getParam("Pspeed_to_lookahead_ratio",speed_to_lookahead_ratio);    
     ctrl_nh.getParam("Pemergency_stop_distance",emergency_stop_distance);    
     // nh_->get_parameter("Pspeed_thres_traveling_direction",speed_thres_traveling_direction);    
@@ -87,8 +94,8 @@ void PurePursuit::readLookuptable(const std::string& filename){
 
   if(lookup_tb.read_dictionary_file(filename, x_data,y_data,z_data))
     { 
-      
-      lookup_tb.setValues(x_data,y_data,z_data);}
+      lookup_tb.setValues(x_data,y_data,z_data);
+      }
     
 }
 
@@ -157,7 +164,6 @@ double PurePursuit::getAngleDiffToTargetPoint(){
 
 bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy){
   if(lookup_tb.is_ready){    
-  
   double vt = sqrt(vx*vx + vy*vy);
   if (vt < 1.0){
     vt = 1.0;
@@ -176,8 +182,8 @@ bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_an
   desired_alat = clamp(desired_alat, lookup_tb.alat_min, lookup_tb.alat_max);
    
   ////////////// GGUMZZIKHAE
-  std::cout << " filtered vt = " << vt << std::endl;
-  std::cout << " filtered desired_alat = " << desired_alat << std::endl;
+  std::cout << " clamped vt = " << vt << std::endl;
+  std::cout << " clamped desired_alat = " << desired_alat << std::endl;
 
   double unsigned_delta = lookup_tb.eval(desired_alat, vt);
   
@@ -188,7 +194,7 @@ bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_an
   }else{
     delta = -1*abs(unsigned_delta);
   }
-  std::cout << " delta = " << delta << std::endl;
+
 
   geometry_msgs::PoseStamped debug_msg;
   debug_msg.header.stamp = ros::Time::now();
@@ -274,19 +280,31 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 }
 
 
-visualization_msgs::Marker PurePursuit::getTargetPointhMarker(){
+visualization_msgs::Marker PurePursuit::getTargetPointhMarker(int point_idx){
+  double x_, y_;
+    std_msgs::ColorRGBA  lookahead_point_color;
+  if (point_idx > 0){
+    x_ = m_target_point[0];
+    y_ = m_target_point[1];
   
-  std_msgs::ColorRGBA  lookahead_point_color;        
   lookahead_point_color.b = 1.0;
   lookahead_point_color.a = 1.0;
+  }else{
+    x_ = m_speed_target_point[0];
+    y_ = m_speed_target_point[1];          
+  lookahead_point_color.r = 1.0;
+  lookahead_point_color.b = 1.0;
+  lookahead_point_color.a = 1.0;
+  }
+
   visualization_msgs::Marker marker;
   marker.header.frame_id = "map";
   marker.header.stamp = ros::Time::now();
   marker.type = visualization_msgs::Marker::SPHERE;
   marker.action = visualization_msgs::Marker::ADD;
   // Set the pose of the marker to the position of the point
-  marker.pose.position.x = m_target_point[0];
-  marker.pose.position.y = m_target_point[1];
+  marker.pose.position.x = x_;
+  marker.pose.position.y = y_;
   marker.pose.position.z = 0.0;
   // Set the scale of the marker
   marker.scale.x = 0.3;
@@ -297,18 +315,35 @@ visualization_msgs::Marker PurePursuit::getTargetPointhMarker(){
   marker.color = lookahead_point_color;
   return marker;
 
- 
  }
 
 PathPoint PurePursuit::get_target_point(){
     return m_target_point;
 } 
 
+PathPoint PurePursuit::get_speed_target_point(){
+    return m_speed_target_point;
+} 
+
+void PurePursuit::set_manual_lookahead(const bool target_switch, const bool speed_switch, const double dist_lookahead,const double speed_lookahead){
+   manual_target_lookahead = target_switch;
+   manual_speed_lookahead = speed_switch;
+   manual_target_lookahead_value = dist_lookahead;
+   manual_speed_lookahead_value = speed_lookahead;
+}
+
 double PurePursuit::compute_target_speed(){
-     PathPoint target_point;
+    //  PathPoint target_point;
      int near_idx;
      double vel_lookahed_dist = fabs(cur_state.vx*vel_lookahead_ratio);
-    compute_target_point(vel_lookahed_dist, target_point, near_idx); 
+       vel_lookahed_dist =
+    std::max(speed_minimum_lookahead_distance,
+    std::min(vel_lookahed_dist, speed_maximum_lookahead_distance));
+    
+    if(manual_speed_lookahead){
+     vel_lookahed_dist =  manual_speed_lookahead_value;
+    }
+    compute_target_point(vel_lookahed_dist, m_speed_target_point, near_idx); 
     if (near_idx >= local_traj.size()-1){
         near_idx = local_traj.size()-1;
     }
@@ -319,10 +354,16 @@ double PurePursuit::compute_target_speed(){
 ////////////////////////////////////////////////////////////////////////////////
 void PurePursuit::compute_lookahead_distance(const double current_velocity)
 {
-  const double lookahead_distance = fabs(current_velocity * speed_to_lookahead_ratio);
+  // const double lookahead_distance = fabs(current_velocity * speed_to_lookahead_ratio);
+  const double lookahead_distance = current_velocity *1.8-2.9;
   m_lookahead_distance =
     std::max(minimum_lookahead_distance,
     std::min(lookahead_distance, maximum_lookahead_distance));
+   
+    if(manual_target_lookahead){
+      m_lookahead_distance = manual_target_lookahead_value;
+
+    }
     
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,7 +379,8 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
   int idx = 0;
 //   uint32_t last_idx_for_noupdate = 0U;
   int last_idx_for_noupdate = 0;
-  
+  bool find_within_lap = false;
+  double cum_dist = 0;
   for (idx = 0; idx <   local_traj.size(); ++idx) {
     PathPoint target_point_tmp;
     target_point_tmp << local_traj.x[idx], local_traj.y[idx];
@@ -346,27 +388,54 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
     last_idx_for_noupdate = idx;
 
       // Search the closest point over the lookahead distance
-      if (compute_points_distance_squared(current_point, target_point_tmp) >=lookahead_distance)
+      cum_dist = compute_points_distance_squared(current_point, target_point_tmp); 
+      if (cum_dist >=lookahead_distance)
       {
         target_point_ = target_point_tmp;
-        
+        find_within_lap = true;
         break;
       }
    
   }
 
-  bool is_success = true;
-  // If all points are within the distance threshold,
-  if (idx == local_traj.size()) {
-      // use the farthest target index in the traveling direction      
-      target_point_ << local_traj.x[last_idx_for_noupdate], local_traj.y[last_idx_for_noupdate];      
+  // if we meet the end of trajectory recompute from the initial 
+  if(!find_within_lap){
+    ROS_INFO("finish line close");
+   
+    PathPoint init_point;
+    init_point <<  local_traj.x[0], local_traj.y[0];
+    for(int iidx = 0;iidx <  local_traj.size(); ++iidx){
+      PathPoint target_point_tmp;
+      target_point_tmp << local_traj.x[iidx], local_traj.y[iidx];
+      last_idx_for_noupdate = iidx;
+      if (compute_points_distance_squared(init_point, target_point_tmp) >=lookahead_distance-cum_dist)
+      {
+        target_point_ = target_point_tmp;        
+        break;
+      }
+
+    }
+    
   }
 
+  
+
+
+  bool is_success = true;
+  // If all points are within the distance threshold,
+  // if (idx == local_traj.size()) {
+  //     // use the farthest target index in the traveling direction      
+  //     target_point_ << local_traj.x[last_idx_for_noupdate], local_traj.y[last_idx_for_noupdate];      
+  // }
+
     // if the target point is too close to stop within 0.2sec 
-  if(compute_points_distance_squared(current_point, target_point_) < cur_state.vx*0.2){
-    is_success = false;
-  }
+  // if(compute_points_distance_squared(current_point, target_point_) < cur_state.vx*0.2){
+  //   is_success = false;
+  // }
   near_idx = last_idx_for_noupdate;
+  target_point_ << local_traj.x[near_idx], local_traj.y[near_idx];
+  // ROS_INFO("near_idx = %d", near_idx);
+  // ROS_INFO("target_point_ = %f,   %f", target_point_[near_idx], target_point_[near_idx]);
 
   return is_success;
 }

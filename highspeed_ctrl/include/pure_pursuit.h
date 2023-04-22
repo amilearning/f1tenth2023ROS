@@ -43,7 +43,6 @@
 
 
 
-
 class BicubicSplineLookupTable{
 public:
     BicubicSplineLookupTable() : spline(nullptr), xacc(nullptr), yacc(nullptr), nx(0), ny(0), is_ready(false) {}
@@ -176,9 +175,7 @@ private:
     gsl_interp_accel *xacc;
     gsl_interp_accel *yacc;
     size_t nx;
-    size_t ny;
-    
-  
+    size_t ny;     
     
 };
 
@@ -213,8 +210,9 @@ public:
   ackermann_msgs::AckermannDriveStamped compute_model_based_command();
   
   PathPoint get_target_point();
-   visualization_msgs::Marker getTargetPointhMarker();
-
+  PathPoint get_speed_target_point();
+  visualization_msgs::Marker getTargetPointhMarker(int point_idx);
+    void set_manual_lookahead(const bool target_switch, const bool speed_switch, const double dist_lookahead,const double speed_lookahead);
 
 
 private:
@@ -222,6 +220,7 @@ private:
   ros::NodeHandle ctrl_nh;
   ros::ServiceServer update_param_srv;    
   bool updateParamCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res);
+  
   
   double compute_target_speed();
   void compute_lookahead_distance(const double current_velocity);
@@ -249,14 +248,15 @@ private:
   
 
   double m_lookahead_distance;
-  PathPoint m_target_point;
+  PathPoint m_target_point, m_speed_target_point;
   ackermann_msgs::AckermannDriveStamped cmd_msg;
   
   const double dt;
   Trajectory local_traj;
   VehicleState cur_state;
   BicubicSplineLookupTable lookup_tb;
-
+    bool manual_target_lookahead, manual_speed_lookahead;
+    double manual_target_lookahead_value, manual_speed_lookahead_value;
 
      double    minimum_lookahead_distance,
                 maximum_lookahead_distance,
@@ -264,8 +264,10 @@ private:
                 emergency_stop_distance,
                 speed_thres_traveling_direction,
                 max_acceleration,
-                distance_front_rear_wheel,
-                vel_lookahead_ratio;
+                distance_front_rear_wheel,                
+                vel_lookahead_ratio,
+                speed_minimum_lookahead_distance,
+                speed_maximum_lookahead_distance;
 
 
      bool is_interpolate_lookahead_point, is_delay_compensation;

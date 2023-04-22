@@ -135,6 +135,47 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     ofs.close();
     }
 
+
+    void updataPath(const visualization_msgs::MarkerArray& marker_data){
+        ref_traj.clear();
+        // Read the path from the file
+      
+        double x, y,  vx, yaw, roll, pitch;
+        for(int i=0; i < marker_data.markers.size(); i++){
+            x = marker_data.markers[i].pose.position.x;
+            y = marker_data.markers[i].pose.position.y;
+            vx = marker_data.markers[i].pose.position.z;
+            
+            tf::Quaternion q(marker_data.markers[i].pose.orientation.x,
+                            marker_data.markers[i].pose.orientation.y,
+                            marker_data.markers[i].pose.orientation.z,
+                            marker_data.markers[i].pose.orientation.w);                            
+            q.normalize();
+            // Extract the yaw angle from the quaternion object                
+            tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+              ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0);
+        }
+       
+        // encode frenet coordinate 
+             // update s 
+        ref_traj.s.clear();
+        double accumulated_dist = 0.0;
+        ref_traj.s.push_back(0.0);
+        for (int i = 1; i < marker_data.markers.size(); i++) {
+            accumulated_dist +=     dist(ref_traj.x[i],ref_traj.y[i], ref_traj.x[i-1], ref_traj.y[i-1]);
+            ref_traj.s.push_back(accumulated_dist);
+        }
+        //
+            // Update curvature  
+        ref_traj.k.clear();
+        for (int i =   0; i < marker_data.markers.size(); i++) {        
+        ref_traj.k.push_back(marker_data.markers[i].pose.orientation.x);
+        }
+
+        std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
+    }
+    
+    
     void readPathFromFile(const std::string& file_path) {
     // Open the file for reading
     std::ifstream ifs(file_path, std::ios::in);
