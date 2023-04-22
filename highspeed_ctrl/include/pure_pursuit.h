@@ -43,6 +43,7 @@
 
 
 
+
 class BicubicSplineLookupTable{
 public:
     BicubicSplineLookupTable() : spline(nullptr), xacc(nullptr), yacc(nullptr), nx(0), ny(0), is_ready(false) {}
@@ -133,6 +134,22 @@ bool read_dictionary_file(const std::string& filename, std::vector<double>& x, s
         std::cerr << "Warning: size of extracted z array is not equal to the multiplication of the size of x and y" << std::endl;
         return false;
     }else{
+        auto vx_min_max = std::minmax_element(y.begin(), y.end());
+        auto alat_min_max = std::minmax_element(x.begin(), x.end());
+        auto delta_min_max = std::minmax_element(z.begin(), z.end());
+        vx_min = *vx_min_max.first;
+        vx_max = *vx_min_max.second;
+        alat_min = *alat_min_max.first;
+        alat_max = *alat_min_max.second;
+        delta_min = *delta_min_max.first;
+        delta_max = *delta_min_max.second;
+        std::cout << "vx_min  = " << vx_min << std::endl;
+        std::cout << "vx_max  = " << vx_max << std::endl;
+        std::cout << "alat_min  = " << alat_min << std::endl;
+        std::cout << "alat_max  = " << alat_max << std::endl;
+        std::cout << "delta_min  = " << delta_min << std::endl;
+        std::cout << "delta_max  = " << delta_max << std::endl;
+        
       return true;
     }
     
@@ -151,12 +168,17 @@ bool read_dictionary_file(const std::string& filename, std::vector<double>& x, s
     }
 
     bool is_ready;
+      double vx_min, vx_max;
+    double alat_min, alat_max;
+    double delta_min, delta_max;
 private:
     gsl_spline2d *spline;
     gsl_interp_accel *xacc;
     gsl_interp_accel *yacc;
     size_t nx;
     size_t ny;
+    
+  
     
 };
 
@@ -223,7 +245,7 @@ private:
    double compute_steering_rad();
 
  
-   
+   ros::Publisher debug_pub;
   
 
   double m_lookahead_distance;

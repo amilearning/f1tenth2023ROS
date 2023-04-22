@@ -29,6 +29,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   tf  
   hmcl_msgs  
+  vesc_msgs
   dynamic_reconfigure
   roslib
 )
@@ -39,7 +40,7 @@ generate_dynamic_reconfigure_options(
 )
 
 catkin_package(
-  CATKIN_DEPENDS roslib nav_msgs roscpp std_srvs sensor_msgs geometry_msgs std_msgs hmcl_msgs tf visualization_msgs dynamic_reconfigure
+  CATKIN_DEPENDS roslib vesc_msgs nav_msgs roscpp std_srvs sensor_msgs geometry_msgs std_msgs hmcl_msgs tf visualization_msgs dynamic_reconfigure
   LIBRARIES
 )
 
@@ -60,12 +61,14 @@ link_directories(${GSL_LIBRARY_DIRS})
 
 add_executable(dynamic_reconfigure_node src/pure_pursuit.cpp src/utils.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
 add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)
-target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+# target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm)
 SET(CMAKE_CXX_FLAGS "-O2 -g -Wall ${CMAKE_CXX_FLAGS}")
 
 add_executable(highspeed_ctrl src/utils.cpp src/pure_pursuit.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
 add_dependencies(highspeed_ctrl ${catkin_EXPORTED_TARGETS})
-target_link_libraries(highspeed_ctrl ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+# target_link_libraries(highspeed_ctrl ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+target_link_libraries(highspeed_ctrl ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm )
 
 
 

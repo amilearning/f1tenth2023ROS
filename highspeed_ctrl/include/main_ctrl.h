@@ -95,9 +95,14 @@ VehicleState cur_state, prev_state; //< @brief vehicle status
 
 bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex mtx_;
-ros::Subscriber  waypointSub,  odomSub;
-ros::Publisher  keypts_info_pub, fren_pub, centerlin_info_pub, pred_traj_marker_pub, target_pointmarker_pub, ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
+ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub;
 
+bool first_pose_received;
+Butterworth2dFilter x_vel_filter, y_vel_filter;
+
+ros::Publisher est_odom_pub, keypts_info_pub, fren_pub, centerlin_info_pub, pred_traj_marker_pub, target_pointmarker_pub, ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
+
+double manual_target_vel;
 
 
 PurePursuit pp_ctrl;
@@ -122,6 +127,9 @@ VehicleDynamics ego_vehicle;
 
 int ctrl_select;
 
+geometry_msgs::PoseStamped cur_pose, prev_pose; 
+sensor_msgs::Imu cur_imu;
+bool imu_received;
 
 public:
 Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_p_);
@@ -132,7 +140,8 @@ void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry &
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
 
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
-
+void poseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
+void imuCallback(const sensor_msgs::Imu::ConstPtr& msg);
 void callbackRefPath(const hmcl_msgs::Lane::ConstPtr &msg);
 
 void dyn_callback(highspeed_ctrl::testConfig& config, uint32_t level);

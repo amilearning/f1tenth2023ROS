@@ -20,20 +20,33 @@
 #include "pure_pursuit.h"
 
 
+double clamp(double value, double min_val, double max_val) {
+    if (value < min_val) {
+        return min_val;
+    }
+    else if (value > max_val) {
+        return max_val;
+    }
+    else {
+        return value;
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05){
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
-  
-    ctrl_nh.param<double>("/Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
-    ctrl_nh.param<double>("/Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
-    ctrl_nh.param<double>("/Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
-    ctrl_nh.param<double>("/Pemergency_stop_distance", emergency_stop_distance,0.0);
+    debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
+    ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
+    ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
+    ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
+    ctrl_nh.param<double>("Pemergency_stop_distance", emergency_stop_distance,0.0);
     // ctrl_nh.param<double>("Pspeed_thres_traveling_direction", 0.0);
-    ctrl_nh.param<double>("/Pmax_acceleration", max_acceleration, 50.0);
-    ctrl_nh.param<double>("/Pdistance_front_rear_wheel",distance_front_rear_wheel,  0.33);
-    ctrl_nh.param<double>("/vel_lookahead_ratio",vel_lookahead_ratio,  1.0);
+    ctrl_nh.param<double>("Pmax_acceleration", max_acceleration, 50.0);
+    ctrl_nh.param<double>("Pdistance_front_rear_wheel",distance_front_rear_wheel,  0.33);
+    ctrl_nh.param<double>("vel_lookahead_ratio",vel_lookahead_ratio,  1.0);
   
 
 
@@ -70,13 +83,20 @@ void PurePursuit::update_vehicleState(const VehicleState & state){
 void PurePursuit::readLookuptable(const std::string& filename){
   
   std::vector<double> x_data, y_data, z_data;
+  // alat, vx, delta 
+
   if(lookup_tb.read_dictionary_file(filename, x_data,y_data,z_data))
     { 
+      
       lookup_tb.setValues(x_data,y_data,z_data);}
     
 }
 
 double PurePursuit::getAngleDiffToTargetPoint(){
+  
+
+  
+  
   double target_heading = std::atan2((m_target_point[1] -cur_state.pose.position.y),
   (m_target_point[0] -cur_state.pose.position.x));
   double velocity_heading;
@@ -89,20 +109,47 @@ double PurePursuit::getAngleDiffToTargetPoint(){
   // Extract the yaw angle from the quaternion object    
   double roll, pitch, yaw;
   tf::Matrix3x3(q).getRPY(roll, pitch, yaw);  
-  bool odom_twist_in_local = true;
-  if(odom_twist_in_local){
-  Eigen::Matrix2d Rbg;
-  Rbg << cos(-1*yaw), -sin(-1*yaw),
-                        sin(-1*yaw), cos(-1*yaw);
-  Eigen::Vector2d local_vx_vy;
-  local_vx_vy << cur_state.vx, cur_state.vy; 
-  Eigen::Vector2d global_vx_vy = Rbg*local_vx_vy;
-   velocity_heading = std::atan2(global_vx_vy[1],global_vx_vy[0]);    
+  yaw = normalizeRadian(yaw);
+  double speed = sqrt(cur_state.vx*cur_state.vx + cur_state.vy*cur_state.vy);
+  if(speed < 1.0){
+    // speed is too low, replace with yaw angle 
+    velocity_heading = yaw;
   }else{
-    velocity_heading = std::atan2(cur_state.vy,cur_state.vx);
+      bool odom_twist_in_local = true;
+      if(odom_twist_in_local){
+      Eigen::Matrix2d Rbg;
+      Rbg << cos(-1*yaw), -sin(-1*yaw),
+                            sin(-1*yaw), cos(-1*yaw);
+      Eigen::Vector2d local_vx_vy;
+      local_vx_vy << cur_state.vx, cur_state.vy; 
+      Eigen::Vector2d global_vx_vy = Rbg*local_vx_vy;
+
+      velocity_heading = std::atan2(global_vx_vy[1],global_vx_vy[0]);    
+      }else{
+        velocity_heading = std::atan2(cur_state.vy,cur_state.vx);
+      }
   }
+  
+ 
+  
+
+  
+  
     target_heading = normalizeRadian(target_heading);
     velocity_heading = normalizeRadian(velocity_heading);
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////// check if the velocity vector angle is far away from yaw .... (Assumption: we do not dfirt!!!)
+  double diff_yaw_to_vel = normalizeRadian(velocity_heading - yaw);
+  double max_diff_angle = 5 * 3.14195 / 180.0;
+  if(diff_yaw_to_vel > max_diff_angle){
+    velocity_heading = yaw + max_diff_angle;
+  }else if( diff_yaw_to_vel > -1*max_diff_angle){
+    velocity_heading = yaw - max_diff_angle;
+  }
+  velocity_heading = normalizeRadian(velocity_heading);
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     return normalizeRadian(target_heading-velocity_heading);
 }
 
@@ -110,9 +157,50 @@ double PurePursuit::getAngleDiffToTargetPoint(){
 
 bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy){
   if(lookup_tb.is_ready){    
+  
   double vt = sqrt(vx*vx + vy*vy);
-  double desired_alat = 2*vt*vt*sin(diff_angel)/(lookahead_dist+1e-7);
-  delta = lookup_tb.eval(desired_alat, vt);
+  if (vt < 1.0){
+    vt = 1.0;
+  }
+   if (vt > 1.5){
+    vt = 1.5;
+  }
+  std::cout << " vt = " << vt << std::endl;
+  // unsigned alat 
+  std::cout << "diff_angel = " << diff_angel*180/3.14195  <<std::endl;
+  double signed_desired_alat = 2*vt*vt*sin(diff_angel)/(lookahead_dist+1e-7);
+  double desired_alat = abs(signed_desired_alat);
+  std::cout << " unsigned desired_alat = " << desired_alat << std::endl;
+  
+  vt = clamp(vt, lookup_tb.vx_min, lookup_tb.vx_max);
+  desired_alat = clamp(desired_alat, lookup_tb.alat_min, lookup_tb.alat_max);
+   
+  ////////////// GGUMZZIKHAE
+  std::cout << " filtered vt = " << vt << std::endl;
+  std::cout << " filtered desired_alat = " << desired_alat << std::endl;
+
+  double unsigned_delta = lookup_tb.eval(desired_alat, vt);
+  
+  
+  if (signed_desired_alat  < 0){
+    delta = abs(unsigned_delta);
+
+  }else{
+    delta = -1*abs(unsigned_delta);
+  }
+  std::cout << " delta = " << delta << std::endl;
+
+  geometry_msgs::PoseStamped debug_msg;
+  debug_msg.header.stamp = ros::Time::now();
+  debug_msg.pose.position.x = vt;
+  if (signed_desired_alat > 0){
+    debug_msg.pose.position.y = desired_alat;
+  }else{
+    debug_msg.pose.position.y = -1*desired_alat;
+    
+  }  
+  debug_msg.pose.position.z = delta;
+  debug_pub.publish(debug_msg);
   return true;
   }
   else{
@@ -235,6 +323,7 @@ void PurePursuit::compute_lookahead_distance(const double current_velocity)
   m_lookahead_distance =
     std::max(minimum_lookahead_distance,
     std::min(lookahead_distance, maximum_lookahead_distance));
+    
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,7 +413,7 @@ double PurePursuit::compute_steering_rad()
   
   
   const double steering_angle_rad = atanf(curvature * distance_front_rear_wheel);
-  return steering_angle_rad;
+  return -1*steering_angle_rad;
 }
 ////////////////////////////////////////////////////////////////////////////////
 
