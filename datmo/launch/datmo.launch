@@ -1,0 +1,15 @@
+ <launch>
+
+ <node pkg="datmo" type="datmo" name="datmo" output="screen">
+  <param name="max_cluster_size" value="500" />
+  <param name="lidar_frame" value="laser" />
+  <param name="world_frame" value="map" />
+  <param name="threshold_distance" value="0.1" />
+  <param name="euclidean_distance" value="0.50" />
+  
+  <param name="pub_markers" value="true" />
+ </node>
+    
+</launch>
+  
+ 
