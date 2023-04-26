@@ -77,7 +77,7 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
         vx_tmp = vx_filter.filter(odom.twist.twist.linear.x);
         yaw_tmp = normalizeRadian(yaw);
         if (distance >= threshold_ && is_record) {
-            ref_traj.push_back(x_tmp,y_tmp, 0.0, yaw_tmp, vx_tmp, 0.0, 0.0, 0.0, 0.0);
+            ref_traj.push_back(x_tmp,y_tmp, 0.0, yaw_tmp, vx_tmp, 0.0, 0.0, 0.0, 0.0, 3.0, 3.0);  // fake distance for left and right wall
             
             // path_.push_back(std::make_tuple(odom.pose.pose.position.x, odom.pose.pose.position.y, yaw));
             last_odom = odom;
@@ -146,14 +146,26 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
             y = marker_data.markers[i].pose.position.y;
             vx = marker_data.markers[i].pose.position.z;
             
-            tf::Quaternion q(marker_data.markers[i].pose.orientation.x,
-                            marker_data.markers[i].pose.orientation.y,
-                            marker_data.markers[i].pose.orientation.z,
-                            marker_data.markers[i].pose.orientation.w);                            
-            q.normalize();
-            // Extract the yaw angle from the quaternion object                
-            tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-              ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0);
+            // orientation.x -->  curvature 
+            // orientation.y -->  left wall width
+            // orientation.z --> right wall width 
+            
+            if(i < marker_data.markers.size()-1){
+                double diff_x = marker_data.markers[i+1].pose.position.x - marker_data.markers[i].pose.position.x;
+                double diff_y = marker_data.markers[i+1].pose.position.y - marker_data.markers[i].pose.position.y;
+                yaw = atan2(diff_y, diff_x);                
+            }
+            // tf::Quaternion q(marker_data.markers[i].pose.orientation.x, 
+
+            //                 marker_data.markers[i].pose.orientation.y,
+            //                 marker_data.markers[i].pose.orientation.z,
+            //                 marker_data.markers[i].pose.orientation.w);                            
+            // q.normalize();
+            // Extract the yaw angle from the quaternion object       
+            double ey_l = marker_data.markers[i].pose.orientation.y;
+            double ey_r = marker_data.markers[i].pose.orientation.z;
+            // tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+              ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, ey_l, ey_r);
         }
        
         // encode frenet coordinate 
@@ -187,7 +199,7 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     // Read the path from the file
     double x, y,  yaw, vx;
     while (ifs >> x >> y >>yaw >> vx ) {
-        ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0);
+        ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, 3.0, 3.0); // fake distance for ey_l, ey_r
         
         
     }

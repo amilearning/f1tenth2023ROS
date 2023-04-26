@@ -87,6 +87,10 @@ void PurePursuit::update_vehicleState(const VehicleState & state){
     cur_state = state;
 }
 
+void PurePursuit::update_obstacleState(const VehicleState & state){
+    cur_obstacle = state;
+}
+
 void PurePursuit::readLookuptable(const std::string& filename){
   
   std::vector<double> x_data, y_data, z_data;
@@ -400,7 +404,7 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
 
   // if we meet the end of trajectory recompute from the initial 
   if(!find_within_lap){
-    ROS_INFO("finish line close");
+    // ROS_INFO("finish line close");
    
     PathPoint init_point;
     init_point <<  local_traj.x[0], local_traj.y[0];
@@ -436,6 +440,61 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
   target_point_ << local_traj.x[near_idx], local_traj.y[near_idx];
   // ROS_INFO("near_idx = %d", near_idx);
   // ROS_INFO("target_point_ = %f,   %f", target_point_[near_idx], target_point_[near_idx]);
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+  double min_dist = 1e3;
+  int min_idx = 0;
+  for(int k=0; k < local_traj.x.size(); k++){
+      double tmp_dist = sqrt((cur_obstacle.pose.position.x-local_traj.x[k])*(cur_obstacle.pose.position.x - local_traj.x[k]) + (cur_obstacle.pose.position.y-local_traj.y[k])*(cur_obstacle.pose.position.y-local_traj.y[k]));
+      if(tmp_dist < min_dist){
+        min_dist = tmp_dist;
+        min_idx = k;
+      }
+  }
+  std::cout << "min_dist = " << min_dist <<std::endl;
+  bool obstacle_avoidance_activate = false;
+  if (min_dist < 1.0){
+    ROS_INFO("obstacle on the local trajectory ");
+    std::cout << "ey " << cur_obstacle.ey<< std::endl;
+    obstacle_avoidance_activate = true;
+  }
+
+  if(obstacle_avoidance_activate){
+      if(abs(cur_obstacle.ey) > 0.3){
+      // Overtaking Action!!
+      double target_ey = 0;
+      if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
+              target_ey = cur_obstacle.ey -0.5;
+              
+      }else{
+        // obstacle is in the right side of centerline 
+        target_ey = cur_obstacle.ey+0.5;
+      } 
+      
+      // TODO: need to check if target_ey is wightin track boundary
+      
+      double yaw_on_centerline = local_traj.yaw[near_idx];
+      double new_x, new_y;
+        if(target_ey >= 0){
+        new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
+        new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
+        }else{
+        new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
+        new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
+        }
+        target_point_ << new_x, new_y;
+    }else{
+      // Following Action !!!
+    }
+  }
+  ////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   return is_success;
 }

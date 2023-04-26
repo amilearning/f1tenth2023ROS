@@ -203,6 +203,7 @@ class PurePursuit
 public:  
   PurePursuit(const ros::NodeHandle& nh_ctrl);
   void update_vehicleState(const VehicleState & state);
+  void update_obstacleState(const VehicleState & state);
   void update_ref_traj(const Trajectory & ref);
   void readLookuptable(const std::string& filename);
   
@@ -253,7 +254,7 @@ private:
   
   const double dt;
   Trajectory local_traj;
-  VehicleState cur_state;
+  VehicleState cur_state, cur_obstacle;
   BicubicSplineLookupTable lookup_tb;
     bool manual_target_lookahead, manual_speed_lookahead;
     double manual_target_lookahead_value, manual_speed_lookahead_value;

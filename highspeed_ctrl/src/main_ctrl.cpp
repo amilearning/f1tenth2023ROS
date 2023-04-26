@@ -77,7 +77,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   odomSub = nh_traj.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
   poseSub  = nh_ctrl.subscribe("/tracked_pose", 2, &Ctrl::poseCallback, this);  
   imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
-  
+  obstacleSub = nh_traj.subscribe("/datmo/obstacle", 2, &Ctrl::obstacleCallback, this);  
 
   fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("/fren_pose",1);
   global_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("global_traj", 1);
@@ -100,6 +100,30 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
 
 Ctrl::~Ctrl()
 {}
+
+
+
+void Ctrl::obstacleCallback(const hmcl_msgs::obstacleConstPtr& msg){
+  cur_obstacles = *msg;
+  obstacle_state.pose.position.x = cur_obstacles.x;
+  obstacle_state.pose.position.y = cur_obstacles.y;
+  obstacle_state.yaw = cur_obstacles.theta;
+
+  tf2::Quaternion quat;
+  quat.setRPY(0,0,obstacle_state.yaw);
+  quat.normalize();
+  obstacle_state.pose.orientation.x = quat.getX();
+  obstacle_state.pose.orientation.y = quat.getY();
+  obstacle_state.pose.orientation.z = quat.getZ();
+  obstacle_state.pose.orientation.w = quat.getW();
+
+
+  obstacle_state.vx = cur_obstacles.vx;
+  obstacle_state.vy = cur_obstacles.vy;  
+  computeFrenet(obstacle_state, traj_manager.getglobalPath());
+  pp_ctrl.update_obstacleState(obstacle_state);
+
+}
 
 
 void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom){

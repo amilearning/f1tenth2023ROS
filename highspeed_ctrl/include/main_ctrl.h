@@ -68,6 +68,8 @@
 #include <highspeed_ctrl/testConfig.h>
 #include <std_msgs/UInt8MultiArray.h>
 
+#include <hmcl_msgs/obstacle.h>
+
 #include "lowpass_filter.h"
 #include "trajectory_manager.h"
 #include "pure_pursuit.h"   
@@ -91,11 +93,11 @@ private:
 ros::NodeHandle nh_ctrl_, nh_traj_, nh_p;
 
 
-VehicleState cur_state, prev_state; //< @brief vehicle status
+VehicleState cur_state, prev_state, obstacle_state; //< @brief vehicle status
 
 bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex mtx_;
-ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub;
+ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub;
 
 bool first_traj_received;
 bool first_pose_received;
@@ -128,6 +130,7 @@ double x_vel_filter_cutoff, y_vel_filter_cutoff;
 
 double manual_lookahead, manual_speed_lookahead;
 
+hmcl_msgs::obstacle cur_obstacles;
 
 VehicleDynamics ego_vehicle;
 
@@ -144,7 +147,7 @@ void ControlLoop();
 
 void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom);
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-
+void obstacleCallback(const hmcl_msgs::obstacleConstPtr& msg);
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
 void poseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
 void imuCallback(const sensor_msgs::Imu::ConstPtr& msg);
