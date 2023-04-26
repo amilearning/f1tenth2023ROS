@@ -5,12 +5,16 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs  
   message_generation
   sensor_msgs
+  nav_msgs
   std_msgs
 )
 
 add_message_files(
   DIRECTORY msg
   FILES
+    obstacle.msg
+    Track.msg
+    TrackArray.msg
     Trafficlight.msg
     BehaviorFactor.msg
     TransitionCondition.msg
@@ -40,6 +44,7 @@ generate_messages(
   DEPENDENCIES
     geometry_msgs    
     sensor_msgs
+    nav_msgs
     std_msgs
 )
 
@@ -49,4 +54,5 @@ catkin_package(
     message_runtime
     sensor_msgs
     std_msgs
+    nav_msgs
 )
