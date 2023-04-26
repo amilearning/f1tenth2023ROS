@@ -35,6 +35,8 @@ public:
   std::vector<double> k;             //!< @brief k curvature k vector
   std::vector<double> relative_time; //!< @brief relative_time duration time from start point
   std::vector<double> s; // progress   
+  std::vector<double> ey_l; // track_left_wall_distance   
+  std::vector<double> ey_r; // track_right_wall_distance   
 
   void erase_to(const int & idx);
   /**
@@ -42,7 +44,7 @@ public:
    */
   void push_back(const double &xp, const double &yp, const double &zp,
                  const double &yawp, const double &vxp, const double &vyp, const double &kp,
-                 const double &tp, const double &sp);
+                 const double &tp, const double &sp, const double &ey_lp, const double &ey_rp);
   /**
    * @brief clear for all values
    */
