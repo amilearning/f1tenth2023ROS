@@ -34,7 +34,7 @@ double clamp(double value, double min_val, double max_val) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), overtaking_enable(false){
+PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), race_mode(RaceMode::Race){
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
@@ -466,7 +466,8 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
   }
   
   double width_safe_dist = 0.3;
-  overtaking_enable = false;
+  race_mode = RaceMode::Race;
+  
   if(obstacle_avoidance_activate){
       double target_ey = 0;
       if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
@@ -484,11 +485,13 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
       
       
     if(abs(cur_obstacle.ey) > width_safe_dist){
-      overtaking_enable = true; 
+      
+      race_mode = RaceMode::Overtaking;
       // Aggresive Overtaking Action!!
       ROS_WARN("OVVertaking !!");
     }else{      
       // Timid Following Action !!! 
+      race_mode = RaceMode::Following;
       ROS_INFO("Following");  
       target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
     }

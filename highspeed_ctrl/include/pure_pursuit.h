@@ -38,6 +38,7 @@
 #include <string>
 
 
+enum RaceMode { Race = 0, Overtaking = 1, Following = 2 };
 
 
 
@@ -247,7 +248,9 @@ private:
  
    ros::Publisher debug_pub;
   
-    bool overtaking_enable;
+    
+    RaceMode race_mode;
+    
   double m_lookahead_distance;
   PathPoint m_target_point, m_speed_target_point;
   ackermann_msgs::AckermannDriveStamped cmd_msg;
