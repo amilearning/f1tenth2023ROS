@@ -77,11 +77,14 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   odomSub = nh_traj.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
   poseSub  = nh_ctrl.subscribe("/tracked_pose", 2, &Ctrl::poseCallback, this);  
   imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
-  obstacleSub = nh_traj.subscribe("/datmo/obstacle", 2, &Ctrl::obstacleCallback, this);  
+  obstacleSub = nh_traj.subscribe("/datmo/box_kf", 2, &Ctrl::obstacleCallback, this);  
 
   fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("/fren_pose",1);
   global_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("global_traj", 1);
   centerlin_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/centerline_info", 1);
+  
+  closest_obj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("/closest_obj", 1);
+
   keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
   target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("target_point", 1);
   speed_target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("speed_target_point", 1);
@@ -103,25 +106,69 @@ Ctrl::~Ctrl()
 
 
 
-void Ctrl::obstacleCallback(const hmcl_msgs::obstacleConstPtr& msg){
-  cur_obstacles = *msg;
-  obstacle_state.pose.position.x = cur_obstacles.x;
-  obstacle_state.pose.position.y = cur_obstacles.y;
-  obstacle_state.yaw = cur_obstacles.theta;
+void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
+  obstacles = *msg;
+  
+  std::vector<VehicleState> obstacles_vehicleState;
+  
+  for (int i=0; i<obstacles.tracks.size(); i++){
+    
+    VehicleState tmp_state; 
+    tmp_state.pose = obstacles.tracks[i].odom.pose.pose;
+    tmp_state.yaw = normalizeRadian(tf2::getYaw(obstacles.tracks[i].odom.pose.pose.orientation));
+    tmp_state.vx = sqrt((obstacles.tracks[i].odom.twist.twist.linear.x*obstacles.tracks[i].odom.twist.twist.linear.x) 
+                        + 
+                        (obstacles.tracks[i].odom.twist.twist.linear.y*obstacles.tracks[i].odom.twist.twist.linear.y));
+    computeFrenet(tmp_state, traj_manager.getglobalPath());      
+    obstacles_vehicleState.push_back(tmp_state);
+  }
 
-  tf2::Quaternion quat;
-  quat.setRPY(0,0,obstacle_state.yaw);
-  quat.normalize();
-  obstacle_state.pose.orientation.x = quat.getX();
-  obstacle_state.pose.orientation.y = quat.getY();
-  obstacle_state.pose.orientation.z = quat.getZ();
-  obstacle_state.pose.orientation.w = quat.getW();
+  // get the most closest obstacle to the current ego vehicle 
+  int best_idx = 0;
+  int min_dist = 1e3;
+  double track_length = traj_manager.getTrackLength();
+  bool any_front_obstacle = false;  
+    
+  for(int i=0; i < obstacles.tracks.size(); i++){      
+    
+    if(!traj_manager.is_s_front(cur_state.s, obstacles_vehicleState[i].s)){
+      
+       any_front_obstacle = true;
+        double dist_tmp = traj_manager.get_s_diff(cur_state.s, obstacles_vehicleState[i].s);
+        if(dist_tmp< min_dist){
+          min_dist = dist_tmp;
+          best_idx = i;
+        }
+    }else{
+      continue; // target is behind of track
+    }
+  }
+  
+  if(any_front_obstacle){
+    visualization_msgs::Marker closest_obstacle_marker;
+    trackToMarker(obstacles.tracks[best_idx], closest_obstacle_marker);
+    closest_obj_marker_pub.publish(closest_obstacle_marker);
+    pp_ctrl.update_obstacleState(obstacles_vehicleState[best_idx]);
+  }
+  
 
+}
 
-  obstacle_state.vx = cur_obstacles.vx;
-  obstacle_state.vy = cur_obstacles.vy;  
-  computeFrenet(obstacle_state, traj_manager.getglobalPath());
-  pp_ctrl.update_obstacleState(obstacle_state);
+void Ctrl::trackToMarker(const hmcl_msgs::Track& track, visualization_msgs::Marker & marker){
+
+    marker.header.frame_id = "map";
+    marker.header.stamp = ros::Time::now();
+    marker.type = visualization_msgs::Marker::CUBE;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose = track.odom.pose.pose;    
+    marker.scale.x = track.length;
+    marker.scale.y = track.width;
+    marker.scale.z = 0.1;
+    // Set the color of the marker
+    marker.color.g = 1.0;
+    marker.color.a = 1.0;
+    
+
 
 }
 

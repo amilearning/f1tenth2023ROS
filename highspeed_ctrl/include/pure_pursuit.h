@@ -247,7 +247,7 @@ private:
  
    ros::Publisher debug_pub;
   
-
+    bool overtaking_enable;
   double m_lookahead_distance;
   PathPoint m_target_point, m_speed_target_point;
   ackermann_msgs::AckermannDriveStamped cmd_msg;

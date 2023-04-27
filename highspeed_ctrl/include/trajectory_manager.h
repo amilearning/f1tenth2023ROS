@@ -249,6 +249,10 @@ public:
     visualization_msgs::Marker getCenterLineInfo();
     visualization_msgs::Marker keyptsToMarker(const KeyPoints & key_pts);
     int getRefTrajSize(); 
+    double getTrackLength();
+    void wrapTrack(double & s);
+    double get_s_diff(const double &s1, const double &s2);
+    bool is_s_front(const double &s, const double &s_target);
     bool is_recording();
     // // extract a lookahead path in frenet coordinate given the current position (odometry)
     // void extractLookaheadPath(const nav_msgs::msg::Odometry& odom, nav_msgs::msg::Path& lookahead_path);

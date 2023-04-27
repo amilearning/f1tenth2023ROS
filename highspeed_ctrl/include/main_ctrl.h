@@ -69,6 +69,8 @@
 #include <std_msgs/UInt8MultiArray.h>
 
 #include <hmcl_msgs/obstacle.h>
+#include <hmcl_msgs/TrackArray.h>
+#include <hmcl_msgs/Track.h>
 
 #include "lowpass_filter.h"
 #include "trajectory_manager.h"
@@ -104,7 +106,7 @@ bool first_pose_received;
 Butterworth2dFilter x_vel_filter, y_vel_filter;
 
 ros::Publisher est_odom_pub, keypts_info_pub, fren_pub, centerlin_info_pub, pred_traj_marker_pub, target_pointmarker_pub, ackmanPub, global_traj_marker_pub, local_traj_marker_pub;
-ros::Publisher speed_target_pointmarker_pub;
+ros::Publisher speed_target_pointmarker_pub, closest_obj_marker_pub;
 double manual_target_vel;
 
 
@@ -130,7 +132,9 @@ double x_vel_filter_cutoff, y_vel_filter_cutoff;
 
 double manual_lookahead, manual_speed_lookahead;
 
-hmcl_msgs::obstacle cur_obstacles;
+// hmcl_msgs::obstacle cur_obstacles;
+hmcl_msgs::TrackArray obstacles;
+
 
 VehicleDynamics ego_vehicle;
 
@@ -147,11 +151,12 @@ void ControlLoop();
 
 void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom);
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-void obstacleCallback(const hmcl_msgs::obstacleConstPtr& msg);
+void obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg);
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
 void poseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
 void imuCallback(const sensor_msgs::Imu::ConstPtr& msg);
 void callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg);
+void trackToMarker(const hmcl_msgs::Track& state, visualization_msgs::Marker & marker);
 
 void dyn_callback(highspeed_ctrl::testConfig& config, uint32_t level);
 

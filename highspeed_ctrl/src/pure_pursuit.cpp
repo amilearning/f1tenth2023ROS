@@ -34,7 +34,7 @@ double clamp(double value, double min_val, double max_val) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05){
+PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), overtaking_enable(false){
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
@@ -443,53 +443,70 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////Obstacle avoidance refinement//////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   
-  double min_dist = 1e3;
+  double min_dist_to_local_path = 1e3;
   int min_idx = 0;
   for(int k=0; k < local_traj.x.size(); k++){
       double tmp_dist = sqrt((cur_obstacle.pose.position.x-local_traj.x[k])*(cur_obstacle.pose.position.x - local_traj.x[k]) + (cur_obstacle.pose.position.y-local_traj.y[k])*(cur_obstacle.pose.position.y-local_traj.y[k]));
-      if(tmp_dist < min_dist){
-        min_dist = tmp_dist;
+      if(tmp_dist < min_dist_to_local_path){
+        min_dist_to_local_path = tmp_dist;
         min_idx = k;
       }
   }
-  std::cout << "min_dist = " << min_dist <<std::endl;
+  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;
   bool obstacle_avoidance_activate = false;
-  if (min_dist < 1.0){
-    ROS_INFO("obstacle on the local trajectory ");
-    std::cout << "ey " << cur_obstacle.ey<< std::endl;
+  
+  if (min_dist_to_local_path < 1.0){
+    // ROS_INFO("obstacle on the local trajectory ");
+    // std::cout << "ey " << cur_obstacle.ey<< std::endl;
     obstacle_avoidance_activate = true;
+    
   }
-
+  
+  double width_safe_dist = 0.3;
+  overtaking_enable = false;
   if(obstacle_avoidance_activate){
-      if(abs(cur_obstacle.ey) > 0.3){
-      // Overtaking Action!!
       double target_ey = 0;
       if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
-              target_ey = cur_obstacle.ey -0.5;
-              
+              target_ey = cur_obstacle.ey -width_safe_dist*2;              
+              double track_right_cosntaint = local_traj.ey_r[near_idx]-width_safe_dist;
+              track_right_cosntaint = std::max(track_right_cosntaint, 0.0);
+              target_ey = std::max(std::min(target_ey, 0.0), -1*track_right_cosntaint);                
       }else{
         // obstacle is in the right side of centerline 
-        target_ey = cur_obstacle.ey+0.5;
+        target_ey = cur_obstacle.ey+width_safe_dist*2;
+        double track_left_constraint = local_traj.ey_l[near_idx] - width_safe_dist;
+        track_left_constraint = std::max(track_left_constraint, 0.0);
+        target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
       } 
       
-      // TODO: need to check if target_ey is wightin track boundary
       
-      double yaw_on_centerline = local_traj.yaw[near_idx];
-      double new_x, new_y;
-        if(target_ey >= 0){
-        new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
-        new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
-        }else{
-        new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
-        new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
-        }
-        target_point_ << new_x, new_y;
-    }else{
-      // Following Action !!!
+    if(abs(cur_obstacle.ey) > width_safe_dist){
+      overtaking_enable = true; 
+      // Aggresive Overtaking Action!!
+      ROS_WARN("OVVertaking !!");
+    }else{      
+      // Timid Following Action !!! 
+      ROS_INFO("Following");  
+      target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
     }
+
+    double yaw_on_centerline = local_traj.yaw[near_idx];
+    double new_x, new_y;
+      if(target_ey >= 0){
+      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
+      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
+      
+      }else{
+      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
+      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
+      
+      }
+      target_point_ << new_x, new_y;
+
+
   }
   ////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////

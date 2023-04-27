@@ -153,6 +153,58 @@ bool TrajectoryManager::getCurvatureKeypoints(KeyPoints & key_pts){
 }
 
 
+bool TrajectoryManager::is_s_front(const double &s, const double &s_target){
+    double diff = s-s_target;
+    double track_length = getTrackLength(); 
+    
+    if(abs(diff) > track_length/2){
+        double unwraped_s_target = s_target+track_length;
+        diff = unwraped_s_target - s;
+                if(diff > 0){
+                return false;
+            }else{
+                return true;
+            }
+    }else{
+                if(diff > 0){
+                return true;
+            }else{
+                return false;
+            }    
+
+     }
+    
+}
+
+
+double TrajectoryManager::get_s_diff(const double &s1, const double &s2){
+        double bigger_s = std::max(s1,s2);
+        double smaller_s = std::min(s1,s2);
+        double diff_s = bigger_s - smaller_s;
+        double track_length = getTrackLength(); 
+        if (abs(diff_s) > track_length/2.0){
+            smaller_s  = smaller_s +  track_length;            
+            diff_s = smaller_s - bigger_s; 
+            wrapTrack(diff_s);
+        }
+        return diff_s;
+}
+
+
+void TrajectoryManager::wrapTrack(double & s){
+    double track_length = getTrackLength();
+    while (s > track_length){
+        s = s- track_length; 
+    }
+    while ( s < 0 ){
+        s = s+track_length;
+    }
+}
+
+double TrajectoryManager::getTrackLength(){
+    path_logger.getPath(tmp_ref_traj);
+    return tmp_ref_traj.s[tmp_ref_traj.s.size()-1];
+}
 
 
 Trajectory TrajectoryManager::getlookaheadPath(){
