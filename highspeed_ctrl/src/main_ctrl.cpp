@@ -20,10 +20,11 @@
 int test_count = 0;
 using namespace std;
 
-Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& nh_p_):
+Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_state, ros::NodeHandle& nh_p_):
   nh_p(nh_p_),
   nh_ctrl_(nh_ctrl),
   nh_traj_(nh_traj),
+  nh_state_(nh_state),
   traj_manager(nh_traj),
   pp_ctrl(nh_p_),
   my_steering_ok_(false),
@@ -32,11 +33,13 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   ego_vehicle(0.1),
   ctrl_select(0),
   first_pose_received(false),
+  first_odom_received(false),
   imu_received(false),
   first_traj_received(false)
 {
   
   
+  nh_p.param<double>("odom_pose_diff_threshold", odom_pose_diff_threshold, 1.0);
   nh_p.param<double>("x_vel_filter_cutoff", x_vel_filter_cutoff, 10.0);
   nh_p.param<double>("y_vel_filter_cutoff", y_vel_filter_cutoff, 10.0);
 
@@ -50,7 +53,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   nh_p.param<std::string>("control_topic", control_topic, "/vesc/ackermann_cmd");
   nh_p.param<std::string>("waypoint_topic", waypoint_topic, "/local_traj");
   // nh_p.param<std::string>("odom_topic", odom_topic, "/odom");   
-  nh_p.param<std::string>("odom_topic", odom_topic, "/tracked_odom");   
+  nh_p.param<std::string>("odom_topic", odom_topic, "/pose_estimate");   
   nh_p.param<int>("path_smoothing_times_", path_smoothing_times_, 1);
   nh_p.param<int>("curvature_smoothing_num_", curvature_smoothing_num_, 35);
   nh_p.param<int>("path_filter_moving_ave_num_", path_filter_moving_ave_num_, 35);  
@@ -74,7 +77,8 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   waypointSub = nh_traj.subscribe(waypoint_topic, 2, &Ctrl::callbackRefPath, this);
   
 
-  odomSub = nh_traj.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
+  odomSub = nh_state_.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
+  vesodomSub = nh_state_.subscribe("/vesc/odom", 2, &Ctrl::vescodomCallback, this);  
   poseSub  = nh_ctrl.subscribe("/tracked_pose", 2, &Ctrl::poseCallback, this);  
   imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
   obstacleSub = nh_traj.subscribe("/datmo/box_kf", 2, &Ctrl::obstacleCallback, this);  
@@ -85,7 +89,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj, ros::NodeHandle& 
   
   closest_obj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("/closest_obj", 1);
 
-  keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
+  // keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
   target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("target_point", 1);
   speed_target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("speed_target_point", 1);
   local_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("local_traj", 1);
@@ -173,20 +177,25 @@ void Ctrl::trackToMarker(const hmcl_msgs::Track& track, visualization_msgs::Mark
 }
 
 
-void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom){
+void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom,const bool & odom_twist_in_local){
+
+
            vehicle_state.pose = odom.pose.pose;
            double yaw_ = normalizeRadian(tf2::getYaw(odom.pose.pose.orientation));
            vehicle_state.yaw = yaw_;
-           bool odom_twist_in_local = true;
+           
            if(odom_twist_in_local){
-            vehicle_state.vx = odom.twist.twist.linear.x;
+            // vehicle_state.vx = odom.twist.twist.linear.x;
             vehicle_state.vy = odom.twist.twist.linear.y;          
            }else{            
             double global_x  = odom.twist.twist.linear.x;
             double global_y  = odom.twist.twist.linear.y;
-            vehicle_state.vx = fabs(global_x*cos(-1*yaw_) - global_y*sin(-1*yaw_)); 
+            // vehicle_state.vx = fabs(global_x*cos(-1*yaw_) - global_y*sin(-1*yaw_)); 
             vehicle_state.vy = global_x*sin(-1*yaw_) + global_y*cos(-1*yaw_);             
            }
+          //  if(vehicle_state.vx < 0.1){
+          //   vehicle_state.vx = 0.1;
+          //  }
           vehicle_state.wz = odom.twist.twist.angular.z;    
           if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording()){
          
@@ -207,9 +216,30 @@ void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odom
           
 }
 
+bool Ctrl::odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::Odometry& odom){
+  double dist_tmp = (pos.pose.position.x - odom.pose.pose.position.x)*(pos.pose.position.x - odom.pose.pose.position.x)+(pos.pose.position.y - odom.pose.pose.position.y)*(pos.pose.position.y - odom.pose.pose.position.y);
 
+  ros::Time pose_time = pos.header.stamp;
+  ros::Time odom_time = odom.header.stamp;
+  ros::Duration diff = odom_time - pose_time;
+  double msg_diff_sec = diff.toSec();
+
+
+  if(dist_tmp > odom_pose_diff_threshold || msg_diff_sec < -0.5){
+    // incorrect odom data.. use pose instead 
+    // std::cout << "ms_diff_sec = " << msg_diff_sec << std::endl;
+    return false; 
+  }else{
+    return true;
+  }
+
+  
+}
 
 void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
+  std::lock_guard<std::mutex> lock(pose_mtx);
+
+
   if(!imu_received){
     return;
   }
@@ -218,7 +248,17 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
     first_pose_received = true;
     return;
   }
+
+
+
   cur_pose = *msg;
+  
+  //If odom is available and close to current pose, then use odom instead-- check if the current position is close to current odom 
+  if(first_odom_received && odom_close_to_pose(cur_pose,cur_odom)){    
+    
+      return;    
+  }
+
   ros::Time cur_time = msg->header.stamp;
   ros::Time prev_time = prev_pose.header.stamp;
   ros::Duration diff = cur_time - prev_time;
@@ -251,7 +291,9 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
     odom_msg.twist.twist.angular.z = cur_imu.angular_velocity.z;
     
     est_odom_pub.publish(odom_msg);
-      odomToVehicleState(cur_state,odom_msg);
+    bool odom_twist_in_local = true;
+    // std::cout << "pose update" << std::endl;
+      odomToVehicleState(cur_state,odom_msg,odom_twist_in_local);
       cur_state.accel = 0.0;
       pp_ctrl.update_vehicleState(cur_state);
 
@@ -271,6 +313,7 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
 }
 
 void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
+  std::lock_guard<std::mutex> lock(imu_mtx);
   if(!imu_received){
     imu_received = true;
   }
@@ -278,21 +321,74 @@ void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
 }
 
 
-void Ctrl::odomCallback(const nav_msgs::OdometryConstPtr& msg){
-    odomToVehicleState(cur_state,*msg);
-    
-    cur_state.accel = 0.0;
-    
-    pp_ctrl.update_vehicleState(cur_state);
+void Ctrl::vescodomCallback(const nav_msgs::OdometryConstPtr& msg){
 
-    traj_manager.log_odom(*msg); 
-    my_odom_ok_ = true;
-    if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
+   std::lock_guard<std::mutex> lock(vesc_mtx);
+    cur_state.vx = msg->twist.twist.linear.x;
+ 
+
+
+
+return; 
+
+
+}
+
+
+void Ctrl::odomCallback(const nav_msgs::OdometryConstPtr& msg){
+    std::lock_guard<std::mutex> lock(odom_mtx);
+    if(!imu_received){
+      return;
+    }
+    if(!first_odom_received){
+      prev_odom = *msg;
+      first_odom_received = true;
+      return;
+    }
+
+  cur_odom = *msg;
+  ros::Time cur_time = msg->header.stamp;
+  ros::Time prev_time = prev_odom.header.stamp;
+  ros::Duration diff = cur_time - prev_time;
+  double dt_sec = fabs(diff.toSec());
+  
+  if (dt_sec > 0.05){    
+    bool odom_twist_in_local = false;
+
+      odomToVehicleState(cur_state,cur_odom,odom_twist_in_local);
+      // std::cout << "odom update" << std::endl;
+      cur_state.accel = 0.0;
+      pp_ctrl.update_vehicleState(cur_state);
+
+      traj_manager.log_odom(cur_odom); 
+      my_odom_ok_ = true;
+      if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
+        
+          
+          visualization_msgs::MarkerArray pred_marker = PathPrediction(cur_state,10);
+          pred_traj_marker_pub.publish(pred_marker);
+        }
+
+    prev_odom = cur_odom;
+  }
+
+
+
+return; 
+    // odomToVehicleState(cur_state,*msg);
+    
+    // cur_state.accel = 0.0;
+    
+    // pp_ctrl.update_vehicleState(cur_state);
+
+    // traj_manager.log_odom(*msg); 
+    // my_odom_ok_ = true;
+    // if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
       
         
-        visualization_msgs::MarkerArray pred_marker = PathPrediction(cur_state,10);
-        pred_traj_marker_pub.publish(pred_marker);
-      }
+    //     visualization_msgs::MarkerArray pred_marker = PathPrediction(cur_state,10);
+    //     pred_traj_marker_pub.publish(pred_marker);
+    //   }
 }
 
 visualization_msgs::MarkerArray Ctrl::PathPrediction(const VehicleState state, int n_step){
@@ -325,18 +421,24 @@ visualization_msgs::MarkerArray Ctrl::PathPrediction(const VehicleState state, i
 
 
 void Ctrl::ControlLoop()
-{
+{ 
+    double hz = 20;
+    double ctrl_dt = 1/hz;
     ros::Rate loop_rate(20); // rate  
+    
+         
 
     while (ros::ok()){         
+        
+
         auto start = std::chrono::steady_clock::now();        
         
         traj_manager.updatelookaheadPath(cur_state,lookahead_path_length, curv_lookahead_path_length);
-        KeyPoints curv_key_pts;        
-        if(traj_manager.getCurvatureKeypoints(curv_key_pts)){
-          visualization_msgs::Marker key_pts_marker = traj_manager.keyptsToMarker(curv_key_pts);
-          keypts_info_pub.publish(key_pts_marker);
-        }
+        // KeyPoints curv_key_pts;        
+        // if(traj_manager.getCurvatureKeypoints(curv_key_pts)){
+        //   visualization_msgs::Marker key_pts_marker = traj_manager.keyptsToMarker(curv_key_pts);
+        //   keypts_info_pub.publish(key_pts_marker);
+        // }
         visualization_msgs::Marker global_traj_marker = traj_manager.getGlobalPathMarker();
         visualization_msgs::Marker centerline_info_marker = traj_manager.getCenterLineInfo();
         visualization_msgs::Marker local_traj_marker = traj_manager.getLocalPathMarker();
@@ -348,7 +450,7 @@ void Ctrl::ControlLoop()
         
     
 
-        pp_ctrl.set_manual_lookahead(manual_lookahed_switch, manual_speed_lookahed_switch, manual_lookahead, manual_speed_lookahead);
+        pp_ctrl.set_manual_lookahead(manual_lookahed_switch, manual_speed_lookahed_switch, manual_lookahead, manual_speed_lookahead, max_a_lat);
 
 
 
@@ -376,10 +478,15 @@ void Ctrl::ControlLoop()
 
         if(!traj_manager.is_recording() && ctrl_select > 0){
           if (manual_velocity){
-            ROS_INFO("cmd vel = %f", pp_cmd.drive.speed);
-            pp_cmd.drive.speed = manual_target_vel;}         
-            // put weight on vel
+            // ROS_INFO("cmd vel = %f", pp_cmd.drive.speed);  
+            pp_cmd.drive.speed = manual_target_vel;
+            }         
+            // multiply weight on vel
             pp_cmd.drive.speed = pp_cmd.drive.speed*manual_weight_ctrl;
+            
+         
+            
+
 
           //    if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed < 1.0){
           //   pp_cmd.drive.speed = 1.5;
@@ -407,6 +514,7 @@ void Ctrl::ControlLoop()
 void Ctrl::dyn_callback(highspeed_ctrl::testConfig &config, uint32_t level)
 {
   ROS_INFO("Dynamiconfigure updated");  
+  max_a_lat = config.max_a_lat;
   ctrl_select = config.ctrl_switch_param;
   manual_target_vel = config.manual_target_vel;
   manual_velocity = config.manual_velocity;
@@ -447,12 +555,13 @@ int main (int argc, char** argv)
 
   ros::init(argc, argv, "HighSpeedCtrl");
   ros::NodeHandle nh_private("~");
-  ros::NodeHandle nh_ctrl, nh_traj;
-  Ctrl Ctrl_(nh_ctrl, nh_traj, nh_private);
+  ros::NodeHandle nh_ctrl, nh_traj, nh_state;
+  Ctrl Ctrl_(nh_ctrl, nh_traj, nh_state, nh_private);
 
-  ros::CallbackQueue callback_queue_ctrl, callback_queue_traj;
+  ros::CallbackQueue callback_queue_ctrl, callback_queue_traj, callback_queue_state;
   nh_ctrl.setCallbackQueue(&callback_queue_ctrl);
   nh_traj.setCallbackQueue(&callback_queue_traj);
+  nh_state.setCallbackQueue(&callback_queue_state);
   
 
   std::thread spinner_thread_ctrl([&callback_queue_ctrl]() {
@@ -460,17 +569,23 @@ int main (int argc, char** argv)
     spinner_ctrl.spin(&callback_queue_ctrl);
   });
 
+
   std::thread spinner_thread_traj([&callback_queue_traj]() {
     ros::SingleThreadedSpinner spinner_traj;
     spinner_traj.spin(&callback_queue_traj);
   });
 
- 
+   std::thread spinner_thread_state([&callback_queue_state]() {
+    ros::SingleThreadedSpinner spinner_state;
+    spinner_state.spin(&callback_queue_state);
+  });
+
 
     ros::spin();
 
     spinner_thread_ctrl.join();
     spinner_thread_traj.join();
+    spinner_thread_state.join();
 
 
   return 0;

@@ -48,6 +48,41 @@ void Trajectory::clear()
   ey_r.clear();
 };
 
+void Trajectory::encode_traj_to_path_info(){
+
+  path.clear();
+  path.push_back(x);
+  path.push_back(y);
+  path.push_back(z);
+  path.push_back(yaw);
+  path.push_back(vx);
+  path.push_back(vy);
+  path.push_back(k);
+  path.push_back(relative_time);
+  path.push_back(s);
+  path.push_back(ey_l);
+  path.push_back(ey_r);
+
+ 
+}
+
+void Trajectory::encode_from_path_to_traj(std::vector<std::vector<double>> path){
+  clear();  
+  x = path[0];
+  y = path[1];
+  z = path[2];
+  yaw = path[3];
+  vx = path[4];
+  vy = path[5];
+  k = path[6];
+  relative_time = path[7];
+  s = path[8];
+  ey_l = path[9];
+  ey_r = path[10];
+
+}
+
+
 void Trajectory::erase_to(const int & idx){
   if(idx < 1 || idx > x.size()-1){
     return;

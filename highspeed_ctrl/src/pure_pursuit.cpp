@@ -42,7 +42,7 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
     debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
     ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
     ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
-    ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
+    // ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
     ctrl_nh.param<double>("Pemergency_stop_distance", emergency_stop_distance,0.0);
     
     ctrl_nh.param<double>("speed_minimum_lookahead_distance", speed_minimum_lookahead_distance,0.0);
@@ -66,7 +66,7 @@ bool PurePursuit::updateParamCallback(std_srvs::Trigger::Request& req, std_srvs:
     ctrl_nh.getParam("Pmaximum_lookahead_distance",maximum_lookahead_distance);    
     ctrl_nh.getParam("speed_minimum_lookahead_distance",speed_minimum_lookahead_distance);    
     ctrl_nh.getParam("speed_maximum_lookahead_distance",speed_maximum_lookahead_distance);  
-    ctrl_nh.getParam("Pspeed_to_lookahead_ratio",speed_to_lookahead_ratio);    
+    // ctrl_nh.getParam("Pspeed_to_lookahead_ratio",speed_to_lookahead_ratio);    
     ctrl_nh.getParam("Pemergency_stop_distance",emergency_stop_distance);    
     // nh_->get_parameter("Pspeed_thres_traveling_direction",speed_thres_traveling_direction);    
     ctrl_nh.getParam("Pmax_acceleration",max_acceleration);    
@@ -122,15 +122,15 @@ double PurePursuit::getAngleDiffToTargetPoint(){
   tf::Matrix3x3(q).getRPY(roll, pitch, yaw);  
   yaw = normalizeRadian(yaw);
   double speed = sqrt(cur_state.vx*cur_state.vx + cur_state.vy*cur_state.vy);
-  if(speed < 1.0){
-    // speed is too low, replace with yaw angle 
-    velocity_heading = yaw;
-  }else{
+  // if(speed < 0.2){
+  //   // speed is too low, replace with yaw angle 
+  //   velocity_heading = yaw;
+  // }else{
       bool odom_twist_in_local = true;
       if(odom_twist_in_local){
       Eigen::Matrix2d Rbg;
-      Rbg << cos(-1*yaw), -sin(-1*yaw),
-                            sin(-1*yaw), cos(-1*yaw);
+      Rbg << cos(yaw), -sin(yaw),
+                            sin(yaw), cos(yaw);
       Eigen::Vector2d local_vx_vy;
       local_vx_vy << cur_state.vx, cur_state.vy; 
       Eigen::Vector2d global_vx_vy = Rbg*local_vx_vy;
@@ -139,11 +139,11 @@ double PurePursuit::getAngleDiffToTargetPoint(){
       }else{
         velocity_heading = std::atan2(cur_state.vy,cur_state.vx);
       }
-  }
+  // }
   
  
-  
 
+  
   
   
     target_heading = normalizeRadian(target_heading);
@@ -151,43 +151,58 @@ double PurePursuit::getAngleDiffToTargetPoint(){
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////
   //////////////// check if the velocity vector angle is far away from yaw .... (Assumption: we do not dfirt!!!)
-  double diff_yaw_to_vel = normalizeRadian(velocity_heading - yaw);
-  double max_diff_angle = 5 * 3.14195 / 180.0;
-  if(diff_yaw_to_vel > max_diff_angle){
-    velocity_heading = yaw + max_diff_angle;
-  }else if( diff_yaw_to_vel > -1*max_diff_angle){
-    velocity_heading = yaw - max_diff_angle;
-  }
-  velocity_heading = normalizeRadian(velocity_heading);
+  // double diff_yaw_to_vel = normalizeRadian(velocity_heading - yaw);
+  // double max_diff_angle = 30 * 3.14195 / 180.0;
+  // if(diff_yaw_to_vel > max_diff_angle){
+  //   std::cout << "diff too much " << std::endl;
+  //   velocity_heading = yaw + max_diff_angle;
+  // }else if( diff_yaw_to_vel < -1*max_diff_angle){
+  //   std::cout << "diff too less " << std::endl;
+  //   velocity_heading = yaw - max_diff_angle;
+  // }
+  // velocity_heading = normalizeRadian(velocity_heading);
   /////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+  double diff_heading = normalizeRadian(target_heading-velocity_heading);
 
-    return normalizeRadian(target_heading-velocity_heading);
+  
+  // geometry_msgs::PoseStamped debug_msg;
+  // debug_msg.header.stamp = ros::Time::now();
+  // debug_msg.pose.position.x = target_heading*180/M_PI;
+  // debug_msg.pose.position.y = velocity_heading*180/M_PI;
+  // debug_msg.pose.position.z = diff_heading*180/M_PI;
+  // debug_pub.publish(debug_msg); 
+
+    return diff_heading;
 }
 
 
 
 bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy){
-  if(lookup_tb.is_ready){    
+  if(lookup_tb.is_ready){ 
+       
   double vt = sqrt(vx*vx + vy*vy);
-  if (vt < 1.0){
-    vt = 1.0;
-  }
-   if (vt > 1.5){
-    vt = 1.5;
-  }
-  std::cout << " vt = " << vt << std::endl;
+  // if (vt < 1.0) {
+  //   vt = 0.01;
+  // }
+  //  if (vt > 1.5){
+  //   vt = 1.5;
+  // }
+  
   // unsigned alat 
-  std::cout << "diff_angel = " << diff_angel*180/3.14195  <<std::endl;
-  double signed_desired_alat = 2*vt*vt*sin(diff_angel)/(lookahead_dist+1e-7);
+  std::cout << " lookahead_dist = " << lookahead_dist <<std::endl;
+  double signed_desired_alat = 2*vt*vt*sin(diff_angel)/(lookahead_dist+1e-10);
   double desired_alat = abs(signed_desired_alat);
-  std::cout << " unsigned desired_alat = " << desired_alat << std::endl;
+  // std::cout << " unsigned desired_alat = " << desired_alat << std::endl;
   
   vt = clamp(vt, lookup_tb.vx_min, lookup_tb.vx_max);
+  
   desired_alat = clamp(desired_alat, lookup_tb.alat_min, lookup_tb.alat_max);
+  
    
   ////////////// GGUMZZIKHAE
-  std::cout << " clamped vt = " << vt << std::endl;
-  std::cout << " clamped desired_alat = " << desired_alat << std::endl;
+  // std::cout << " clamped vt = " << vt << std::endl;
+  // std::cout << " clamped desired_alat = " << desired_alat << std::endl;
 
   double unsigned_delta = lookup_tb.eval(desired_alat, vt);
   
@@ -204,12 +219,13 @@ bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_an
   debug_msg.header.stamp = ros::Time::now();
   debug_msg.pose.position.x = vt;
   if (signed_desired_alat > 0){
-    debug_msg.pose.position.y = desired_alat;
+    debug_msg.pose.position.y = signed_desired_alat;
   }else{
-    debug_msg.pose.position.y = -1*desired_alat;
+    debug_msg.pose.position.y = -1*signed_desired_alat;
     
   }  
   debug_msg.pose.position.z = delta;
+  debug_msg.pose.orientation.x = diff_angel;
   debug_pub.publish(debug_msg);
   return true;
   }
@@ -225,6 +241,8 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
     return cmd_msg; 
   }
   const auto start = std::chrono::system_clock::now();
+
+  
 //   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
   int near_idx;
   compute_lookahead_distance(cur_state.vx);  // update m_lookahead_distance 
@@ -261,15 +279,28 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
     return cmd_msg; 
   }
   const auto start = std::chrono::system_clock::now();
-//   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
+
+  // Compute the initial guess of target velocity from the path info 
+       // given initial velocity guess, lookahead distance is computed for steering(independent of current velocity) 
+       // Given lookahead distance, we extract the curvature of that lookahead point 
+       // if the lookahead distance is greater than some threshold, and the curavture at that point is great 
+        // we decress the velocity from initial guess for fast decelleration
+
+  //   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
   int near_idx;
-  compute_lookahead_distance(cur_state.vx);  // update m_lookahead_distance 
+  double target_vel_init_guess = compute_target_speed();
+  // compute_lookahead_distance(target_vel_init_guess);  // update m_lookahead_distance 
+  compute_lookahead_distance(cur_state.vx); 
+  
   const auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
   
+
   if (is_success) {
+      double target_vel = refine_target_vel_via_curvature(target_vel_init_guess, near_idx);
+    
     // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
         cmd_msg.header.stamp = ros::Time::now();
-        cmd_msg.drive.speed =  compute_target_speed();
+        cmd_msg.drive.speed =  target_vel;
           cmd_msg.drive.steering_angle = compute_steering_rad();
  
   } else {
@@ -279,6 +310,19 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
     
   }
   
+  // filter vx if ey is high 
+    ///  TODO: or we can reduce speed to certain value if such case.. 
+     // if accel , limit vel via maximum acceleration 
+     if(cur_state.ey > 0.1 || cur_state.epsi > 10*3.14195/180.0){
+      ///  TODO: or we can reduce speed to certain value if such case.. 
+      if(cmd_msg.drive.speed > cur_state.vx ){
+        double cliped_vel_cmd = cur_state.vx+max_acceleration;
+        double cmd_vel = cmd_msg.drive.speed;
+        cmd_msg.drive.speed  = std::min(cliped_vel_cmd, cmd_vel);
+        std::cout << "limit vel " << cliped_vel_cmd << std::endl;
+      }
+     }
+      
 
   return cmd_msg;
 }
@@ -329,16 +373,18 @@ PathPoint PurePursuit::get_speed_target_point(){
     return m_speed_target_point;
 } 
 
-void PurePursuit::set_manual_lookahead(const bool target_switch, const bool speed_switch, const double dist_lookahead,const double speed_lookahead){
+void PurePursuit::set_manual_lookahead(const bool target_switch, const bool speed_switch, const double dist_lookahead,const double speed_lookahead, const double max_a_lat_){
    manual_target_lookahead = target_switch;
    manual_speed_lookahead = speed_switch;
    manual_target_lookahead_value = dist_lookahead;
    manual_speed_lookahead_value = speed_lookahead;
+   max_a_lat = max_a_lat_;
 }
 
 double PurePursuit::compute_target_speed(){
     //  PathPoint target_point;
      int near_idx;
+     
      double vel_lookahed_dist = fabs(cur_state.vx*vel_lookahead_ratio);
        vel_lookahed_dist =
     std::max(speed_minimum_lookahead_distance,
@@ -356,10 +402,15 @@ double PurePursuit::compute_target_speed(){
     return target_speed;
 }
 ////////////////////////////////////////////////////////////////////////////////
-void PurePursuit::compute_lookahead_distance(const double current_velocity)
-{
+void PurePursuit::compute_lookahead_distance(const double reference_velocity)
+{ 
+  double target_vel = cur_state.vx;
+  if (fabs(cur_state.ey) > 0.2){
+    target_vel = std::max(cur_state.vx, reference_velocity);
+  }
+  
   // const double lookahead_distance = fabs(current_velocity * speed_to_lookahead_ratio);
-  const double lookahead_distance = current_velocity *1.8-2.9;
+  const double lookahead_distance = target_vel *1.8-2.9;
   m_lookahead_distance =
     std::max(minimum_lookahead_distance,
     std::min(lookahead_distance, maximum_lookahead_distance));
@@ -373,7 +424,17 @@ void PurePursuit::compute_lookahead_distance(const double current_velocity)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-
+double PurePursuit::refine_target_vel_via_curvature(const double init_vel, const int & target_wp_idx){
+  double target_wp_curvature = fabs(local_traj.k[target_wp_idx]);  
+  if(m_lookahead_distance > 0.0){ // 
+      double max_vel = sqrt(max_a_lat / (abs(target_wp_curvature)+1e-5));
+      double refined_vel = std::max(0.0,
+                            std::min(init_vel, max_vel));
+      return refined_vel;
+  } 
+  
+  return init_vel;
+} 
 
 bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPoint & target_point_, int & near_idx)
 {   near_idx =0;
@@ -402,30 +463,32 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
    
   }
 
-  // if we meet the end of trajectory recompute from the initial 
-  if(!find_within_lap){
-    // ROS_INFO("finish line close");
+  bool is_success = true;
+return is_success;
+  // THiS CODE IS NOT CORRECT ... ShOULD BE DONE while extracing local trajectory from path manager 
+        // if we meet the end of trajectory recompute from the initial 
+  // if(!find_within_lap){
+  //   // ROS_INFO("finish line close");
    
-    PathPoint init_point;
-    init_point <<  local_traj.x[0], local_traj.y[0];
-    for(int iidx = 0;iidx <  local_traj.size(); ++iidx){
-      PathPoint target_point_tmp;
-      target_point_tmp << local_traj.x[iidx], local_traj.y[iidx];
-      last_idx_for_noupdate = iidx;
-      if (compute_points_distance_squared(init_point, target_point_tmp) >=lookahead_distance-cum_dist)
-      {
-        target_point_ = target_point_tmp;        
-        break;
-      }
+  //   PathPoint init_point;
+  //   init_point <<  local_traj.x[0], local_traj.y[0];
+  //   for(int iidx = 0;iidx <  local_traj.size(); ++iidx){
+  //     PathPoint target_point_tmp;
+  //     target_point_tmp << local_traj.x[iidx], local_traj.y[iidx];
+  //     last_idx_for_noupdate = iidx;
+  //     if (compute_points_distance_squared(init_point, target_point_tmp) >=lookahead_distance-cum_dist)
+  //     {
+  //       target_point_ = target_point_tmp;        
+  //       break;
+  //     }
 
-    }
+  //   }
     
-  }
+  // }
 
   
 
 
-  bool is_success = true;
   // If all points are within the distance threshold,
   // if (idx == local_traj.size()) {
   //     // use the farthest target index in the traveling direction      
@@ -492,7 +555,7 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
     }else{      
       // Timid Following Action !!! 
       race_mode = RaceMode::Following;
-      ROS_INFO("Following");  
+      // ROS_INFO("Following");  
       target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
     }
 

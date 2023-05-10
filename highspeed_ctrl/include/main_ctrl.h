@@ -92,14 +92,14 @@
 class Ctrl 
 {  
 private:
-ros::NodeHandle nh_ctrl_, nh_traj_, nh_p;
+ros::NodeHandle nh_ctrl_, nh_traj_, nh_state_, nh_p;
 
 
 VehicleState cur_state, prev_state, obstacle_state; //< @brief vehicle status
 
 bool my_steering_ok_,my_position_ok_, my_odom_ok_;
-std::mutex mtx_;
-ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub;
+std::mutex odom_mtx, imu_mtx, pose_mtx, vesc_mtx;
+ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub, vesodomSub;
 
 bool first_traj_received;
 bool first_pose_received;
@@ -119,8 +119,8 @@ dynamic_reconfigure::Server<highspeed_ctrl::testConfig>::CallbackType f;
 
 std::vector<double> delta_buffer;
 int path_filter_moving_ave_num_, curvature_smoothing_num_, path_smoothing_times_;
-
-
+double max_a_lat;
+double odom_pose_diff_threshold;
 double error_deriv_lpf_curoff_hz;
 std::string pp_lookup_table_file_name, vel_cmd_topic, control_topic, pose_topic, vehicle_states_topic, waypoint_topic, odom_topic, status_topic, simstatus_topic, steer_cmd_topic;
 
@@ -141,22 +141,26 @@ VehicleDynamics ego_vehicle;
 int ctrl_select;
 
 geometry_msgs::PoseStamped cur_pose, prev_pose; 
+nav_msgs::Odometry cur_odom, prev_odom;
+bool first_odom_received;
 sensor_msgs::Imu cur_imu;
 bool imu_received;
 
 public:
-Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_p_);
+Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_state, ros::NodeHandle& nh_p_);
 ~Ctrl();
 void ControlLoop();
 
-void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom);
+void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom,const bool & odom_twist_in_local);
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
 void obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg);
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
+void vescodomCallback(const nav_msgs::OdometryConstPtr& msg);
 void poseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
 void imuCallback(const sensor_msgs::Imu::ConstPtr& msg);
 void callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg);
 void trackToMarker(const hmcl_msgs::Track& state, visualization_msgs::Marker & marker);
+bool odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::Odometry& odom);
 
 void dyn_callback(highspeed_ctrl::testConfig& config, uint32_t level);
 

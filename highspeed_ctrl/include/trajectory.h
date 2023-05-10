@@ -37,7 +37,7 @@ public:
   std::vector<double> s; // progress   
   std::vector<double> ey_l; // track_left_wall_distance   
   std::vector<double> ey_r; // track_right_wall_distance   
-
+  std::vector<std::vector<double>> path; // 
   void erase_to(const int & idx);
   /**
    * @brief push_back for all values
@@ -49,7 +49,8 @@ public:
    * @brief clear for all values
    */
   void clear();
-
+  void encode_traj_to_path_info();
+  void encode_from_path_to_traj(std::vector<std::vector<double>> path);
   Trajectory get_segment(size_t start_idx, size_t end_idx) const;
   
 

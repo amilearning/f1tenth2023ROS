@@ -214,8 +214,8 @@ public:
   PathPoint get_target_point();
   PathPoint get_speed_target_point();
   visualization_msgs::Marker getTargetPointhMarker(int point_idx);
-    void set_manual_lookahead(const bool target_switch, const bool speed_switch, const double dist_lookahead,const double speed_lookahead);
-
+    void set_manual_lookahead(const bool target_switch, const bool speed_switch, const double dist_lookahead,const double speed_lookahead,const double max_a_lat_);
+    double max_acceleration;
 
 private:
   
@@ -225,8 +225,9 @@ private:
   
   
   double compute_target_speed();
-  void compute_lookahead_distance(const double current_velocity);
+  void compute_lookahead_distance(const double reference_velocity);
 
+  double refine_target_vel_via_curvature(const double init_vel, const int & target_wp_idx);
   bool compute_target_point(const double & lookahead_distance, PathPoint & target_point_, int & near_idx);
   bool getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy);
   double getAngleDiffToTargetPoint();
@@ -261,13 +262,12 @@ private:
   BicubicSplineLookupTable lookup_tb;
     bool manual_target_lookahead, manual_speed_lookahead;
     double manual_target_lookahead_value, manual_speed_lookahead_value;
-
+    double max_a_lat;
      double    minimum_lookahead_distance,
                 maximum_lookahead_distance,
                 speed_to_lookahead_ratio,    
                 emergency_stop_distance,
-                speed_thres_traveling_direction,
-                max_acceleration,
+                speed_thres_traveling_direction,                
                 distance_front_rear_wheel,                
                 vel_lookahead_ratio,
                 speed_minimum_lookahead_distance,

@@ -1,6 +1,6 @@
 #include "trajectory_manager.h"
 
-TrajectoryManager::TrajectoryManager(const ros::NodeHandle& nh_traj) : traj_nh(nh_traj), path_logger(0.05), frenet_ready(false){
+TrajectoryManager::TrajectoryManager(const ros::NodeHandle& nh_traj) : traj_nh(nh_traj), path_logger(0.05), frenet_ready(false), is_first_lookahead(true){
     // create publishers and subscribers
     is_recording_ = false;
     path_record_init_srv = traj_nh.advertiseService("/path_record_init_srv", &TrajectoryManager::startRecordingCallback, this);
@@ -216,16 +216,26 @@ Trajectory TrajectoryManager::getglobalPath(){
     return tmp_ref_traj;
 }
 
+void TrajectoryManager::updatelookaheadPath_from_local(const VehicleState& vehicle_state, const double& length, const double& curv_lookahead_path_length){
+     // If this is the first call 
+    if(is_first_lookahead){
+        updatelookaheadPath(vehicle_state, length, curv_lookahead_path_length);
+
+    }
+}
+
 // Delete the driven traj
-void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, const double& length, const double& curv_lookahead_path_length)
+void TrajectoryManager::updatelookaheadPath(Trajectory & input_traj, const VehicleState& vehicle_state, const double& length, const double& curv_lookahead_path_length)
 {
-    path_logger.getPath(tmp_ref_traj);
-    if(tmp_ref_traj.size() < 2 ){return;}
+    path_logger.getPath(input_traj);
+    if(input_traj.size() < 2 ){return;}
+     
+    
     // Find the closest point on the path to the current position
     double closest_dist = std::numeric_limits<double>::infinity();
     int closest_idx = -1;
-    for (int i = 0; i < tmp_ref_traj.size(); ++i) {
-        double dist = std::sqrt(std::pow(tmp_ref_traj.x[i] - vehicle_state.pose.position.x, 2.0) + std::pow(tmp_ref_traj.y[i] - vehicle_state.pose.position.y, 2.0));
+    for (int i = 0; i < input_traj.size(); ++i) {
+        double dist = std::sqrt(std::pow(input_traj.x[i] - vehicle_state.pose.position.x, 2.0) + std::pow(input_traj.y[i] - vehicle_state.pose.position.y, 2.0));
         if (dist < closest_dist) {
             closest_dist = dist;
             closest_idx = i;
@@ -242,8 +252,6 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
     //     closest_idx = closest_idx +3;
     // }
 
-    
-  
     // Determine the start and end indices of the segment
     double total_dist = 0.0;
     int start_idx = closest_idx;
@@ -251,8 +259,8 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
     int max_count = 0;
     while (total_dist < length) {
         ++max_count;
-        if (end_idx < tmp_ref_traj.size() - 1) {
-            double dist = std::sqrt(std::pow(tmp_ref_traj.x[end_idx] - tmp_ref_traj.x[end_idx+1], 2.0) +std::pow(tmp_ref_traj.y[end_idx] - tmp_ref_traj.y[end_idx+1], 2.0));
+        if (end_idx < input_traj.size() - 1) {
+            double dist = std::sqrt(std::pow(input_traj.x[end_idx] - input_traj.x[end_idx+1], 2.0) +std::pow(input_traj.y[end_idx] - input_traj.y[end_idx+1], 2.0));
             if (total_dist + dist < length) {
                 total_dist += dist;
                 ++end_idx;
@@ -271,7 +279,7 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
     }
     // ROS_INFO("start_idx = %d", start_idx);
     // ROS_INFO("end_idx = %d", end_idx);
-    lookahead_traj = tmp_ref_traj.get_segment(start_idx,end_idx);
+    lookahead_traj = input_traj.get_segment(start_idx,end_idx);
 
     //////////////////////////////// Get the segment for curvature 
      double curv_total_dist = 0.0;
@@ -279,8 +287,8 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
     int curv_end_idx = closest_idx;
     while (curv_total_dist < curv_lookahead_path_length) {
         
-        if (curv_end_idx < tmp_ref_traj.size() - 1) {
-            double dist = std::sqrt(std::pow(tmp_ref_traj.x[curv_end_idx] - tmp_ref_traj.x[curv_end_idx+1], 2.0) +std::pow(tmp_ref_traj.y[curv_end_idx] - tmp_ref_traj.y[curv_end_idx+1], 2.0));
+        if (curv_end_idx < input_traj.size() - 1) {
+            double dist = std::sqrt(std::pow(input_traj.x[curv_end_idx] - input_traj.x[curv_end_idx+1], 2.0) +std::pow(input_traj.y[curv_end_idx] - input_traj.y[curv_end_idx+1], 2.0));
             if (curv_total_dist + dist < curv_lookahead_path_length) {
                 curv_total_dist += dist;
                 ++curv_end_idx;
@@ -293,8 +301,8 @@ void TrajectoryManager::updatelookaheadPath(const VehicleState& vehicle_state, c
         }
     }
 
-    curv_info_traj = tmp_ref_traj.get_segment(curv_start_idx,curv_end_idx);
-
+    curv_info_traj = input_traj.get_segment(curv_start_idx,curv_end_idx);
+    
 }
 
 

@@ -134,7 +134,34 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     // Close the file
     ofs.close();
     }
+    
+    void sampleUniformPath(Trajectory & traj,const double minDist){
+        std::cout << "Uniform path sampling init" <<std::endl;
+        std::vector<std::vector<double>> resampled_path(traj.path.size());
+        double last_x = traj.path[0].front();
+        double last_y = traj.path[1].front();
+        // initialize waypoints
+        for(int j=0;  j< traj.path.size(); ++j){
+                    resampled_path[j].push_back(traj.path[j][0]); 
+        } 
 
+
+        for(int i = 1;  i < traj.path[0].size(); ++i){
+            double dx = traj.path[0][i] - last_x;
+            double dy = traj.path[1][i] - last_y;
+            double dist = std::sqrt(dx*dx + dy*dy);
+            if (dist > minDist) {
+                for(int j=0;  j< traj.path.size(); ++j){
+                    resampled_path[j].push_back(traj.path[j][i]); 
+                }            
+            last_x = traj.path[0][i];
+            last_y = traj.path[1][i];
+            }
+        } 
+        
+        traj.encode_from_path_to_traj(resampled_path);
+        std::cout << "Sample path size =  " << traj.size() << std::endl;
+    }
 
     void updataPath(const visualization_msgs::MarkerArray& marker_data){
         ref_traj.clear();
@@ -185,6 +212,9 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
         }
 
         std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
+        ref_traj.encode_traj_to_path_info();
+        double traj_waypoints_min_dist = 0.1;
+        sampleUniformPath(ref_traj, traj_waypoints_min_dist);
     }
     
     
@@ -240,6 +270,7 @@ public:
     visualization_msgs::Marker traj_to_marker(const Trajectory & traj, const std_msgs::ColorRGBA & color_);
     
     void updatelookaheadPath(const VehicleState& vehicle_state, const double& length,  const double& curv_lookahead_path_length);
+    void updatelookaheadPath_from_local(const VehicleState& vehicle_state, const double& length,  const double& curv_lookahead_path_length);
     Trajectory getlookaheadPath(); 
     Trajectory getglobalPath();
     bool getCurvatureKeypoints(KeyPoints & key_pts);
@@ -275,12 +306,14 @@ private:
 
     bool is_recording_;
     // Path recording variables
-    
+    bool is_first_lookahead;
     
     // Mutex for thread safety
     std::mutex mutex_;
     Trajectory lookahead_traj; // local lookahead centerline (mainly used py pp_ctrl)
     Trajectory tmp_ref_traj;  // global centerline
+    Trajectory global_ref_traj;
+    Trajectory local_ref_traj;
     Trajectory curv_info_traj; // local lookahead centerline for curvature estimation
     
     

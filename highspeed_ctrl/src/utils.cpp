@@ -51,8 +51,15 @@ double projectToLine(double x, double y, double cx1, double cy1, double cx2, dou
 
 double normalizeRadian(const double _angle)
 {
-  double n_angle = std::fmod(_angle, 2 * M_PI);
-  n_angle = n_angle > M_PI ? n_angle - 2 * M_PI : n_angle < -M_PI ? 2 * M_PI + n_angle : n_angle;
+  double n_angle = _angle;
+  // double n_angle = std::fmod(_angle, 2 * M_PI);
+  // n_angle = n_angle > M_PI ? n_angle - 2 * M_PI : n_angle < -M_PI ? 2 * M_PI + n_angle : n_angle;
+  while(n_angle > M_PI){
+      n_angle = n_angle-2*M_PI;
+  }
+   while(n_angle < -1*M_PI){
+      n_angle = n_angle+2*M_PI;
+  }
 
   // another way
   // Math.atan2(Math.sin(_angle), Math.cos(_angle));
