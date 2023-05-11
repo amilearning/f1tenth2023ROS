@@ -34,7 +34,7 @@ double clamp(double value, double min_val, double max_val) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), race_mode(RaceMode::Race){
+PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), is_there_obstacle(false), race_mode(RaceMode::Race){
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
@@ -190,7 +190,7 @@ bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_an
   // }
   
   // unsigned alat 
-  std::cout << " lookahead_dist = " << lookahead_dist <<std::endl;
+  
   double signed_desired_alat = 2*vt*vt*sin(diff_angel)/(lookahead_dist+1e-10);
   double desired_alat = abs(signed_desired_alat);
   // std::cout << " unsigned desired_alat = " << desired_alat << std::endl;
@@ -252,7 +252,7 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
     // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
         cmd_msg.header.stamp = ros::Time::now();
         // ackermann_msg.drive.speed =  opt_vel/5.0;
-        cmd_msg.drive.speed =  compute_target_speed();
+        cmd_msg.drive.speed =  compute_target_speed(vel_lookahead_ratio);
         
         if(lookup_tb.is_ready){
             double angle_diff = getAngleDiffToTargetPoint();
@@ -279,7 +279,6 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
     return cmd_msg; 
   }
   const auto start = std::chrono::system_clock::now();
-
   // Compute the initial guess of target velocity from the path info 
        // given initial velocity guess, lookahead distance is computed for steering(independent of current velocity) 
        // Given lookahead distance, we extract the curvature of that lookahead point 
@@ -288,20 +287,62 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
   //   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
   int near_idx;
-  double target_vel_init_guess = compute_target_speed();
-  // compute_lookahead_distance(target_vel_init_guess);  // update m_lookahead_distance 
-  compute_lookahead_distance(cur_state.vx); 
+  double adaptive_vel_lookahead_ratio;
+  if(fabs(cur_state.k) < 0.2 ){
+    // if we drive on straight line
+    adaptive_vel_lookahead_ratio = 2*  vel_lookahead_ratio;
+  }else{
+     // if we drive on curvy road 
+    adaptive_vel_lookahead_ratio = vel_lookahead_ratio/2;
+  }
   
-  const auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
+  
+
+  double target_vel_init_guess = compute_target_speed(adaptive_vel_lookahead_ratio);
+  compute_lookahead_distance(target_vel_init_guess);  // update m_lookahead_distance  for target speed reference 
+  // compute_lookahead_distance(cur_state.vx); 
+  
+  auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
   
 
   if (is_success) {
       double target_vel = refine_target_vel_via_curvature(target_vel_init_guess, near_idx);
-    
-    // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
-        cmd_msg.header.stamp = ros::Time::now();
-        cmd_msg.drive.speed =  target_vel;
-          cmd_msg.drive.steering_angle = compute_steering_rad();
+      if (target_vel != target_vel_init_guess){
+      }
+
+        // filter vx if ey is high 
+    ///  TODO: or we can reduce speed to certain value if such case.. 
+     // if accel , limit vel via maximum acceleration 
+     if(cur_state.ey > 0.2 || cur_state.epsi > 20*3.14195/180.0){
+      ROS_INFO("ey or epsi increased");
+      ///  TODO: or we can reduce speed to certain value if such case.. 
+      if(target_vel > cur_state.vx ){
+        double cliped_vel_cmd = cur_state.vx+max_acceleration;      
+        target_vel  = std::min(cliped_vel_cmd, target_vel);
+        // std::cout << "limit vel " << cliped_vel_cmd << std::endl;
+      }
+     }
+
+    // hard constraint for recovery 
+     if(cur_state.ey > 1.0 ){
+      target_vel  =1.5;
+     }else if(cur_state.ey > 0.5 && cur_state.ey < 1.0){
+      target_vel  =2.0;
+     }
+
+
+      compute_lookahead_distance(cur_state.vx);                                          // true lookahead for steering
+      
+      is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
+                                                                                         // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
+
+      bool obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
+      if (obstacle_avoidance_activate){
+          target_vel = 1.5;
+      }
+      cmd_msg.header.stamp = ros::Time::now();
+      cmd_msg.drive.speed = target_vel;
+      cmd_msg.drive.steering_angle = compute_steering_rad();
  
   } else {
         cmd_msg.header.stamp = ros::Time::now();        
@@ -310,23 +351,95 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
     
   }
   
-  // filter vx if ey is high 
-    ///  TODO: or we can reduce speed to certain value if such case.. 
-     // if accel , limit vel via maximum acceleration 
-     if(cur_state.ey > 0.1 || cur_state.epsi > 10*3.14195/180.0){
-      ///  TODO: or we can reduce speed to certain value if such case.. 
-      if(cmd_msg.drive.speed > cur_state.vx ){
-        double cliped_vel_cmd = cur_state.vx+max_acceleration;
-        double cmd_vel = cmd_msg.drive.speed;
-        cmd_msg.drive.speed  = std::min(cliped_vel_cmd, cmd_vel);
-        std::cout << "limit vel " << cliped_vel_cmd << std::endl;
-      }
-     }
+
+    
       
 
   return cmd_msg;
 }
 
+
+
+bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
+  if(!is_there_obstacle){
+    
+    return false;
+    
+  }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////Obstacle avoidance refinement//////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+  double min_dist_to_local_path = 1e3;
+  int min_idx = 0;
+  for(int k=0; k < local_traj.x.size(); k++){
+      double tmp_dist = sqrt((cur_obstacle.pose.position.x-local_traj.x[k])*(cur_obstacle.pose.position.x - local_traj.x[k]) + (cur_obstacle.pose.position.y-local_traj.y[k])*(cur_obstacle.pose.position.y-local_traj.y[k]));
+      if(tmp_dist < min_dist_to_local_path){
+        min_dist_to_local_path = tmp_dist;
+        min_idx = k;
+      }
+  }
+  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;
+  bool obstacle_avoidance_activate = false;
+  
+  
+  // if (  tmp_dist <  1.5 && s_diff > 0){
+    // ROS_INFO("obstacle on the local trajectory ");
+    
+    obstacle_avoidance_activate = true;
+    
+  // }
+  
+  double width_safe_dist = 0.3;
+  race_mode = RaceMode::Race;
+  
+  if(obstacle_avoidance_activate){
+      double target_ey = 0;
+      if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
+              target_ey = cur_obstacle.ey -width_safe_dist*2;              
+              double track_right_cosntaint = local_traj.ey_r[near_idx]-width_safe_dist;
+              track_right_cosntaint = std::max(track_right_cosntaint, 0.0);
+              target_ey = std::max(std::min(target_ey, 0.0), -1*track_right_cosntaint);                
+      }else{
+        // obstacle is in the right side of centerline 
+        target_ey = cur_obstacle.ey+width_safe_dist*2;
+        double track_left_constraint = local_traj.ey_l[near_idx] - width_safe_dist;
+        track_left_constraint = std::max(track_left_constraint, 0.0);
+        target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
+      } 
+      
+      
+    // if(abs(cur_obstacle.ey) > width_safe_dist){
+      
+      race_mode = RaceMode::Overtaking;
+      // Aggresive Overtaking Action!!
+      ROS_WARN("OVVertaking !!");
+    // }else{      
+    //   // Timid Following Action !!! 
+    //   race_mode = RaceMode::Following;
+    //   // ROS_INFO("Following");  
+    //   target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
+    // }
+
+    double yaw_on_centerline = local_traj.yaw[near_idx];
+    double new_x, new_y;
+      if(target_ey >= 0){
+      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
+      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
+      
+      }else{
+      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
+      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
+      
+      }
+      target_point_ << new_x, new_y;
+
+
+  }
+
+  return obstacle_avoidance_activate;
+}
 
 visualization_msgs::Marker PurePursuit::getTargetPointhMarker(int point_idx){
   double x_, y_;
@@ -381,11 +494,11 @@ void PurePursuit::set_manual_lookahead(const bool target_switch, const bool spee
    max_a_lat = max_a_lat_;
 }
 
-double PurePursuit::compute_target_speed(){
+double PurePursuit::compute_target_speed(double vel_lookahead_ratio_){
     //  PathPoint target_point;
      int near_idx;
      
-     double vel_lookahed_dist = fabs(cur_state.vx*vel_lookahead_ratio);
+     double vel_lookahed_dist = fabs(cur_state.vx*vel_lookahead_ratio_);
        vel_lookahed_dist =
     std::max(speed_minimum_lookahead_distance,
     std::min(vel_lookahed_dist, speed_maximum_lookahead_distance));
@@ -464,7 +577,7 @@ bool PurePursuit::compute_target_point(const double & lookahead_distance, PathPo
   }
 
   bool is_success = true;
-return is_success;
+
   // THiS CODE IS NOT CORRECT ... ShOULD BE DONE while extracing local trajectory from path manager 
         // if we meet the end of trajectory recompute from the initial 
   // if(!find_within_lap){
@@ -503,83 +616,8 @@ return is_success;
   target_point_ << local_traj.x[near_idx], local_traj.y[near_idx];
   // ROS_INFO("near_idx = %d", near_idx);
   // ROS_INFO("target_point_ = %f,   %f", target_point_[near_idx], target_point_[near_idx]);
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////Obstacle avoidance refinement//////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+return is_success;
   
-  double min_dist_to_local_path = 1e3;
-  int min_idx = 0;
-  for(int k=0; k < local_traj.x.size(); k++){
-      double tmp_dist = sqrt((cur_obstacle.pose.position.x-local_traj.x[k])*(cur_obstacle.pose.position.x - local_traj.x[k]) + (cur_obstacle.pose.position.y-local_traj.y[k])*(cur_obstacle.pose.position.y-local_traj.y[k]));
-      if(tmp_dist < min_dist_to_local_path){
-        min_dist_to_local_path = tmp_dist;
-        min_idx = k;
-      }
-  }
-  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;
-  bool obstacle_avoidance_activate = false;
-  
-  if (min_dist_to_local_path < 1.0){
-    // ROS_INFO("obstacle on the local trajectory ");
-    // std::cout << "ey " << cur_obstacle.ey<< std::endl;
-    obstacle_avoidance_activate = true;
-    
-  }
-  
-  double width_safe_dist = 0.3;
-  race_mode = RaceMode::Race;
-  
-  if(obstacle_avoidance_activate){
-      double target_ey = 0;
-      if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
-              target_ey = cur_obstacle.ey -width_safe_dist*2;              
-              double track_right_cosntaint = local_traj.ey_r[near_idx]-width_safe_dist;
-              track_right_cosntaint = std::max(track_right_cosntaint, 0.0);
-              target_ey = std::max(std::min(target_ey, 0.0), -1*track_right_cosntaint);                
-      }else{
-        // obstacle is in the right side of centerline 
-        target_ey = cur_obstacle.ey+width_safe_dist*2;
-        double track_left_constraint = local_traj.ey_l[near_idx] - width_safe_dist;
-        track_left_constraint = std::max(track_left_constraint, 0.0);
-        target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
-      } 
-      
-      
-    if(abs(cur_obstacle.ey) > width_safe_dist){
-      
-      race_mode = RaceMode::Overtaking;
-      // Aggresive Overtaking Action!!
-      ROS_WARN("OVVertaking !!");
-    }else{      
-      // Timid Following Action !!! 
-      race_mode = RaceMode::Following;
-      // ROS_INFO("Following");  
-      target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
-    }
-
-    double yaw_on_centerline = local_traj.yaw[near_idx];
-    double new_x, new_y;
-      if(target_ey >= 0){
-      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
-      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
-      
-      }else{
-      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
-      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
-      
-      }
-      target_point_ << new_x, new_y;
-
-
-  }
-  ////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  return is_success;
 }
 ////////////////////////////////////////////////////////////////////////////////
 double PurePursuit::compute_points_distance_squared(

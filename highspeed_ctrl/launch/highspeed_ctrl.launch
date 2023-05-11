@@ -22,9 +22,9 @@
       <param name="Pmax_acceleration" value="1.0"/> 
       <param name="Pdistance_front_rear_wheel" value="0.33"/> 
 
-      <param name="vel_lookahead_ratio" value="1.5"/>       
-      <param name="speed_minimum_lookahead_distance" value="0.2"/> 
-      <param name="speed_maximum_lookahead_distance" value="2.5"/> 
+      <param name="vel_lookahead_ratio" value="1.0"/>       
+      <param name="speed_minimum_lookahead_distance" value="0.6"/> 
+      <param name="speed_maximum_lookahead_distance" value="1.0"/> 
 
       <param name="x_vel_filter_cutoff" value="10.0"/> 
       <param name="y_vel_filter_cutoff" value="8.0"/> 
@@ -33,10 +33,12 @@
 
 
       <param name="path_smoothing_times_" value="1"/> 
-      <param name="curvature_smoothing_num_35" value="35"/> 
+      
       <param name="path_filter_moving_ave_num_" value="1"/> 
-      <param name="lookahead_path_length" value="6.0"/> 
-      <param name="curv_lookahead_path_length" value="6.0"/> 
+      <param name="lookahead_path_length" value="4.0"/> 
+
+      
+      
 
       
       

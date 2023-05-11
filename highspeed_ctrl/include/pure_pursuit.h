@@ -207,6 +207,7 @@ public:
   void update_obstacleState(const VehicleState & state);
   void update_ref_traj(const Trajectory & ref);
   void readLookuptable(const std::string& filename);
+  bool is_there_obstacle;
   
   ackermann_msgs::AckermannDriveStamped compute_command();
   ackermann_msgs::AckermannDriveStamped compute_model_based_command();
@@ -222,9 +223,10 @@ private:
   ros::NodeHandle ctrl_nh;
   ros::ServiceServer update_param_srv;    
   bool updateParamCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res);
+
+    bool ObstacleAvoidance(PathPoint & target_point_, int near_idx);
   
-  
-  double compute_target_speed();
+  double compute_target_speed(double vel_lookahead_ratio_);
   void compute_lookahead_distance(const double reference_velocity);
 
   double refine_target_vel_via_curvature(const double init_vel, const int & target_wp_idx);

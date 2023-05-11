@@ -125,6 +125,7 @@ double Trajectory::dist( double x_ref,  double y_ref, int traj_index) const{
 
 Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
 {
+
   Trajectory segment;
   
   if (start_idx < end_idx && end_idx <= size())

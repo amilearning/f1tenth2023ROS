@@ -145,6 +145,7 @@ nav_msgs::Odometry cur_odom, prev_odom;
 bool first_odom_received;
 sensor_msgs::Imu cur_imu;
 bool imu_received;
+bool is_odom_used;
 
 public:
 Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_state, ros::NodeHandle& nh_p_);

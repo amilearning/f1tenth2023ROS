@@ -34,6 +34,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   ctrl_select(0),
   first_pose_received(false),
   first_odom_received(false),
+  is_odom_used(false),
   imu_received(false),
   first_traj_received(false)
 {
@@ -55,12 +56,12 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   // nh_p.param<std::string>("odom_topic", odom_topic, "/odom");   
   nh_p.param<std::string>("odom_topic", odom_topic, "/pose_estimate");   
   nh_p.param<int>("path_smoothing_times_", path_smoothing_times_, 1);
-  nh_p.param<int>("curvature_smoothing_num_", curvature_smoothing_num_, 35);
+  
   nh_p.param<int>("path_filter_moving_ave_num_", path_filter_moving_ave_num_, 35);  
 
 
   nh_p.param<double>("lookahead_path_length", lookahead_path_length, 5.0);
-  nh_p.param<double>("curv_lookahead_path_length", curv_lookahead_path_length, 10.0);
+  
   nh_p.param<double>("wheelbase", wheelbase, 0.33);
   nh_p.param<double>("lf", lf, 0.165);
   nh_p.param<double>("lr", lr, 0.165);
@@ -129,7 +130,7 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
 
   // get the most closest obstacle to the current ego vehicle 
   int best_idx = 0;
-  int min_dist = 1e3;
+  double min_dist = 1e3;
   double track_length = traj_manager.getTrackLength();
   bool any_front_obstacle = false;  
     
@@ -139,6 +140,7 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
       
        any_front_obstacle = true;
         double dist_tmp = traj_manager.get_s_diff(cur_state.s, obstacles_vehicleState[i].s);
+        
         if(dist_tmp< min_dist){
           min_dist = dist_tmp;
           best_idx = i;
@@ -147,12 +149,20 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
       continue; // target is behind of track
     }
   }
+  double dist_for_trigger = 3.0;
   
   if(any_front_obstacle){
-    visualization_msgs::Marker closest_obstacle_marker;
-    trackToMarker(obstacles.tracks[best_idx], closest_obstacle_marker);
+     if (min_dist < dist_for_trigger && min_dist > -0.5){
+      pp_ctrl.is_there_obstacle = true;
+      visualization_msgs::Marker closest_obstacle_marker;
+      trackToMarker(obstacles.tracks[best_idx], closest_obstacle_marker);
     closest_obj_marker_pub.publish(closest_obstacle_marker);
     pp_ctrl.update_obstacleState(obstacles_vehicleState[best_idx]);
+     }else{
+      pp_ctrl.is_there_obstacle = false;      
+     }
+  }else{
+    pp_ctrl.is_there_obstacle = false;      
   }
   
 
@@ -185,17 +195,17 @@ void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odom
            vehicle_state.yaw = yaw_;
            
            if(odom_twist_in_local){
-            // vehicle_state.vx = odom.twist.twist.linear.x;
+            vehicle_state.vx = odom.twist.twist.linear.x;
             vehicle_state.vy = odom.twist.twist.linear.y;          
            }else{            
             double global_x  = odom.twist.twist.linear.x;
             double global_y  = odom.twist.twist.linear.y;
-            // vehicle_state.vx = fabs(global_x*cos(-1*yaw_) - global_y*sin(-1*yaw_)); 
+            vehicle_state.vx = fabs(global_x*cos(-1*yaw_) - global_y*sin(-1*yaw_)); 
             vehicle_state.vy = global_x*sin(-1*yaw_) + global_y*cos(-1*yaw_);             
            }
-          //  if(vehicle_state.vx < 0.1){
-          //   vehicle_state.vx = 0.1;
-          //  }
+           if(vehicle_state.vx < 0.1){
+            vehicle_state.vx = 0.1;
+           }
           vehicle_state.wz = odom.twist.twist.angular.z;    
           if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording()){
          
@@ -255,8 +265,10 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
   
   //If odom is available and close to current pose, then use odom instead-- check if the current position is close to current odom 
   if(first_odom_received && odom_close_to_pose(cur_pose,cur_odom)){    
-    
+      is_odom_used = true;
       return;    
+  }else{
+    is_odom_used = false;
   }
 
   ros::Time cur_time = msg->header.stamp;
@@ -322,11 +334,14 @@ void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
 
 
 void Ctrl::vescodomCallback(const nav_msgs::OdometryConstPtr& msg){
-
+  if(is_odom_used){
+   
+    return;    
+  }
    std::lock_guard<std::mutex> lock(vesc_mtx);
     cur_state.vx = msg->twist.twist.linear.x;
  
-
+  
 
 
 return; 
@@ -352,7 +367,7 @@ void Ctrl::odomCallback(const nav_msgs::OdometryConstPtr& msg){
   ros::Duration diff = cur_time - prev_time;
   double dt_sec = fabs(diff.toSec());
   
-  if (dt_sec > 0.05){    
+  if (dt_sec > 0.02){    
     bool odom_twist_in_local = false;
 
       odomToVehicleState(cur_state,cur_odom,odom_twist_in_local);
@@ -420,6 +435,19 @@ visualization_msgs::MarkerArray Ctrl::PathPrediction(const VehicleState state, i
 }
 
 
+// void Ctrl::lowlevelSpeedCtrl(ackermann_msgs::AckermannDriveStamped & current_cmd){
+        
+//         // double error = 
+        
+//         if(current_cmd.drive.speed > cur_state.vx){
+//           // accerlation 
+//           return;
+//         }else{
+//           //decceleartion 
+          
+//         }
+// }
+
 void Ctrl::ControlLoop()
 { 
     double hz = 20;
@@ -433,12 +461,8 @@ void Ctrl::ControlLoop()
 
         auto start = std::chrono::steady_clock::now();        
         
-        traj_manager.updatelookaheadPath(cur_state,lookahead_path_length, curv_lookahead_path_length);
-        // KeyPoints curv_key_pts;        
-        // if(traj_manager.getCurvatureKeypoints(curv_key_pts)){
-        //   visualization_msgs::Marker key_pts_marker = traj_manager.keyptsToMarker(curv_key_pts);
-        //   keypts_info_pub.publish(key_pts_marker);
-        // }
+        traj_manager.updatelookaheadPath(cur_state,lookahead_path_length);
+      
         visualization_msgs::Marker global_traj_marker = traj_manager.getGlobalPathMarker();
         visualization_msgs::Marker centerline_info_marker = traj_manager.getCenterLineInfo();
         visualization_msgs::Marker local_traj_marker = traj_manager.getLocalPathMarker();

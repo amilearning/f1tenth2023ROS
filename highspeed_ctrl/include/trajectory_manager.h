@@ -268,9 +268,8 @@ public:
     
     void log_odom(const nav_msgs::Odometry& odom);
     visualization_msgs::Marker traj_to_marker(const Trajectory & traj, const std_msgs::ColorRGBA & color_);
-    
-    void updatelookaheadPath(const VehicleState& vehicle_state, const double& length,  const double& curv_lookahead_path_length);
-    void updatelookaheadPath_from_local(const VehicleState& vehicle_state, const double& length,  const double& curv_lookahead_path_length);
+    unsigned int getClosestIdx(double& closest_dist, const Trajectory & traj_, const VehicleState& vehicle_state);
+    void updatelookaheadPath( const VehicleState& vehicle_state, const double& length);
     Trajectory getlookaheadPath(); 
     Trajectory getglobalPath();
     bool getCurvatureKeypoints(KeyPoints & key_pts);
@@ -314,6 +313,7 @@ private:
     Trajectory tmp_ref_traj;  // global centerline
     Trajectory global_ref_traj;
     Trajectory local_ref_traj;
+    unsigned int local_ref_traj_idx_in_global;
     Trajectory curv_info_traj; // local lookahead centerline for curvature estimation
     
     
