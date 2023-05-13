@@ -7,13 +7,17 @@
 -->
 
 <launch>
-
   <arg name="racecar_version" default="racecar-v2" />
 
   <!-- Chain the MUXs -->
   <node name="mux_chainer" pkg="topic_tools" type="relay"
   	args="/vesc/high_level/ackermann_cmd_mux/output /vesc/low_level/ackermann_cmd_mux/input/navigation" />
 
+  <node name="hmcl_mux_to_fina" pkg="topic_tools" type="relay"
+  	args="/vesc/low_level/ackermann_cmd_mux/output /vesc/ackermann_cmd" />
+
+  <node name="hmcl_joY_relay" pkg="topic_tools" type="relay"
+  	args="/joy /vesc/joy" />
 
   <!-- Define mappings for backwards compatibility -->
   <node name="mux_topic_backward_compat_safety" pkg="topic_tools" type="relay"

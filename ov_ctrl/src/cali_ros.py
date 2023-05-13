@@ -20,7 +20,7 @@ class Collector:
         self.delta_sign = 1.0
         self.cur_delta = 0.0
         self.dt = 0.1  # seconds
-        self.cmd_publisher_ = rospy.Publisher('/vesc/ackermann_cmd', AckermannDriveStamped, queue_size=10)
+        self.cmd_publisher_ = rospy.Publisher('/vesc/high_level/ackermann_cmd_mux/input/nav_0', AckermannDriveStamped, queue_size=10)
 
         self.cmd_msg = AckermannDriveStamped()
 

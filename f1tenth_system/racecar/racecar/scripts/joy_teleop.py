@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import importlib
 
 import rospy
@@ -34,7 +34,8 @@ class JoyTeleop:
         if not rospy.has_param("teleop"):
             rospy.logfatal("no configuration was found, taking node down")
             raise JoyTeleopException("no config")
-
+        self.auto_mode = False
+        self.auto_mode_count = 0
         self.publishers = {}
         self.al_clients = {}
         self.srv_clients = {}
@@ -76,6 +77,25 @@ class JoyTeleop:
         rospy.Timer(rospy.Duration(1/50.), self.check_command)
 
     def joy_callback(self, data):
+        buttons = list(data.buttons)
+        if buttons[4] ==1:
+            self.joy_data = data
+            self.last_received_joy = rospy.Time.now()
+            self.auto_mode = False
+
+        if buttons[5] ==1:
+            self.auto_mode_count = self.auto_mode_count+1
+        
+        if self.auto_mode_count > 10:
+            self.auto_mode = not self.auto_mode
+            self.auto_mode_count = 0
+            rospy.sleep(0.1)
+            
+        if self.auto_mode:
+            buttons[5] = 1
+        else:
+            buttons[5] = 0
+        data.buttons = tuple(buttons)
         self.joy_data = data
         self.last_received_joy = rospy.Time.now()
 
@@ -170,8 +190,8 @@ class JoyTeleop:
 
         # This might also be a default command.
         # We need to check if ANY commands match this set of pressed buttons.
-        any_commands_matched = np.any([ np.array_equal(command['buttons'], button_indexes) for name, command in self.command_list.iteritems()])
-
+        any_commands_matched = np.any([ np.array_equal(command['buttons'], button_indexes) for name, command in self.command_list.items()])
+        
         # Return the final result.
         return (buttons_match) or (not any_commands_matched and self.command_list[c]['is_default'])
 
@@ -293,7 +313,9 @@ class JoyTeleop:
         return self.service_types[service_name]
 
     def update_actions(self, evt=None):
-        for name, cmd in self.command_list.iteritems():
+        # for name, cmd in self.command_list.iteritems():
+        for name, cmd in self.command_list.items():
+
             if cmd['type'] != 'action':
                 continue
             if cmd['action_name'] in self.offline_actions:
