@@ -76,6 +76,20 @@ visualization_msgs::Marker TrajectoryManager::getLocalPathMarker(){
     return tmp_marker;    
 }
 
+
+visualization_msgs::MarkerArray TrajectoryManager::getLocalPathMarkerArray(){
+    visualization_msgs::MarkerArray tmp_marker_array;
+    if (lookahead_traj.size() > 0){
+        std_msgs::ColorRGBA color_;
+        color_.a = 0.5;
+        color_.r = 1.0;
+        tmp_marker_array = traj_to_markerArray(lookahead_traj,color_);        
+    }    
+    return tmp_marker_array;    
+}
+
+
+
 visualization_msgs::Marker TrajectoryManager::keyptsToMarker(const KeyPoints & key_pts){
 visualization_msgs::Marker marker;
 marker.header.frame_id = "map";
@@ -339,6 +353,36 @@ bool TrajectoryManager::is_recording()
 {
     return is_recording_;
 }
+visualization_msgs::MarkerArray TrajectoryManager::traj_to_markerArray(const Trajectory & traj, const std_msgs::ColorRGBA & color_){
+ // Create marker message
+  visualization_msgs::MarkerArray markerArray;
+  auto cur_time_ = ros::Time::now();
+   for (size_t i = 0; i < traj.x.size(); ++i){
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = "map";
+        marker.header.stamp = cur_time_;
+        marker.id = i;
+//   marker.ns = "trajectory";
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position .x = traj.x[i];
+        marker.pose.position .y = traj.y[i];
+        marker.pose.position .z = traj.z[i];
+        
+        marker.pose.orientation.w = 1.0;
+        marker.scale.x = 0.1;
+        marker.scale.y = 0.1;
+        marker.scale.z = 0.1;
+        marker.color = color_;
+
+
+    // Add Point to Marker message
+    markerArray.markers.push_back(marker);
+  }
+
+ return markerArray;
+}
+
 visualization_msgs::Marker TrajectoryManager::traj_to_marker(const Trajectory & traj, const std_msgs::ColorRGBA & color_){
   // Create marker message
   visualization_msgs::Marker marker;

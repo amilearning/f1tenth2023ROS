@@ -38,7 +38,9 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
-    
+    double lookahead_filter_cutoff = 1;
+    lookahead_dist_filter.initialize(0.05, lookahead_filter_cutoff);
+
     debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
     ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
     ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
@@ -215,18 +217,18 @@ bool PurePursuit::getLookupTablebasedDelta(double& delta, const double&  diff_an
   }
 
 
-  geometry_msgs::PoseStamped debug_msg;
-  debug_msg.header.stamp = ros::Time::now();
-  debug_msg.pose.position.x = vt;
-  if (signed_desired_alat > 0){
-    debug_msg.pose.position.y = signed_desired_alat;
-  }else{
-    debug_msg.pose.position.y = -1*signed_desired_alat;
+  // geometry_msgs::PoseStamped debug_msg;
+  // debug_msg.header.stamp = ros::Time::now();
+  // debug_msg.pose.position.x = vt;
+  // if (signed_desired_alat > 0){
+  //   debug_msg.pose.position.y = signed_desired_alat;
+  // }else{
+  //   debug_msg.pose.position.y = -1*signed_desired_alat;
     
-  }  
-  debug_msg.pose.position.z = delta;
-  debug_msg.pose.orientation.x = diff_angel;
-  debug_pub.publish(debug_msg);
+  // }  
+  // debug_msg.pose.position.z = delta;
+  // debug_msg.pose.orientation.x = diff_angel;
+  // debug_pub.publish(debug_msg);
   return true;
   }
   else{
@@ -320,7 +322,7 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
     ///  TODO: or we can reduce speed to certain value if such case.. 
      // if accel , limit vel via maximum acceleration 
      if(cur_state.ey > 0.2 || cur_state.epsi > 20*3.14195/180.0){
-      ROS_INFO("ey or epsi increased");
+      // ROS_INFO("ey or epsi increased");
       ///  TODO: or we can reduce speed to certain value if such case.. 
       if(target_vel > cur_state.vx ){
         double cliped_vel_cmd = cur_state.vx+max_acceleration;      
@@ -338,7 +340,18 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
 
       compute_lookahead_distance(cur_state.vx);                                          // true lookahead for steering
-      
+      filt_lookahead = lookahead_dist_filter.filter(m_lookahead_distance);
+      double cur_speed = sqrt(cur_state.vx*cur_state.vx+cur_state.vy*cur_state.vy);
+      if(cur_speed > target_vel){
+        m_lookahead_distance = filt_lookahead;
+      }
+
+      geometry_msgs::PoseStamped debug_msg;
+    debug_msg.header.stamp = ros::Time::now();
+    debug_msg.pose.position.x = m_lookahead_distance;
+    debug_pub.publish(debug_msg);
+
+
       is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
                                                                                          // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
 

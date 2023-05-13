@@ -54,7 +54,9 @@ n_private.param("min_cluster_size", min_cluster_size, 5);
   pub_obs_msg = n.advertise<hmcl_msgs::obstacle>("datmo/obstacle", 10);
   sub_scan = n.subscribe("/scan", 1, &Datmo::callback, this);
   sub_pose = n.subscribe("/tracked_pose",1 ,&Datmo::poseCallback, this);
-  waypointSub = n.subscribe("/track_info", 2, &Datmo::callbackRefPath, this);
+  // waypointSub = n.subscribe("/track_info", 2, &Datmo::callbackRefPath, this);
+  waypointSub = n.subscribe("/local_traj", 2, &Datmo::callbackRefPath, this);
+ 
   
 
 }
@@ -64,11 +66,26 @@ Datmo::~Datmo(){
 
 void Datmo::callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg)
 {
- if(!first_traj_received){
+    std::lock_guard<std::mutex> lock(traj_mtx);
+        ros::Time start_time = ros::Time::now();
+//  if(!first_traj_received){
   path_logger.updataPath(*msg);
-  ROS_INFO("Trajectory has been updated by subscription");
+  // ROS_INFO("Trajectory has been updated by subscription");
   first_traj_received = true;
- }
+
+    ros::Time end_time = ros::Time::now();
+    ros::Duration elapsed_time = end_time - start_time;
+
+  
+  if(elapsed_time.toSec() > 0.1){
+    ROS_WARN("Trjaecotyr Elapsed time: %f seconds, Taking TOO much", elapsed_time.toSec());  
+  }
+  // else{
+  //   ROS_WARN("Trjaecotyr  Elapsed time: %f seconds", elapsed_time.toSec());  
+  // }
+  
+
+//  }
  return;
   
 };
@@ -440,11 +457,27 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
   s = 1e5;
   ey = 1e5;  
   computeFrenet(s, ey, ey_l, ey_r, x_global, y_global, path_logger.ref_traj);
-  if(abs(ey) < ey_l-0.2 && abs(ey) < ey_r-0.2) //if this scan point is within track boundaries   
-  {
-    // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
-    return true;
+
+  if(ey_l ==0  || ey_r ==0){
+       // this is the case where the trajectory information is incorrect.. 
+       // use safety circle distance instead
+       double safety_distance = 0.8;
+    if(abs(ey) < safety_distance) //if this scan point is within track boundaries   
+    {
+  //       std::cout << "ey_l = " << ey_l << std::endl;
+  // std::cout << "ey_r = " << ey_r  <<std::endl;
+  // std::cout << "ey = " << ey  <<std::endl;
+      // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
+      return true;
+    }
+  }else{
+    if(abs(ey) < ey_l-0.2 && abs(ey) < ey_r-0.2) //if this scan point is within track boundaries   
+    {
+      // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
+      return true;
+    }
   }
+ 
   // elsae
   return false;
 }
@@ -494,9 +527,13 @@ void Datmo::Clustering(const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<p
   ros::Time end_time = ros::Time::now();
     ros::Duration elapsed_time = end_time - start_time;
 
+  
   if(elapsed_time.toSec() > 0.1){
     ROS_WARN("Elapsed time: %f seconds, Taking TOO much", elapsed_time.toSec());  
   }
+  // else{
+  //   ROS_WARN("Elapsed time: %f seconds", elapsed_time.toSec());  
+  // }
   
 
   //Complete the circle

@@ -268,12 +268,14 @@ public:
     
     void log_odom(const nav_msgs::Odometry& odom);
     visualization_msgs::Marker traj_to_marker(const Trajectory & traj, const std_msgs::ColorRGBA & color_);
+    visualization_msgs::MarkerArray traj_to_markerArray(const Trajectory & traj, const std_msgs::ColorRGBA & color_);
     unsigned int getClosestIdx(double& closest_dist, const Trajectory & traj_, const VehicleState& vehicle_state);
     void updatelookaheadPath( const VehicleState& vehicle_state, const double& length);
     Trajectory getlookaheadPath(); 
     Trajectory getglobalPath();
     bool getCurvatureKeypoints(KeyPoints & key_pts);
     visualization_msgs::Marker getLocalPathMarker();
+    visualization_msgs::MarkerArray getLocalPathMarkerArray();
     
     visualization_msgs::Marker getGlobalPathMarker();
     visualization_msgs::Marker getCenterLineInfo();

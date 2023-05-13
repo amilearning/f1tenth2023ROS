@@ -496,6 +496,14 @@ namespace localization_core
             else
             {
               ROS_WARN("Received bad local Pose message");
+              while(localPoseOptQ_.size()>0)
+                {        
+                 localPoseOptQ_.popBlocking();
+                }
+                while(imuOptQ_.size()>0)
+                {        
+                 imuOptQ_.popBlocking();
+                }
               ISAM2Params params;
               params.factorization = ISAM2Params::QR; // TODO: should test with cholesky later 
               isam_ = new ISAM2(params);
@@ -693,9 +701,16 @@ namespace localization_core
     poseNew.pose.pose.position.y = currentPose.position().y();
     poseNew.pose.pose.position.z = currentPose.position().z();
 
-    poseNew.twist.twist.linear.x = currentPose.velocity().x();
-    poseNew.twist.twist.linear.y = currentPose.velocity().y();
-    poseNew.twist.twist.linear.z = currentPose.velocity().z();
+    
+
+      double global_x = currentPose.velocity().x();
+      double global_y = currentPose.velocity().y();
+
+      double speed = sqrt(global_x*global_x + global_y* global_y);
+      
+    poseNew.twist.twist.linear.x = speed;
+    poseNew.twist.twist.linear.y = 0.0;
+    poseNew.twist.twist.linear.z = 0.0;
     
     poseNew.twist.twist.angular.x = gyro.x() + optimizedBias.gyroscope().x();
     poseNew.twist.twist.angular.y = gyro.y() + optimizedBias.gyroscope().y();

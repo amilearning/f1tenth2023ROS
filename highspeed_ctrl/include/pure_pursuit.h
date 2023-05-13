@@ -32,6 +32,7 @@
 #include "trajectory.h"
 #include "utils.h"
 
+#include "lowpass_filter.h"
 #include <visualization_msgs/Marker.h>
 
 #include <iostream>
@@ -253,7 +254,8 @@ private:
   double m_lookahead_distance;
   PathPoint m_target_point, m_speed_target_point;
   ackermann_msgs::AckermannDriveStamped cmd_msg;
-  
+  Butterworth2dFilter lookahead_dist_filter;
+  double filt_lookahead;
   const double dt;
   Trajectory local_traj;
   VehicleState cur_state, cur_obstacle;

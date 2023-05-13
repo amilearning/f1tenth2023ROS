@@ -8,7 +8,7 @@
 
 
   <node name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen">      
-        <remap from="/vesc/ackermann_cmd" to="/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl2"/>
+        <remap from="/vesc/ackermann_cmd" to="/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl"/>
 
         
       <param name="waypoint_topic" value="/track_info"/> 

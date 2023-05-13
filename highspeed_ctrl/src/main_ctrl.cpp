@@ -43,10 +43,12 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   nh_p.param<double>("x_vel_filter_cutoff", x_vel_filter_cutoff, 10.0);
   nh_p.param<double>("y_vel_filter_cutoff", y_vel_filter_cutoff, 10.0);
 
+
     double filter_dt = 0.01;
     
     x_vel_filter.initialize(filter_dt, x_vel_filter_cutoff);
     y_vel_filter.initialize(filter_dt, y_vel_filter_cutoff);
+    
 
 
   nh_p.param<std::string>("status_topic", status_topic, "/vehicle_status");  
@@ -93,7 +95,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   // keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
   target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("target_point", 1);
   speed_target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("speed_target_point", 1);
-  local_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("local_traj", 1);
+  local_traj_marker_pub = nh_traj.advertise<visualization_msgs::MarkerArray>("local_traj", 1);
   pred_traj_marker_pub = nh_traj.advertise<visualization_msgs::MarkerArray>("predicted_traj", 1);
   ackmanPub = nh_ctrl.advertise<ackermann_msgs::AckermannDriveStamped>(control_topic, 2);    
 
@@ -112,6 +114,9 @@ Ctrl::~Ctrl()
 
 
 void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
+  if(!first_traj_received){
+    return;
+  }
   obstacles = *msg;
   
   std::vector<VehicleState> obstacles_vehicleState;
@@ -130,7 +135,7 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
 
   // get the most closest obstacle to the current ego vehicle 
   int best_idx = 0;
-  double min_dist = 1e3;
+  double min_dist = 1000.0;
   double track_length = traj_manager.getTrackLength();
   bool any_front_obstacle = false;  
     
@@ -148,8 +153,9 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
       continue; // target is behind of track
     }
   }
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
   double dist_for_trigger = 3.0;
-  
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
   if(any_front_obstacle){
      if (min_dist < dist_for_trigger && min_dist > -0.5){
       pp_ctrl.is_there_obstacle = true;
@@ -423,7 +429,7 @@ void Ctrl::ControlLoop()
       
         visualization_msgs::Marker global_traj_marker = traj_manager.getGlobalPathMarker();
         visualization_msgs::Marker centerline_info_marker = traj_manager.getCenterLineInfo();
-        visualization_msgs::Marker local_traj_marker = traj_manager.getLocalPathMarker();
+        visualization_msgs::MarkerArray local_traj_marker = traj_manager.getLocalPathMarkerArray();
         global_traj_marker_pub.publish(global_traj_marker);
         local_traj_marker_pub.publish(local_traj_marker);
         if(centerline_info_marker.points.size() > 5){
@@ -555,7 +561,8 @@ void Ctrl::dyn_callback(highspeed_ctrl::testConfig &config, uint32_t level)
 
 
 void Ctrl::callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg)
-{
+{ 
+  
  if(!first_traj_received){
   traj_manager.path_logger.updataPath(*msg);
   ROS_INFO("Trajectory has been updated by subscription");
