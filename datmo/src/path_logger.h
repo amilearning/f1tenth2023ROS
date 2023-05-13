@@ -70,9 +70,24 @@ public:
         // Read the path from the file
       
         double x, y,  vx, yaw, roll, pitch;
+        double prev_x  = marker_data.markers[0].pose.position.x;
+        double prev_y  = marker_data.markers[0].pose.position.y;
+        ///////////////////////////////////////
+        double dist_sample_thres = 0.1;
+        std::vector<int> sampled_idx;
+        ///////////////////////////////////////
         for(int i=0; i < marker_data.markers.size(); i++){
             x = marker_data.markers[i].pose.position.x;
             y = marker_data.markers[i].pose.position.y;
+            
+            double dist_tmp = sqrt((x-prev_x)*(x-prev_x)+(y-prev_y)*(y-prev_y));
+            if  ( dist_tmp > dist_sample_thres ){
+                    prev_x = x;
+                    prev_y= y;
+                    sampled_idx.push_back(i);
+                } else{
+                    continue;
+                }
             vx = marker_data.markers[i].pose.position.z;
             
             // orientation.x -->  curvature 
@@ -94,7 +109,7 @@ public:
             double ey_l = marker_data.markers[i].pose.orientation.y;
             double ey_r = marker_data.markers[i].pose.orientation.z;
             // tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-              ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, ey_l, ey_r);
+            ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, ey_l, ey_r);
         }
        
         // encode frenet coordinate 
@@ -102,15 +117,15 @@ public:
         ref_traj.s.clear();
         double accumulated_dist = 0.0;
         ref_traj.s.push_back(0.0);
-        for (int i = 1; i < marker_data.markers.size(); i++) {
+        for (int i = 1; i < ref_traj.size(); i++) {
             accumulated_dist +=     dist(ref_traj.x[i],ref_traj.y[i], ref_traj.x[i-1], ref_traj.y[i-1]);
             ref_traj.s.push_back(accumulated_dist);
         }
         //
             // Update curvature  
         ref_traj.k.clear();
-        for (int i =   0; i < marker_data.markers.size(); i++) {        
-        ref_traj.k.push_back(marker_data.markers[i].pose.orientation.x);
+        for (int i =   0; i < ref_traj.size(); i++) {        
+        ref_traj.k.push_back(marker_data.markers[sampled_idx[i]].pose.orientation.x);
         }
 
         std::cout << "ref_traj size = " << ref_traj.size() << std::endl;

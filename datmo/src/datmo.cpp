@@ -210,7 +210,7 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
         best_idx = i;
       }
 
-      track_array_box_kf.tracks.push_back(clusters[i].msg_track_box_kf);
+      // track_array_box_kf.tracks.push_back(clusters[i].msg_track_box_kf);
      
       if (p_marker_pub){
         marker_array.markers.push_back(clusters[i].getClosestCornerPointVisualisationMessage());
@@ -232,6 +232,7 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
 
       if (clusters[best_idx].age > 3)
       {
+        track_array_box_kf.tracks.push_back(clusters[best_idx].msg_track_box_kf);
       //   if (pub_obs_viz_)
       // {
       //   visualization_msgs::MarkerArray obs_array;

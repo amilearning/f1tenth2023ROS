@@ -98,8 +98,8 @@ ros::NodeHandle nh_ctrl_, nh_traj_, nh_state_, nh_p;
 VehicleState cur_state, prev_state, obstacle_state; //< @brief vehicle status
 
 bool my_steering_ok_,my_position_ok_, my_odom_ok_;
-std::mutex odom_mtx, imu_mtx, pose_mtx, vesc_mtx;
-ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub, vesodomSub;
+std::mutex odom_mtx, imu_mtx, pose_mtx, vesc_mtx, lidar_mtx;
+ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub, vesodomSub, lidarSub;
 
 bool first_traj_received;
 bool first_pose_received;
@@ -147,13 +147,16 @@ sensor_msgs::Imu cur_imu;
 bool imu_received;
 bool is_odom_used;
 
+sensor_msgs::LaserScan::ConstPtr cur_scan;
+
 public:
 Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_state, ros::NodeHandle& nh_p_);
 ~Ctrl();
 void ControlLoop();
-
+void filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker);
 void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom,const bool & odom_twist_in_local);
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
+void lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg);
 void obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg);
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
 void vescodomCallback(const nav_msgs::OdometryConstPtr& msg);

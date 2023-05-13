@@ -26,6 +26,7 @@
 #include <cmath>
 #include <utility>
 #include <ackermann_msgs/AckermannDriveStamped.h>
+#include <sensor_msgs/LaserScan.h>
 #include "std_msgs/ColorRGBA.h"
 #include "state.h"
 #include "trajectory.h"
@@ -39,7 +40,7 @@
 
 
 enum RaceMode { Race = 0, Overtaking = 1, Following = 2 };
-
+// 
 
 
 
@@ -190,12 +191,6 @@ private:
 
 
 
-
-
-
-
-
-
   ///////////////
 
 /// \brief Given a trajectory and the current state, compute the control command
@@ -211,7 +206,8 @@ public:
   
   ackermann_msgs::AckermannDriveStamped compute_command();
   ackermann_msgs::AckermannDriveStamped compute_model_based_command();
-  
+  ackermann_msgs::AckermannDriveStamped compute_lidar_based_command(bool & is_straight, const sensor_msgs::LaserScan::ConstPtr laser_data);
+  bool getOvertakingStatus();
   PathPoint get_target_point();
   PathPoint get_speed_target_point();
   visualization_msgs::Marker getTargetPointhMarker(int point_idx);
@@ -253,7 +249,7 @@ private:
   
     
     RaceMode race_mode;
-    
+    bool obstacle_avoidance_activate;
   double m_lookahead_distance;
   PathPoint m_target_point, m_speed_target_point;
   ackermann_msgs::AckermannDriveStamped cmd_msg;

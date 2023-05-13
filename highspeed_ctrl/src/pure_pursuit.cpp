@@ -34,7 +34,7 @@ double clamp(double value, double min_val, double max_val) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), is_there_obstacle(false), race_mode(RaceMode::Race){
+PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(0.05), is_there_obstacle(false), obstacle_avoidance_activate(false),race_mode(RaceMode::Race){
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
@@ -272,6 +272,12 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
   return cmd_msg;
 }
 
+bool PurePursuit::getOvertakingStatus(){
+  return obstacle_avoidance_activate;
+}
+
+
+
 ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 { 
   if (local_traj.size() < 2 && local_traj.x.size() < 2){
@@ -336,7 +342,7 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
       is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
                                                                                          // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
 
-      bool obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
+      obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
       if (obstacle_avoidance_activate){
           target_vel = 1.5;
       }
@@ -351,13 +357,73 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
     
   }
   
-
+//
     
       
 
   return cmd_msg;
 }
 
+ackermann_msgs::AckermannDriveStamped PurePursuit::compute_lidar_based_command(bool & is_straight, const sensor_msgs::LaserScan::ConstPtr laser_data){
+    // get the closest distance lidar index on the right side
+    // until the middle point of laser scan find the lookahead point given distance      
+    // reactive obstacle avoidance if there is any
+    int middle_idx = int(laser_data->ranges.size()/2);
+    int right_normal_idx = middle_idx + int(90/laser_data->angle_increment);
+     // right side laser scan
+     double dist_tmp = 1e4;
+     double min_idx;
+    for(int i=middle_idx; i < right_normal_idx; i++){
+          if(dist_tmp > laser_data->ranges[i]){
+            min_idx = i;
+            dist_tmp = laser_data->ranges[i];
+          }
+    }
+
+    // lookahead distance computed given the current speed 
+    // minimum of 1.0m/s
+     double lookahead_distance = cur_state.vx *1.8-2.9;
+      lookahead_distance =
+      std::max(1.0,
+      std::min(lookahead_distance, maximum_lookahead_distance));
+      if(manual_target_lookahead){
+        lookahead_distance = manual_target_lookahead_value;
+      }
+
+    // find the index which is used for line searching
+      dist_tmp = 0;
+      double min_angle = (laser_data->angle_increment)*min_idx+laser_data->angle_min;
+      double x_min = laser_data->ranges[min_idx]*cos(min_angle);
+      double y_min = laser_data->ranges[min_idx]*sin(min_angle);
+      double target_idx = middle_idx;
+      for(int i=min_idx; i >middle_idx; i--){
+        double angle_tmp = (laser_data->angle_increment)*i+laser_data->angle_min;
+        double x_tmp = laser_data->ranges[i]*cos(angle_tmp);
+        double y_tmp = laser_data->ranges[i]*sin(angle_tmp);
+        double dist_tmp = sqrt((x_min-x_tmp)*(x_min-x_tmp) + (y_min-y_tmp)*(y_min-y_tmp));
+        if(dist_tmp > lookahead_distance*2){
+          target_idx = i;
+          break;
+        } 
+      }
+
+      // fit lines 
+      std::vector<double> x_laser, y_laser;
+      for(int i=min_idx; i > target_idx ; i--){
+       double angle_tmp = (laser_data->angle_increment)*i+laser_data->angle_min;
+       double x_ = laser_data->ranges[i]*cos(angle_tmp+cur_state.yaw);
+       double y_ = laser_data->ranges[i]*sin(angle_tmp+cur_state.yaw);
+       x_laser.push_back(x_);
+       y_laser.push_back(y_);
+      }
+
+      is_straight = false;
+      double  cost,  slope,  y_intercept;
+      estimateLineEquation(cost,  slope,  y_intercept,x_laser,y_laser);
+      std::cout << "Line equation: y = " << slope << "x + " << y_intercept << std::endl;
+      std::cout << "Fit cost: " << cost << std::endl;
+
+}
 
 
 bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
@@ -381,30 +447,30 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
       }
   }
   // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;
-  bool obstacle_avoidance_activate = false;
+  
   
   
   // if (  tmp_dist <  1.5 && s_diff > 0){
     // ROS_INFO("obstacle on the local trajectory ");
     
-    obstacle_avoidance_activate = true;
+    
     
   // }
   
   double width_safe_dist = 0.3;
   race_mode = RaceMode::Race;
+  double refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
   
-  if(obstacle_avoidance_activate){
       double target_ey = 0;
       if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
               target_ey = cur_obstacle.ey -width_safe_dist*2;              
-              double track_right_cosntaint = local_traj.ey_r[near_idx]-width_safe_dist;
+              double track_right_cosntaint = local_traj.ey_r[refined_idx]-width_safe_dist;
               track_right_cosntaint = std::max(track_right_cosntaint, 0.0);
               target_ey = std::max(std::min(target_ey, 0.0), -1*track_right_cosntaint);                
       }else{
         // obstacle is in the right side of centerline 
         target_ey = cur_obstacle.ey+width_safe_dist*2;
-        double track_left_constraint = local_traj.ey_l[near_idx] - width_safe_dist;
+        double track_left_constraint = local_traj.ey_l[refined_idx] - width_safe_dist;
         track_left_constraint = std::max(track_left_constraint, 0.0);
         target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
       } 
@@ -422,23 +488,22 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
     //   target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
     // }
 
-    double yaw_on_centerline = local_traj.yaw[near_idx];
+    double yaw_on_centerline = local_traj.yaw[refined_idx];
     double new_x, new_y;
       if(target_ey >= 0){
-      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
-      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
+      new_x = local_traj.x[refined_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
+      new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
       
       }else{
-      new_x = local_traj.x[near_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
-      new_y = local_traj.y[near_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
+      new_x = local_traj.x[refined_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
+      new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
       
       }
       target_point_ << new_x, new_y;
 
 
-  }
 
-  return obstacle_avoidance_activate;
+  return true;
 }
 
 visualization_msgs::Marker PurePursuit::getTargetPointhMarker(int point_idx){

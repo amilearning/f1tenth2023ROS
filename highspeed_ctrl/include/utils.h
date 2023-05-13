@@ -179,3 +179,7 @@ std::vector<double> moving_average(std::vector<double> data, int window_size);
 
 void genInterpolatedGrid(const std::vector<double>& x_min_max, 
                          const std::vector<double>& y_min_max,const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z);
+
+
+void estimateLineEquation(double &cost, double & slope, double & y_intercept,const std::vector<double>& x, const std::vector<double>& y);
+ 

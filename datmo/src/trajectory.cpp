@@ -71,14 +71,13 @@ unsigned int Trajectory::size() const
 {
  
   
-  if (x.size() == y.size() && x.size() == z.size() && x.size() == yaw.size() &&
-      x.size() == vx.size() && x.size() == k.size() && x.size() == relative_time.size())
+  if (x.size() == y.size() )
   {
     return x.size();
   }
   else
   {
-    std::cerr << "[MPC trajectory] trajectory size is inappropriate" << std::endl;
+    std::cerr << "[trajectory] trajectory size is inappropriate, x =" << x.size()<<  std::endl;
     return 0;
   }
 }

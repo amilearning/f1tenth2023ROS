@@ -29,7 +29,6 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   pp_ctrl(nh_p_),
   my_steering_ok_(false),
   my_position_ok_(false),
-  my_odom_ok_(false),
   ego_vehicle(0.1),
   ctrl_select(0),
   first_pose_received(false),
@@ -83,6 +82,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   poseSub  = nh_ctrl.subscribe("/tracked_pose", 2, &Ctrl::poseCallback, this);  
   imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
   obstacleSub = nh_traj.subscribe("/datmo/box_kf", 2, &Ctrl::obstacleCallback, this);  
+  lidarSub = nh_traj.subscribe("/scan", 2, &Ctrl::lidarCallback, this);  
 
   fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("/fren_pose",1);
   global_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("global_traj", 1);
@@ -140,7 +140,6 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
       
        any_front_obstacle = true;
         double dist_tmp = traj_manager.get_s_diff(cur_state.s, obstacles_vehicleState[i].s);
-        
         if(dist_tmp< min_dist){
           min_dist = dist_tmp;
           best_idx = i;
@@ -187,44 +186,6 @@ void Ctrl::trackToMarker(const hmcl_msgs::Track& track, visualization_msgs::Mark
 }
 
 
-void Ctrl::odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom,const bool & odom_twist_in_local){
-
-
-           vehicle_state.pose = odom.pose.pose;
-           double yaw_ = normalizeRadian(tf2::getYaw(odom.pose.pose.orientation));
-           vehicle_state.yaw = yaw_;
-           
-           if(odom_twist_in_local){
-            vehicle_state.vx = odom.twist.twist.linear.x;
-            vehicle_state.vy = odom.twist.twist.linear.y;          
-           }else{            
-            double global_x  = odom.twist.twist.linear.x;
-            double global_y  = odom.twist.twist.linear.y;
-            vehicle_state.vx = fabs(global_x*cos(-1*yaw_) - global_y*sin(-1*yaw_)); 
-            vehicle_state.vy = global_x*sin(-1*yaw_) + global_y*cos(-1*yaw_);             
-           }
-           if(vehicle_state.vx < 0.1){
-            vehicle_state.vx = 0.1;
-           }
-          vehicle_state.wz = odom.twist.twist.angular.z;    
-          if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording()){
-         
-            computeFrenet(vehicle_state, traj_manager.getglobalPath());
-            geometry_msgs::PoseStamped fren_pose_;
-            fren_pose_.header = odom.header;
-            fren_pose_.pose.position.x = vehicle_state.s;
-            fren_pose_.pose.position.y = vehicle_state.ey;
-            fren_pose_.pose.position.z = vehicle_state.epsi;
-            fren_pose_.pose.orientation.x = vehicle_state.vx;
-            fren_pose_.pose.orientation.y = vehicle_state.vy;
-            fren_pose_.pose.orientation.z = vehicle_state.wz;
-            fren_pose_.pose.orientation.w = vehicle_state.delta;            
-            fren_pub.publish(fren_pose_);
-            traj_manager.frenet_ready = true;
-          }      
-          // std:cout << "yaw" << vehicle_state.yaw <<" epsi= " <<  vehicle_state.epsi << "s = " <<vehicle_state.s << std::endl;
-          
-}
 
 bool Ctrl::odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::Odometry& odom){
   double dist_tmp = (pos.pose.position.x - odom.pose.pose.position.x)*(pos.pose.position.x - odom.pose.pose.position.x)+(pos.pose.position.y - odom.pose.pose.position.y)*(pos.pose.position.y - odom.pose.pose.position.y);
@@ -260,13 +221,9 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
   }
 
 
-
-  cur_pose = *msg;
-  
   //If odom is available and close to current pose, then use odom instead-- check if the current position is close to current odom 
   if(first_odom_received && odom_close_to_pose(cur_pose,cur_odom)){    
-      is_odom_used = true;
-      return;    
+      is_odom_used = true;      
   }else{
     is_odom_used = false;
   }
@@ -276,15 +233,17 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
   ros::Duration diff = cur_time - prev_time;
   double dt_sec = fabs(diff.toSec());
 
-  if (dt_sec > 0.05){    
+  if (dt_sec > 0.02){    
+  cur_pose = *msg;
+  cur_state.pose = cur_pose.pose;  
+  cur_state.yaw = normalizeRadian(tf2::getYaw(cur_pose.pose.orientation));
+
     tf::Quaternion q( cur_pose.pose.orientation.x,cur_pose.pose.orientation.y,cur_pose.pose.orientation.z,cur_pose.pose.orientation.w);
     double yaw = tf::getYaw(q);    
     double vx_local_tmp, vy_local_tmp;
     vx_local_tmp = x_vel_filter.filter((cur_pose.pose.position.x - prev_pose.pose.position.x) / dt_sec);
     vy_local_tmp = y_vel_filter.filter((cur_pose.pose.position.y - prev_pose.pose.position.y) / dt_sec);
-      
-
-      
+       
     // Compute Local velocity
     double vx_car = vx_local_tmp * cos(yaw) + vy_local_tmp * sin(yaw);
     double vy_car = -vx_local_tmp * sin(yaw) + vy_local_tmp * cos(yaw);
@@ -292,25 +251,44 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
     //  Set the current odom message 
     nav_msgs::Odometry odom_msg;
     odom_msg.header = msg->header;
-    odom_msg.pose.pose = msg->pose;
-
+    odom_msg.pose.pose = msg->pose;    
     double local_vx, local_vy; 
-    odom_msg.twist.twist.linear.x = vx_car;
-    odom_msg.twist.twist.linear.y = vy_car;
+    if(is_odom_used){
+      // get the velocity from factor odom 
+    odom_msg.twist.twist.linear.x = cur_state.vx;
+    odom_msg.twist.twist.linear.y = cur_state.vy;
+    }else{
+      odom_msg.twist.twist.linear.x = cur_state.vx;
+      odom_msg.twist.twist.linear.y = 0.0;
+    }    
     odom_msg.twist.twist.linear.z = 0.0;
     odom_msg.twist.twist.angular.x = cur_imu.angular_velocity.x;
     odom_msg.twist.twist.angular.y = cur_imu.angular_velocity.y;
-    odom_msg.twist.twist.angular.z = cur_imu.angular_velocity.z;
-    
-    est_odom_pub.publish(odom_msg);
-    bool odom_twist_in_local = true;
-    // std::cout << "pose update" << std::endl;
-      odomToVehicleState(cur_state,odom_msg,odom_twist_in_local);
+    odom_msg.twist.twist.angular.z = cur_imu.angular_velocity.z;    
+    est_odom_pub.publish(odom_msg);    
+    //
       cur_state.accel = 0.0;
       pp_ctrl.update_vehicleState(cur_state);
-
       traj_manager.log_odom(odom_msg); 
-      my_odom_ok_ = true;
+      
+
+//// Publish frenet pose
+      if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording()){         
+            computeFrenet(cur_state, traj_manager.getglobalPath());
+            geometry_msgs::PoseStamped fren_pose_;
+            fren_pose_.header = msg->header;
+            fren_pose_.pose.position.x = cur_state.s;
+            fren_pose_.pose.position.y = cur_state.ey;
+            fren_pose_.pose.position.z = cur_state.epsi;
+            fren_pose_.pose.orientation.x = cur_state.vx;
+            fren_pose_.pose.orientation.y = cur_state.vy;
+            fren_pose_.pose.orientation.z = cur_state.wz;
+            fren_pose_.pose.orientation.w = cur_state.delta;            
+            fren_pub.publish(fren_pose_);
+            traj_manager.frenet_ready = true;
+          } 
+
+
       if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
         
           
@@ -334,19 +312,15 @@ void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
 
 
 void Ctrl::vescodomCallback(const nav_msgs::OdometryConstPtr& msg){
+   std::lock_guard<std::mutex> lock(vesc_mtx);
+  // if odom is used, then no update  --> priority 1. factor, 2. vesc/odom
   if(is_odom_used){
-   
     return;    
   }
-   std::lock_guard<std::mutex> lock(vesc_mtx);
-    cur_state.vx = msg->twist.twist.linear.x;
- 
   
-
-
+    cur_state.vx = msg->twist.twist.linear.x;
+    cur_state.vy = 0.0;
 return; 
-
-
 }
 
 
@@ -368,42 +342,30 @@ void Ctrl::odomCallback(const nav_msgs::OdometryConstPtr& msg){
   double dt_sec = fabs(diff.toSec());
   
   if (dt_sec > 0.02){    
-    bool odom_twist_in_local = false;
-
-      odomToVehicleState(cur_state,cur_odom,odom_twist_in_local);
-      // std::cout << "odom update" << std::endl;
-      cur_state.accel = 0.0;
-      pp_ctrl.update_vehicleState(cur_state);
-
-      traj_manager.log_odom(cur_odom); 
-      my_odom_ok_ = true;
-      if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
-        
-          
-          visualization_msgs::MarkerArray pred_marker = PathPrediction(cur_state,10);
-          pred_traj_marker_pub.publish(pred_marker);
-        }
-
+    // if odom is far away from pose, then no update
+    if(is_odom_used){        
+          bool odom_twist_in_local = false;
+                double yaw_ = cur_state.yaw;           
+                if(odom_twist_in_local){
+                  cur_state.vx = cur_odom.twist.twist.linear.x;
+                  cur_state.vy = cur_odom.twist.twist.linear.y;          
+                }else{            
+                  double global_x  = cur_odom.twist.twist.linear.x;
+                  double global_y  = cur_odom.twist.twist.linear.y;
+                  cur_state.vx = fabs(global_x*cos(-1*yaw_) - global_y*sin(-1*yaw_)); 
+                  cur_state.vy = global_x*sin(-1*yaw_) + global_y*cos(-1*yaw_);             
+                }
+                if(cur_state.vx < 0.1){
+                  cur_state.vx = 0.1;
+                }
+                cur_state.wz = cur_odom.twist.twist.angular.z;    
+      
+     }
     prev_odom = cur_odom;
   }
 
-
-
-return; 
-    // odomToVehicleState(cur_state,*msg);
-    
-    // cur_state.accel = 0.0;
-    
-    // pp_ctrl.update_vehicleState(cur_state);
-
-    // traj_manager.log_odom(*msg); 
-    // my_odom_ok_ = true;
-    // if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
-      
-        
-    //     visualization_msgs::MarkerArray pred_marker = PathPrediction(cur_state,10);
-    //     pred_traj_marker_pub.publish(pred_marker);
-    //   }
+  return;   
+ 
 }
 
 visualization_msgs::MarkerArray Ctrl::PathPrediction(const VehicleState state, int n_step){
@@ -435,18 +397,14 @@ visualization_msgs::MarkerArray Ctrl::PathPrediction(const VehicleState state, i
 }
 
 
-// void Ctrl::lowlevelSpeedCtrl(ackermann_msgs::AckermannDriveStamped & current_cmd){
-        
-//         // double error = 
-        
-//         if(current_cmd.drive.speed > cur_state.vx){
-//           // accerlation 
-//           return;
-//         }else{
-//           //decceleartion 
-          
-//         }
-// }
+void Ctrl::lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg)
+{
+  std::lock_guard<std::mutex> lock(lidar_mtx);
+  cur_scan = msg;
+  
+};
+
+
 
 void Ctrl::ControlLoop()
 { 
@@ -479,20 +437,30 @@ void Ctrl::ControlLoop()
 
 
           ackermann_msgs::AckermannDriveStamped pp_cmd;
+          visualization_msgs::Marker targetPoint_marker, speed_targetPoint_marker;
+          
         if(ctrl_select == 1){
                   // Purepursuit Computation 
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
-        visualization_msgs::Marker targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
+        bool is_straight; 
+        // pp_cmd = pp_ctrl.compute_lidar_based_command(is_straight, cur_scan);
+        
+       pp_cmd = pp_ctrl.compute_command();
+        targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
         target_pointmarker_pub.publish(targetPoint_marker);
-        visualization_msgs::Marker speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
+        speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
         speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
-        pp_cmd = pp_ctrl.compute_command();
+        
+
+
+
+
         }else if(ctrl_select ==2){
                 // Model based Purepursuit Computation 
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
-        visualization_msgs::Marker targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
+         targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
         target_pointmarker_pub.publish(targetPoint_marker);
-        visualization_msgs::Marker speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
+         speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
         speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
           pp_cmd = pp_ctrl.compute_model_based_command();
         }
@@ -514,7 +482,14 @@ void Ctrl::ControlLoop()
 
           //    if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed < 1.0){
           //   pp_cmd.drive.speed = 1.5;
-          // }          
+          // }         
+
+               //////////////////// Check if obstacle within the line to the tareget point 
+        bool is_overtaking = pp_ctrl.getOvertakingStatus();
+        // if(is_overtaking){
+        //   filter_given_TargetClearance(pp_cmd, targetPoint_marker);
+        // } 
+
           ackmanPub.publish(pp_cmd);
           cur_state.delta = pp_cmd.drive.steering_angle;          
         }
@@ -533,7 +508,28 @@ void Ctrl::ControlLoop()
     }
 }
 
+void Ctrl::filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker){
+  double target_x = obst_marker.pose.position.x;
+  double target_y = obst_marker.pose.position.y;
+  double del_x = target_x-cur_state.pose.position.x;
+  double del_y = target_x-cur_state.pose.position.x;
+  
+  double local_x =  del_x*cos(-1*cur_state.yaw) - del_y*sin(-1*cur_state.yaw);              
+  double local_y = del_y*sin(-1*cur_state.yaw) + del_y*cos(-1*cur_state.yaw);    
 
+  double local_angle_to_target = std::atan2(local_y,local_x);
+  double local_dist_to_target = sqrt(local_x*local_x + local_y+local_y);
+  std::cout << "angle = " << local_angle_to_target*180/3.14195 << std::endl;
+  std::cout << "dist = " << local_dist_to_target << std::endl;
+  
+  int scan_idx = int((normalizeRadian(local_angle_to_target)-cur_scan->angle_min)/cur_scan->angle_increment);
+  if( scan_idx < 0 || scan_idx > cur_scan->ranges.size()){
+    std::cout << "target point is out of current scan data range" <<  std::endl;
+    return;
+  }
+  
+  
+}
 
 void Ctrl::dyn_callback(highspeed_ctrl::testConfig &config, uint32_t level)
 {

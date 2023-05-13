@@ -908,3 +908,40 @@ void genInterpolatedGrid(const std::vector<double>& x_min_max,
   // gsl_interp_accel_free(yacc);
   // free(za);
 }
+
+
+void estimateLineEquation(double &cost, double & slope, double & y_intercept, const std::vector<double>& x, const std::vector<double>& y) {
+    // Calculate means
+    double mean_x = 0.0, mean_y = 0.0;
+    for (const auto& val : x)
+        mean_x += val;
+    mean_x /= x.size();
+
+    for (const auto& val : y)
+        mean_y += val;
+    mean_y /= y.size();
+
+    // Calculate variances and covariance
+    double var_x = 0.0, var_y = 0.0, cov_xy = 0.0;
+    for (size_t i = 0; i < x.size(); ++i) {
+        var_x += pow(x[i] - mean_x, 2);
+        var_y += pow(y[i] - mean_y, 2);
+        cov_xy += (x[i] - mean_x) * (y[i] - mean_y);
+    }
+    var_x /= x.size();
+    var_y /= y.size();
+    cov_xy /= x.size();
+
+    // Calculate slope and y-intercept
+     slope = cov_xy / var_x;
+     y_intercept = mean_y - slope * mean_x;
+
+    // Calculate fit cost
+     cost = 0.0;
+    for (size_t i = 0; i < x.size(); ++i) {
+        double predicted_y = slope * x[i] + y_intercept;
+        cost += pow(y[i] - predicted_y, 2);
+    }
+
+
+}
