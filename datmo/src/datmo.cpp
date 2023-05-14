@@ -65,7 +65,10 @@ Datmo::~Datmo(){
 }
 
 void Datmo::callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg)
-{
+{ 
+    if(msg->markers.size() < 1){
+      return;
+    }
     std::lock_guard<std::mutex> lock(traj_mtx);
         ros::Time start_time = ros::Time::now();
 //  if(!first_traj_received){
@@ -99,7 +102,9 @@ void Datmo::poseCallback(const geometry_msgs::PoseStamped::ConstPtr& pose){
 
 
 void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
-
+  if(!first_traj_received){
+    return;
+  }
   // delete all Markers 
   visualization_msgs::Marker marker;
   visualization_msgs::MarkerArray markera;

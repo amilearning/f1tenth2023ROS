@@ -35,7 +35,7 @@
       <param name="path_smoothing_times_" value="1"/> 
       
       <param name="path_filter_moving_ave_num_" value="1"/> 
-      <param name="lookahead_path_length" value="4.0"/> 
+      <param name="lookahead_path_length" value="8.0"/> 
 
       <param name="wheelbase" value="0.33"/> 
       <param name="lf" value="0.165"/> 

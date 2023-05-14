@@ -346,10 +346,10 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
         m_lookahead_distance = filt_lookahead;
       }
 
-      geometry_msgs::PoseStamped debug_msg;
-    debug_msg.header.stamp = ros::Time::now();
-    debug_msg.pose.position.x = m_lookahead_distance;
-    debug_pub.publish(debug_msg);
+    //   geometry_msgs::PoseStamped debug_msg;
+    // debug_msg.header.stamp = ros::Time::now();
+    // debug_msg.pose.position.x = m_lookahead_distance;
+    // debug_pub.publish(debug_msg);
 
 
       is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
@@ -357,7 +357,7 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
       obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
       if (obstacle_avoidance_activate){
-          target_vel = 1.5;
+          target_vel = 0.0;
       }
       cmd_msg.header.stamp = ros::Time::now();
       cmd_msg.drive.speed = target_vel;
@@ -459,22 +459,36 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
         min_idx = k;
       }
   }
-  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;
-  
-  
-  
+  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;  
   // if (  tmp_dist <  1.5 && s_diff > 0){
-    // ROS_INFO("obstacle on the local trajectory ");
-    
-    
-    
+    // ROS_INFO("obstacle on the local trajectory ");    
   // }
   
+ 
+
+
   double width_safe_dist = 0.3;
   race_mode = RaceMode::Race;
   double refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
-  
-      double target_ey = 0;
+
+      
+  geometry_msgs::PoseStamped debug_msg;
+  debug_msg.header.stamp = ros::Time::now();
+  debug_msg.pose.position.x = cur_obstacle.s;
+  debug_msg.pose.position.y = -1*local_traj.ey_r[refined_idx];
+  debug_msg.pose.position.z = local_traj.ey_l[refined_idx];
+  debug_msg.pose.orientation.x = cur_obstacle.ey ;
+  debug_pub.publish(debug_msg); 
+
+    double conservaive_track_width  = -0.05 + std::min(local_traj.ey_l[refined_idx], local_traj.ey_r[refined_idx]);
+    conservaive_track_width  = std::max(0.0, conservaive_track_width);
+  if(fabs(cur_obstacle.ey) > conservaive_track_width){
+      // obstacle is outside of track boundary.. .ignore it 
+      ROS_INFO("Obstacle is outside of track");
+      return false;
+  }else{
+    // Obstacle is inside of track width --> overtaking actiavted 
+     double target_ey = 0;
       if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
               target_ey = cur_obstacle.ey -width_safe_dist*2;              
               double track_right_cosntaint = local_traj.ey_r[refined_idx]-width_safe_dist;
@@ -512,11 +526,15 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
       new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
       
       }
-      target_point_ << new_x, new_y;
-
-
+      
+      // target_point_ << new_x, new_y;
 
   return true;
+    
+  }
+    
+
+     
 }
 
 visualization_msgs::Marker PurePursuit::getTargetPointhMarker(int point_idx){

@@ -128,7 +128,7 @@ public:
         ref_traj.k.push_back(marker_data.markers[sampled_idx[i]].pose.orientation.x);
         }
 
-        std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
+        // std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
     }
     
     

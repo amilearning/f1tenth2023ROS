@@ -44,6 +44,8 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   nh_p.param<double>("y_vel_filter_cutoff", y_vel_filter_cutoff, 10.0);
 
 
+    start_line_time.push_back(ros::Time::now().toSec());
+
     double filter_dt = 0.01;
     
     x_vel_filter.initialize(filter_dt, x_vel_filter_cutoff);
@@ -154,9 +156,10 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
     }
   }
   ////////////////////////////////////////////////////////////////////////////////////////////////////
-  double dist_for_trigger = 3.0;
+  double dist_for_trigger = 100.0;
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   if(any_front_obstacle){
+    std::cout << "any front obstacle   = true" << std::endl;
      if (min_dist < dist_for_trigger && min_dist > -0.5){
       pp_ctrl.is_there_obstacle = true;
       visualization_msgs::Marker closest_obstacle_marker;
@@ -277,7 +280,7 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
       pp_ctrl.update_vehicleState(cur_state);
       traj_manager.log_odom(odom_msg); 
       
-
+      
 //// Publish frenet pose
       if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording()){         
             computeFrenet(cur_state, traj_manager.getglobalPath());
@@ -303,10 +306,20 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
         }
 
     prev_pose = cur_pose;
+
+    // check the laptime 
+
+    prev_state = cur_state;
+
+    // if (prev_state.s > cur_state.s):
+    //   start_line_time.push_back(ros::Time::now().toSec());
+    //   start_line_time[start_line_time.size()-1]
+    //   ROS_INFO("Laptime = ")
   }
   
       
 }
+
 
 void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
   std::lock_guard<std::mutex> lock(imu_mtx);

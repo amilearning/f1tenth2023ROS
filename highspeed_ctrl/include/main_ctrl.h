@@ -101,6 +101,9 @@ bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex odom_mtx, imu_mtx, pose_mtx, vesc_mtx, lidar_mtx;
 ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub, vesodomSub, lidarSub;
 
+
+std::vector<double> start_line_time;
+
 bool first_traj_received;
 bool first_pose_received;
 Butterworth2dFilter x_vel_filter, y_vel_filter;
