@@ -469,20 +469,20 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
        double safety_distance = 0.8;
     if(abs(ey) < safety_distance) //if this scan point is within track boundaries   
     {
-  //       std::cout << "ey_l = " << ey_l << std::endl;
-  // std::cout << "ey_r = " << ey_r  <<std::endl;
-  // std::cout << "ey = " << ey  <<std::endl;
-      // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
+        std::cout << "ey_l = " << ey_l << std::endl;
+      std::cout << "ey_r = " << ey_r  <<std::endl;
+      std::cout << "ey = " << ey  <<std::endl;
+          std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
       return true;
     }
   }else{
-    if(abs(ey) < ey_l-0.2 && abs(ey) < ey_r-0.2) //if this scan point is within track boundaries   
+    if(abs(ey) < ey_l-0.1 && abs(ey) < ey_r-0.1) //if this scan point is within track boundaries   
     {
       // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
       return true;
     }
   }
- 
+  std::cout << "angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
   // elsae
   return false;
 }
@@ -491,43 +491,44 @@ void Datmo::Clustering(const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<p
   scan = *scan_in;
 
   int cpoints = 0;
+
+  int mid_angle_idx = int(scan.ranges.size()/2);
+  double angle_max = 80*3.14195/180.0;
+  int angle_max_idx = int(angle_max/scan.angle_increment) + mid_angle_idx;
+  int angle_min_idx = -int(angle_max/scan.angle_increment) + mid_angle_idx;
   
+  std::vector<unsigned int> filt_idx(scan.ranges.size()); 
+
   //Find the number of non inf laser scan values and save them in c_points
   for (unsigned int i = 0; i < scan.ranges.size(); ++i){
-    if(isinf(scan.ranges[i]) == 0){
-      cpoints++;
+    filt_idx[i] =0;
+    // only compute +-80 degree 
+    if( i > angle_min_idx && i < angle_max_idx){
+      // check if the points is near track boundary 
+      if(is_within_track_boundary(scan.ranges[i],scan.angle_min + i*scan.angle_increment)){      
+      filt_idx[i] =1;
+      }
     }
+
+      if(isinf(scan.ranges[i]) == 0 && (filt_idx[i] ==1) ){
+        cpoints++;
+       }
   }
   const int c_points = cpoints;
 
   int j = 0;
   vector< vector<float> > polar(c_points +1 ,vector<float>(2)); //c_points+1 for wrapping
 
-  int mid_angle_idx = int(scan.ranges.size()/2);
-  double angle_max = 60*3.14195/180.0;
-  int angle_max_idx = int(angle_max/scan.angle_increment) + mid_angle_idx;
-  int angle_min_idx = -int(angle_max/scan.angle_increment) + mid_angle_idx;
-  
-
+ 
   ros::Time start_time = ros::Time::now();
   for(unsigned int i = 0; i<scan.ranges.size(); ++i){
-
-    // only compute the even index as we are using high resolution lidar 
-    if( i%2 ==0){
-      continue;
-    }
-    // only compute +-60 degree 
-    if( i < angle_min_idx || i > angle_max_idx){
-      continue;
-    }
-    if(!isinf(scan.ranges[i])){
-      // check if the points is near track boundary 
-      if(is_within_track_boundary(scan.ranges[i],scan.angle_min + i*scan.angle_increment)){
+    if(!isinf(scan.ranges[i]) && (filt_idx[i] ==1)){
+      
           polar[j][0] = scan.ranges[i]; //first column is the range 
           polar[j][1] = scan.angle_min + i*scan.angle_increment; //second angle in rad
           j++;
       }       
-    }
+    
   }
   ros::Time end_time = ros::Time::now();
     ros::Duration elapsed_time = end_time - start_time;

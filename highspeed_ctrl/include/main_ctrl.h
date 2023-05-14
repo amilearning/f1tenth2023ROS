@@ -115,6 +115,7 @@ double manual_target_vel;
 
 PurePursuit pp_ctrl;
 TrajectoryManager traj_manager;
+Trajectory local_traj;
 hmcl_msgs::Lane current_waypoints_;
 
 dynamic_reconfigure::Server<highspeed_ctrl::testConfig> srv;

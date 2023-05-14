@@ -26,7 +26,8 @@ class Break_governer:
         self.lidar_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser)#: Subscribe to LIDAR
         self.drive_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl', AckermannDriveStamped, queue_size=10)#: Publish to drive
         self.brake_pub = rospy.Publisher('/vesc/commands/motor/brake',Float64,queue_size = 10)
-        
+     
+        self.brake_switch_count = 0
         self.brake_governer_current = rospy.get_param('/brake_governer/current')
 
     def callback_cur_vel(self,data):
@@ -41,8 +42,10 @@ class Break_governer:
         self.brake_governer_tolerance= rospy.get_param('/brake_governer/tolerance')
         self.cmd_velocity = data.drive.speed
         cmd_stop_signal = (self.cmd_velocity+self.brake_governer_tolerance < self.cur_velocity)
-        if  cmd_stop_signal or self.ttc_stop_signal:
-            self.brake( self.brake_governer_current)
+        
+        if  (cmd_stop_signal or self.ttc_stop_signal) :
+            
+            self.brake(self.brake_governer_current)
             if cmd_stop_signal and self.ttc_stop_signal:
                 print("brake cmd,ttc: cur, cmd: ", self.cur_velocity, ", ",self.cmd_velocity)
             elif cmd_stop_signal and not self.ttc_stop_signal:
@@ -55,6 +58,7 @@ class Break_governer:
             new_drive_msg = data
             new_drive_msg.header.stamp = rospy.Time.now()
             self.drive_pub.publish(new_drive_msg)
+            
 
     def callback_laser(self, data):
         range_len = len(data.ranges)

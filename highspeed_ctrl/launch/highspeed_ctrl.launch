@@ -1,11 +1,5 @@
 <?xml version="1.0"?>
 <launch>
-  <!-- <include file="$(find pid)/launch/servo_sim.launch"/> -->
-  <!-- <node pkg="tf" type="static_transform_publisher" name="base_link_to_imu" args="0 0 0 0 0 0 1 gnss_link imu_link 1000" />
-  <node pkg="tf" type="static_transform_publisher" name="base_link_to_lidar" args="0 0 2.3 0 0 0 1 base_link lidar_link 1000" />
-  <node pkg="tf" type="static_transform_publisher" name="base_link_to_gnss" args="-0.2 0 2.2 0 0 0 1 base_link gnss_link 1000" />
-  <node pkg="tf" type="static_transform_publisher" name="tmp_map_to_gnss" args="0.0 0 0.0 0 0 0 1 map gnss_link 100" /> -->
-
 
   <node name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen">      
         <remap from="/vesc/ackermann_cmd" to="/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl2"/>
@@ -35,7 +29,7 @@
       <param name="path_smoothing_times_" value="1"/> 
       
       <param name="path_filter_moving_ave_num_" value="1"/> 
-      <param name="lookahead_path_length" value="8.0"/> 
+      <param name="lookahead_path_length" value="5.0"/> 
 
       <param name="wheelbase" value="0.33"/> 
       <param name="lf" value="0.165"/> 

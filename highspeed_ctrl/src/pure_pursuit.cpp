@@ -81,6 +81,7 @@ bool PurePursuit::updateParamCallback(std_srvs::Trigger::Request& req, std_srvs:
 ////////////////////////////////////////////////////////////////////////////////
 
 
+
 void PurePursuit::update_ref_traj(const Trajectory & ref){
   local_traj = ref;
  }
@@ -459,17 +460,9 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
         min_idx = k;
       }
   }
-  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;  
-  // if (  tmp_dist <  1.5 && s_diff > 0){
-    // ROS_INFO("obstacle on the local trajectory ");    
-  // }
-  
- 
-
-
   double width_safe_dist = 0.3;
   race_mode = RaceMode::Race;
-  double refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
+  int refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
 
       
   geometry_msgs::PoseStamped debug_msg;
@@ -480,13 +473,7 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
   debug_msg.pose.orientation.x = cur_obstacle.ey ;
   debug_pub.publish(debug_msg); 
 
-    double conservaive_track_width  = -0.05 + std::min(local_traj.ey_l[refined_idx], local_traj.ey_r[refined_idx]);
-    conservaive_track_width  = std::max(0.0, conservaive_track_width);
-  if(fabs(cur_obstacle.ey) > conservaive_track_width){
-      // obstacle is outside of track boundary.. .ignore it 
-      ROS_INFO("Obstacle is outside of track");
-      return false;
-  }else{
+
     // Obstacle is inside of track width --> overtaking actiavted 
      double target_ey = 0;
       if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
@@ -531,7 +518,7 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
 
   return true;
     
-  }
+  
     
 
      

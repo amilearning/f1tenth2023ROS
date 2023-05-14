@@ -17,7 +17,7 @@
 
 #include "main_ctrl.h"
 
-int test_count = 0;
+
 using namespace std;
 
 Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_state, ros::NodeHandle& nh_p_):
@@ -124,7 +124,6 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
   std::vector<VehicleState> obstacles_vehicleState;
   
   for (int i=0; i<obstacles.tracks.size(); i++){
-    
     VehicleState tmp_state; 
     tmp_state.pose = obstacles.tracks[i].odom.pose.pose;
     tmp_state.yaw = normalizeRadian(tf2::getYaw(obstacles.tracks[i].odom.pose.pose.orientation));
@@ -132,29 +131,56 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
                         + 
                         (obstacles.tracks[i].odom.twist.twist.linear.y*obstacles.tracks[i].odom.twist.twist.linear.y));
     computeFrenet(tmp_state, traj_manager.getglobalPath());      
-    obstacles_vehicleState.push_back(tmp_state);
+      ///////////////////////////////////////////////////////////////////////////
+      //check if obstacle is within track boundary
+     if(local_traj.size() > 0) {
+          double min_dist_to_local_path = 1e3;
+          int min_idx = 0;
+          for(int k=0; k < local_traj.x.size(); k++){
+              double tmp_dist = sqrt((tmp_state.pose.position.x-local_traj.x[k])*(tmp_state.pose.position.x - local_traj.x[k]) + (tmp_state.pose.position.y-local_traj.y[k])*(tmp_state.pose.position.y-local_traj.y[k]));
+              if(tmp_dist < min_dist_to_local_path){
+                min_dist_to_local_path = tmp_dist;
+                min_idx = k;
+              }
+          }
+  
+          double conserve_track_width  = -0.15 + std::min(local_traj.ey_l[min_idx], local_traj.ey_r[min_idx]);
+          conserve_track_width  = std::max(0.0, conserve_track_width);
+          if(fabs(tmp_state.ey) < conserve_track_width){              
+            obstacles_vehicleState.push_back(tmp_state);
+          }
+     }
+
+  
   }
 
+  if(obstacles_vehicleState.size() < 1){
+    ROS_INFO("Obstacles are all outside of track");
+    pp_ctrl.is_there_obstacle = false;   
+    return;
+  }
+
+  // check if the obstacles are within the track bound
   // get the most closest obstacle to the current ego vehicle 
   int best_idx = 0;
   double min_dist = 1000.0;
   double track_length = traj_manager.getTrackLength();
   bool any_front_obstacle = false;  
     
-  for(int i=0; i < obstacles.tracks.size(); i++){      
-    
-    if(!traj_manager.is_s_front(cur_state.s, obstacles_vehicleState[i].s)){
-      
-       any_front_obstacle = true;
-        double dist_tmp = traj_manager.get_s_diff(cur_state.s, obstacles_vehicleState[i].s);
-        if(dist_tmp< min_dist){
-          min_dist = dist_tmp;
-          best_idx = i;
-        }
-    }else{
-      continue; // target is behind of track
+  for(int i=0; i < obstacles.tracks.size(); i++){    
+
+              if(!traj_manager.is_s_front(cur_state.s, obstacles_vehicleState[i].s)){
+                  any_front_obstacle = true;
+                  double dist_tmp = traj_manager.get_s_diff(cur_state.s, obstacles_vehicleState[i].s);
+                      if(dist_tmp< min_dist){
+                              min_dist = dist_tmp;
+                              best_idx = i;
+                          }
+              }else{
+                  continue; // targets are behind of track
+              }
+
     }
-  }
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   double dist_for_trigger = 100.0;
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -166,14 +192,11 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
       trackToMarker(obstacles.tracks[best_idx], closest_obstacle_marker);
     closest_obj_marker_pub.publish(closest_obstacle_marker);
     pp_ctrl.update_obstacleState(obstacles_vehicleState[best_idx]);
-     }else{
-      pp_ctrl.is_there_obstacle = false;      
+     return;
      }
-  }else{
-    pp_ctrl.is_there_obstacle = false;      
   }
-  
-
+  pp_ctrl.is_there_obstacle = false;      
+  return;
 }
 
 void Ctrl::trackToMarker(const hmcl_msgs::Track& track, visualization_msgs::Marker & marker){
@@ -460,6 +483,7 @@ void Ctrl::ControlLoop()
           
         if(ctrl_select == 1){
                   // Purepursuit Computation 
+        local_traj = traj_manager.getlookaheadPath();
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
         bool is_straight; 
         // pp_cmd = pp_ctrl.compute_lidar_based_command(is_straight, cur_scan);
@@ -476,6 +500,7 @@ void Ctrl::ControlLoop()
 
         }else if(ctrl_select ==2){
                 // Model based Purepursuit Computation 
+        local_traj = traj_manager.getlookaheadPath();
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
          targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
         target_pointmarker_pub.publish(targetPoint_marker);
