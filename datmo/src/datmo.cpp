@@ -37,7 +37,7 @@ Datmo::Datmo(): path_logger(0.05), first_traj_received(false){
   ROS_INFO("Starting Detection And Tracking of Moving Objects");
   
   pose_ready = false;
-
+  cluster_size_thresc_count = 5;
   n_private.param("lidar_frame", lidar_frame, string("base_link"));
   n_private.param("world_frame", world_frame, string("map"));
   ROS_INFO("The lidar_frame is: %s and the world frame is: %s", lidar_frame.c_str(), world_frame.c_str());
@@ -127,7 +127,11 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
     auto start = chrono::steady_clock::now();
 
     vector<pointList> point_clusters_not_transformed;
-    Datmo::Clustering(scan_in, point_clusters_not_transformed);
+    unsigned int cluster_size;
+    Datmo::Clustering(cluster_size, scan_in, point_clusters_not_transformed);
+    if(cluster_size < cluster_size_thresc_count){
+      return;
+    }
 
     //Transform Clusters to world_frame
     vector<pointList> point_clusters;
@@ -487,7 +491,7 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
   return false;
 }
 
-void Datmo::Clustering(const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<pointList> &clusters){
+void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<pointList> &clusters){
   scan = *scan_in;
 
   int cpoints = 0;
@@ -515,7 +519,11 @@ void Datmo::Clustering(const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<p
        }
   }
   const int c_points = cpoints;
-
+  cpoint_size = cpoints;
+  // std::cout << "c_ponsts size " << c_points << std::endl;
+  if(cpoint_size < cluster_size_thresc_count){
+    return;
+  }
   int j = 0;
   vector< vector<float> > polar(c_points +1 ,vector<float>(2)); //c_points+1 for wrapping
 

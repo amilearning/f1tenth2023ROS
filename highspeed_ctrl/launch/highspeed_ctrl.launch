@@ -16,6 +16,7 @@
       <param name="Pemergency_stop_distance" value="0.0"/> 
       <param name="Pspeed_thres_traveling_direction" value="0.0"/> 
       <param name="Pmax_acceleration" value="0.3"/> 
+      <param name="max_decel" value="4.0"/> 
       <param name="Pdistance_front_rear_wheel" value="0.33"/> 
 
       <param name="vel_lookahead_ratio" value="1.0"/>       
