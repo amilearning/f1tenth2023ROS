@@ -84,12 +84,13 @@ class JoyTeleop:
             self.auto_mode = False
 
         if buttons[5] ==1:
-            self.auto_mode_count = self.auto_mode_count+1
+            self.auto_mode  = True
+        #     self.auto_mode_count = self.auto_mode_count+1
         
-        if self.auto_mode_count > 10:
-            self.auto_mode = not self.auto_mode
-            self.auto_mode_count = 0
-            rospy.sleep(0.1)
+        # if self.auto_mode_count > 10:
+        #     self.auto_mode = not self.auto_mode
+        #     self.auto_mode_count = 0
+        #     rospy.sleep(0.1)
             
         if self.auto_mode:
             buttons[5] = 1

@@ -222,7 +222,7 @@ private:
   bool updateParamCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res);
 
     bool ObstacleAvoidance(PathPoint & target_point_, int near_idx);
-  void vel_clip_accel(double & ref_vel);
+  bool vel_clip_accel(double & ref_vel);
   double compute_target_speed(double vel_lookahead_ratio_);
   void compute_lookahead_distance(const double reference_velocity);
 

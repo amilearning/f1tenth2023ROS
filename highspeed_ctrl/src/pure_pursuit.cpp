@@ -249,6 +249,8 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
 //   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
   int near_idx;
   compute_lookahead_distance(cur_state.vx);  // update m_lookahead_distance 
+  
+  // compute_lookahead_distance(3.0);  // update m_lookahead_distance 
   const auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
   
   if (is_success) {
@@ -256,7 +258,18 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
         cmd_msg.header.stamp = ros::Time::now();
         // ackermann_msg.drive.speed =  opt_vel/5.0;
         double speed_cmd = compute_target_speed(vel_lookahead_ratio);
-        vel_clip_accel(speed_cmd);
+        bool vel_cliped = vel_clip_accel(speed_cmd);
+
+    // hard constraint for recovery 
+     if(fabs(cur_state.ey) > 0.5){
+      speed_cmd  =1.5;
+     }
+
+     if(fabs(cur_state.epsi) > 60*3.14195/180.0){
+        speed_cmd  =1.5;
+     }
+
+        
         obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
           if (obstacle_avoidance_activate){
               speed_cmd = 0.0;
@@ -286,30 +299,51 @@ bool PurePursuit::getOvertakingStatus(){
   return obstacle_avoidance_activate;
 }
 
-void PurePursuit::vel_clip_accel(double & ref_vel){
+bool PurePursuit::vel_clip_accel(double & ref_vel){
   
   // if we are driving ... dont do this.. 
-    // if(cur_state.vx > 2.5){
+    // if(cur_state.vx < 1.0 || cur_state.vx > 2.5){
     //   return;
     // }else{
     // only if the vehicle restart from zero velocity 
-    double ey_thres = 0.1;
-    double epsi_thres = 10*3.14195/180.0;
-    double delta_thres = 10*3.14195/180.0;
-        if(fabs(cur_state.ey) > ey_thres || fabs(cur_state.epsi) > epsi_thres || fabs(cur_state.delta) > delta_thres){
-          // ROS_INFO("ey or epsi increased");
-          ///  TODO: or we can reduce speed to certain value if such case.. 
-          double target_vel = ref_vel;
-          if(target_vel > cur_state.vx ){
-            double cliped_vel_cmd = cur_state.vx+max_acceleration;      
-            ref_vel  = std::min(cliped_vel_cmd, target_vel);
-            // std::cout << "limit vel " << cliped_vel_cmd << std::endl;
-          }
-        }            
+    double ey_thres = 0.2;
+    double epsi_thres = 20*3.14195/180.0;
+    double delta_thres = 20*3.14195/180.0;
+    double tmp_max_acceleration = max_acceleration;
+    bool clip_vel = false;
+    double target_vel = ref_vel;
+        // if(fabs(cur_state.ey) > ey_thres || fabs(cur_state.epsi) > epsi_thres || fabs(cur_state.delta) > delta_thres){
+    if(fabs(cur_state.ey) > ey_thres){
+      tmp_max_acceleration = max_acceleration;
+      clip_vel = true;
+    }
+    
+    if(fabs(cur_state.epsi) > epsi_thres){
+        tmp_max_acceleration = max_acceleration;
+        clip_vel = true;
+    }
+
+
+    if(clip_vel && target_vel > cur_state.vx ){
+        ROS_WARN("clip vel");
+        double cliped_vel_cmd = cur_state.vx+tmp_max_acceleration;      
+        ref_vel  = std::min(cliped_vel_cmd, target_vel);
+        return true;
+    }
+            
     // } 
-    return;
+    return false;
 }
 
+// current speed -> lookahead  
+//// ey > 0.2 -> max_ acel 
+//// epsi > 20 -> max_accel 
+// vel decress 
+
+// target point check
+// taret point curvature -> calculate 
+// if curvature increase 
+// 
 
 ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 { 
@@ -365,10 +399,12 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
 
     // hard constraint for recovery 
-     if(cur_state.ey > 1.0 ){
+     if(fabs(cur_state.ey) > 0.5){
       target_vel  =1.5;
-     }else if(cur_state.ey > 0.5 && cur_state.ey < 1.0){
-      target_vel  =2.0;
+     }
+
+     if(fabs(cur_state.epsi) > 60*3.14195/180.0){
+        target_vel  =1.5;
      }
 
 
@@ -636,6 +672,8 @@ void PurePursuit::compute_lookahead_distance(const double reference_velocity)
   if (fabs(cur_state.ey) > 0.2){
     target_vel = std::max(cur_state.vx, reference_velocity);
   }
+
+  
   
   // const double lookahead_distance = fabs(current_velocity * speed_to_lookahead_ratio);
   const double lookahead_distance = target_vel *1.8-2.9;

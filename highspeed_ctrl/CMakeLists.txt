@@ -3,7 +3,7 @@ project(highspeed_ctrl)
 
 find_package(Eigen3 REQUIRED)
 
-set(GSL_ROOT_DIR /home/hjpc/gsl)
+set(GSL_ROOT_DIR /home/ros2nx/gsl)
 
 find_package(GSL REQUIRED)
 

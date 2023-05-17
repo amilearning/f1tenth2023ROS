@@ -540,6 +540,9 @@ void Ctrl::ControlLoop()
           pp_cmd.drive.speed = 0.0;
         } 
 
+        if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed <= 0.5){
+          pp_cmd.drive.speed = 0.5;
+        }
           ackmanPub.publish(pp_cmd);
           cur_state.delta = pp_cmd.drive.steering_angle;          
         }
