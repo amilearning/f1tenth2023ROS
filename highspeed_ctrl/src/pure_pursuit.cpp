@@ -257,6 +257,11 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
         // ackermann_msg.drive.speed =  opt_vel/5.0;
         double speed_cmd = compute_target_speed(vel_lookahead_ratio);
         vel_clip_accel(speed_cmd);
+        obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
+          if (obstacle_avoidance_activate){
+              speed_cmd = 0.0;
+          }
+
         cmd_msg.drive.speed =  speed_cmd;
         
         if(lookup_tb.is_ready){
