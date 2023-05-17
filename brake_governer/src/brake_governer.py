@@ -20,20 +20,27 @@ class Break_governer:
         self.cur_velocity=0.0
         self.cmd_velocity=0.0
         self.ttc_stop_signal = False
-        # self.cur_velocity_sub = rospy.Subscriber("/vesc/sensors/core", VescStateStamped, self.callback_cur_vel)
+        
         self.cur_velocity_sub = rospy.Subscriber("/est_odom", Odometry, self.callback_cur_vel_factor)
         self.cmd_velocity_sub = rospy.Subscriber("/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl2", AckermannDriveStamped, self.callback_cmd_vel)#: Subscribe to VESC
         self.lidar_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser)#: Subscribe to LIDAR
         self.drive_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl', AckermannDriveStamped, queue_size=10)#: Publish to drive
         self.brake_pub = rospy.Publisher('/vesc/commands/motor/brake',Float64,queue_size = 10)
+        
+        self.delta_pub = rospy.Publisher('/vesc/commands/servo/position',Float64,queue_size = 2)
      
         self.brake_switch_count = 0
+        self.delta_cmd = 0.0
         self.brake_governer_current = rospy.get_param('/brake_governer/current')
+        self.steering_angle_to_servo_offset = rospy.get_param('/vesc/steering_angle_to_servo_offset')
+        self.steering_angle_to_servo_gain = rospy.get_param('/vesc/steering_angle_to_servo_gain')
 
-    def callback_cur_vel(self,data):
-        speed_to_erpm_gain = rospy.get_param('/vesc/speed_to_erpm_gain')
-        speed_to_erpm_offset = rospy.get_param('/vesc/speed_to_erpm_offset')
-        self.cur_velocity = (-data.state.speed-speed_to_erpm_offset)/speed_to_erpm_gain
+
+    def delta_angle_to_servo(self,delta):
+        # delta in radian 
+        # servo value (0 to 1) =  steering_angle_to_servo_gain * steering angle (radians) + steering_angle_to_servo_offset
+        return delta*self.steering_angle_to_servo_gain+ self.steering_angle_to_servo_offset
+         
 
     def callback_cur_vel_factor(self,data):
         self.cur_velocity = data.twist.twist.linear.x
@@ -44,8 +51,8 @@ class Break_governer:
         cmd_stop_signal = (self.cmd_velocity+self.brake_governer_tolerance < self.cur_velocity)
         
         if  (cmd_stop_signal or self.ttc_stop_signal) :
-            
-            self.brake(self.brake_governer_current)
+            delta = data.drive.steering_angle
+            self.brake(self.brake_governer_current,delta)
             if cmd_stop_signal and self.ttc_stop_signal:
                 print("brake cmd,ttc: cur, cmd: ", self.cur_velocity, ", ",self.cmd_velocity)
             elif cmd_stop_signal and not self.ttc_stop_signal:
@@ -92,10 +99,17 @@ class Break_governer:
         else:
              self.ttc_stop_signal = False
 
-    def brake(self, current):
+    def brake(self, current,delta):
+            
+            delta_msg = Float64()
+            delta_msg.data = self.delta_angle_to_servo(delta)            
+            self.delta_pub.publish(delta_msg) 
+            
+
             brake_msg = Float64()
             brake_msg.data = current
             self.brake_pub.publish(brake_msg) 
+
             
 def main(args):
     rospy.init_node("brake_governer", anonymous=False)

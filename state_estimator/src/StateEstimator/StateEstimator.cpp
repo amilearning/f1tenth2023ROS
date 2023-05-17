@@ -447,6 +447,9 @@ namespace localization_core
             {
               ROS_WARN("Received bad local Pose message");
               // diag_warn("Received bad local Pose message");
+              // TODO 
+              // optimize = false;
+            
             }
           }
         }

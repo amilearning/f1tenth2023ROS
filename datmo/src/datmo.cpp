@@ -482,7 +482,7 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
       return true;
     }
   }
-  std::cout << "angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
+  // std::cout << "angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
   // elsae
   return false;
 }

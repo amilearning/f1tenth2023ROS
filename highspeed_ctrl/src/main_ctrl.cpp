@@ -458,7 +458,6 @@ void Ctrl::ControlLoop()
 
     while (ros::ok()){         
         
-
         auto start = std::chrono::steady_clock::now();        
         
         traj_manager.updatelookaheadPath(cur_state,lookahead_path_length);
@@ -481,30 +480,32 @@ void Ctrl::ControlLoop()
           ackermann_msgs::AckermannDriveStamped pp_cmd;
           visualization_msgs::Marker targetPoint_marker, speed_targetPoint_marker;
           
+             // if(is_odom_used){
+          //   // factor estimation is enabled ... we can do model pp 
+          //   ctrl_select = 2;
+          // }
+          // else{
+          //   ctrl_select = 1;
+          // }
         if(ctrl_select == 1){
                   // Purepursuit Computation 
         local_traj = traj_manager.getlookaheadPath();
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
         bool is_straight; 
         // pp_cmd = pp_ctrl.compute_lidar_based_command(is_straight, cur_scan);
-        
        pp_cmd = pp_ctrl.compute_command();
         targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
         target_pointmarker_pub.publish(targetPoint_marker);
         speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
         speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
         
-
-
-
-
         }else if(ctrl_select ==2){
                 // Model based Purepursuit Computation 
         local_traj = traj_manager.getlookaheadPath();
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
-         targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
+         targetPoint_marker = pp_ctrl.getTargetPointhMarker(1); // 1 for steering lookahead 
         target_pointmarker_pub.publish(targetPoint_marker);
-         speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
+         speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1); // -1 for speed lookahead
         speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
           pp_cmd = pp_ctrl.compute_model_based_command();
         }
@@ -513,6 +514,13 @@ void Ctrl::ControlLoop()
         // pp_cmd.drive.steering_angle = 0.0;
 
         if(!traj_manager.is_recording() && ctrl_select > 0){
+        
+        
+        
+        
+        
+        
+        
           if (manual_velocity){
             // ROS_INFO("cmd vel = %f", pp_cmd.drive.speed);  
             pp_cmd.drive.speed = manual_target_vel;
