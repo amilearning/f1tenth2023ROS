@@ -139,7 +139,7 @@ namespace localization_core
     nh_.param<bool>("UseOdom", usingOdom_, false);
     nh_.param<bool>("UseLocalPose", usingLocalPose_, true);
     
-    nh_.param<double>("maxLocalPoseError", maxLocalPoseError_, 10.0);
+    nh_.param<double>("maxLocalPoseError", maxLocalPoseError_, 1.0);
 
 
     std::cout << "InitialRotationNoise " << initialRotationNoise << "\n"
@@ -446,6 +446,26 @@ namespace localization_core
             else
             {
               ROS_WARN("Received bad local Pose message");
+              exit(0);
+                while(localPoseOptQ_.size()>0)
+                {        
+                 localPoseOptQ_.popBlocking();
+                }
+                while(imuOptQ_.size()>0)
+                {        
+                 imuOptQ_.popBlocking();
+                }
+              ISAM2Params params;
+              params.factorization = ISAM2Params::QR; // TODO: should test with cholesky later 
+              isam_ = new ISAM2(params);
+              gotFirstFix = false;
+              status = autorally_msgs::stateEstimatorStatus::WARN;
+               odomKey = 1;
+               imuKey = 1;
+               latestLocalPoseKey = 0;
+               continue;
+          
+              
               // diag_warn("Received bad local Pose message");
               // TODO 
               // optimize = false;
@@ -453,6 +473,11 @@ namespace localization_core
             }
           }
         }
+
+        if(!gotFirstFix){
+          status = autorally_msgs::stateEstimatorStatus::WARN;
+        loop_rate.sleep();
+      continue;}
 
 ///////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////
@@ -565,6 +590,10 @@ namespace localization_core
     }
     if (optimizedTime == 0) return; // haven't optimized first state yet
 
+    if(status == autorally_msgs::stateEstimatorStatus::WARN){
+      return;
+    }
+
     bool newMeasurements = false;
     int numImuDiscarded = 0;
     double imuQPrevTime;
@@ -601,6 +630,7 @@ namespace localization_core
       // ROS_INFO("Integrating %f, dt %f", m_lastImuT, dt);
     }
 
+   
     // predict next state given the imu measurements
     NavState currentPose = imuPredictor_->predict(optimizedState, optimizedBias);
     nav_msgs::Odometry poseNew;

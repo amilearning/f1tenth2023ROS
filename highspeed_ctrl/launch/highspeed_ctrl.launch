@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-  <node name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen">      
+  <node name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen" respawn="true">      
         <remap from="/vesc/ackermann_cmd" to="/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl2"/>
 
         
@@ -42,8 +42,8 @@
 
 </node>
 
-      <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="screen">
+      <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="screen" respawn="true">
   	<param name="current" value="-50.0"/>
-	  <param name="tolerance" value="0.2"/>
+	  <param name="tolerance" value="0.5"/> 
   </node> 
 </launch>
