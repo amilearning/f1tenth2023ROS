@@ -150,6 +150,7 @@ bool first_odom_received;
 sensor_msgs::Imu cur_imu;
 bool imu_received;
 bool is_odom_used;
+ackermann_msgs::AckermannDriveStamped final_cmd;
 
 sensor_msgs::LaserScan::ConstPtr cur_scan;
 
@@ -173,7 +174,7 @@ bool odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::
 void dyn_callback(highspeed_ctrl::testConfig& config, uint32_t level);
 
 visualization_msgs::MarkerArray PathPrediction(const VehicleState state, int n_step);
-
+   
 
 };
 

@@ -185,8 +185,11 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // time to collision - > distance / relative speed 
   // (Velocity^2) / (2 * Deceleration)
-  double ttc_distance = (cur_state.vx*cur_state.vx) / (2*max_decel);  
-  double dist_for_trigger = std::min(std::max(ttc_distance, 2.5), 8.0);
+  double final_cmd__vel = final_cmd.drive.speed;
+  double cur_tar_vel = std::max(final_cmd__vel, cur_state.vx);
+  // double ttc_distance = (cur_state.vx*cur_state.vx) / (2*max_decel);    
+  double ttc_distance = (cur_tar_vel*cur_tar_vel) / (2*max_decel);  
+  double dist_for_trigger = std::min(std::max(ttc_distance, 2.5), 10.0);
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   if(any_front_obstacle){    
     std::cout << "dist_for_trigger = " <<  dist_for_trigger << std::endl;
@@ -544,6 +547,7 @@ void Ctrl::ControlLoop()
           pp_cmd.drive.speed = 0.5;
         }
           ackmanPub.publish(pp_cmd);
+          final_cmd = pp_cmd;
           cur_state.delta = pp_cmd.drive.steering_angle;          
         }
         
