@@ -145,18 +145,18 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
               }
           }
   
-          double conserve_track_width  = -0.15 + std::min(local_traj.ey_l[min_idx], local_traj.ey_r[min_idx]);
-          conserve_track_width  = std::max(0.0, conserve_track_width);
-          if(fabs(tmp_state.ey) < conserve_track_width){              
+          // double conserve_track_width  = -0.15 + std::min(local_traj.ey_l[min_idx], local_traj.ey_r[min_idx]);
+          // conserve_track_width  = std::max(0.0, conserve_track_width);
+          // if(fabs(tmp_state.ey) < conserve_track_width){              
             obstacles_vehicleState.push_back(tmp_state);
-          }
+          // }
      }
 
   
   }
 
   if(obstacles_vehicleState.size() < 1){
-    // ROS_INFO("Obstacles are all outside of track");
+    ROS_INFO("no obstacles are added");
     pp_ctrl.is_there_obstacle = false;   
     return;
   }
@@ -189,13 +189,12 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
   double cur_tar_vel = std::max(final_cmd__vel, cur_state.vx);
   // double ttc_distance = (cur_state.vx*cur_state.vx) / (2*max_decel);    
   double ttc_distance = (cur_tar_vel*cur_tar_vel) / (2*max_decel);  
-  double dist_for_trigger = std::min(std::max(ttc_distance, 2.5), 10.0);
+  double dist_for_trigger = 2*std::min(std::max(ttc_distance, 2.5), 10.0);
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   if(any_front_obstacle){    
     std::cout << "dist_for_trigger = " <<  dist_for_trigger << std::endl;
     std::cout << "min_dist = " <<  min_dist << std::endl;
-     if (min_dist < dist_for_trigger && min_dist > -0.5){
-    std::cout << "is_there_obstacle true" << std::endl;
+     if (min_dist < dist_for_trigger && min_dist > 0.0){
       pp_ctrl.is_there_obstacle = true;
       visualization_msgs::Marker closest_obstacle_marker;
       trackToMarker(obstacles.tracks[best_idx], closest_obstacle_marker);
@@ -538,11 +537,11 @@ void Ctrl::ControlLoop()
 
                //////////////////// Check if obstacle within the line to the tareget point 
         bool is_overtaking = pp_ctrl.getOvertakingStatus();
-        if(is_overtaking){
+        // if(is_overtaking){
           // filter_given_TargetClearance(pp_cmd, targetPoint_marker);
-          pp_cmd.drive.speed = 0.0;
-        } 
-
+          // pp_cmd.drive.speed = 1.5;
+        // } 
+//  
         if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed <= 0.5){
           pp_cmd.drive.speed = 0.5;
         }

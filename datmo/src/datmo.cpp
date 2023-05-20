@@ -37,15 +37,16 @@ Datmo::Datmo(): path_logger(0.05), first_traj_received(false){
   ROS_INFO("Starting Detection And Tracking of Moving Objects");
   
   pose_ready = false;
-  cluster_size_thresc_count = 5;
+  cluster_size_thresc_count = 0;
   n_private.param("lidar_frame", lidar_frame, string("base_link"));
   n_private.param("world_frame", world_frame, string("map"));
   ROS_INFO("The lidar_frame is: %s and the world frame is: %s", lidar_frame.c_str(), world_frame.c_str());
   n_private.param("threshold_distance", dth, 0.2);
   n_private.param("max_cluster_size", max_cluster_size, 360);
   n_private.param("euclidean_distance", euclidean_distance, 0.25);
+  n_private.param("track_margin", track_margin, 0.2);
   n_private.param("pub_markers", p_marker_pub, false);
-n_private.param("min_cluster_size", min_cluster_size, 5);
+  n_private.param("min_cluster_size", min_cluster_size, 5);
   n_private.param("pub_obs", pub_obs, true);
   n_private.param("pub_obs_viz", pub_obs_viz_, true);
 
@@ -130,6 +131,7 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
     unsigned int cluster_size;
     Datmo::Clustering(cluster_size, scan_in, point_clusters_not_transformed);
     if(cluster_size < cluster_size_thresc_count){
+      std::cout << "if(cluster_size < cluster_size_thresc_count) true" << std::endl;
       return;
     }
 
@@ -256,8 +258,8 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
 
     if (pub_obs && clusters.size() > 0){
 
-      if (clusters[best_idx].age > 3)
-      {
+      // if (clusters[best_idx].age > 3)
+      // {
         track_array_box_kf.tracks.push_back(clusters[best_idx].msg_track_box_kf);
       //   if (pub_obs_viz_)
       // {
@@ -278,7 +280,7 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
       obs.lx = clusters[best_idx].L1;
       obs.ly = clusters[best_idx].L2;
       pub_obs_msg.publish(obs);
-      }
+      // }
       
     }
 
@@ -466,7 +468,7 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
   s = 1e5;
   ey = 1e5;  
   computeFrenet(s, ey, ey_l, ey_r, x_global, y_global, path_logger.ref_traj);
-
+  // std::cout << "scan_dist = " << scan_dist << " angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
   if(ey_l ==0  || ey_r ==0){
        // this is the case where the trajectory information is incorrect.. 
        // use safety circle distance instead
@@ -480,13 +482,13 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
       return true;
     }
   }else{
-    if(abs(ey) < ey_l-0.1 && abs(ey) < ey_r-0.1) //if this scan point is within track boundaries   
+    if(abs(ey) < ey_l-track_margin && abs(ey) < ey_r-track_margin) //if this scan point is within track boundaries   
     {
       // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
       return true;
     }
   }
-  // std::cout << "angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
+  // std::cout << "scan_dist = " << scan_dist << " angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
   // elsae
   return false;
 }
@@ -495,11 +497,14 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
   scan = *scan_in;
 
   int cpoints = 0;
-
+  
   int mid_angle_idx = int(scan.ranges.size()/2);
-  double angle_max = 80*3.14195/180.0;
+  // std::cout << "mid_angle_idx =" << mid_angle_idx << std::endl;
+  double angle_max = 100*3.14195/180.0;
   int angle_max_idx = int(angle_max/scan.angle_increment) + mid_angle_idx;
+  // std::cout << "angle_max_idx =" << angle_max_idx << std::endl;
   int angle_min_idx = -int(angle_max/scan.angle_increment) + mid_angle_idx;
+  // std::cout << "angle_min_idx =" << angle_min_idx << std::endl;
   
   std::vector<unsigned int> filt_idx(scan.ranges.size()); 
 
@@ -509,6 +514,7 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
     // only compute +-80 degree 
     if( i > angle_min_idx && i < angle_max_idx){
       // check if the points is near track boundary 
+      
       if(is_within_track_boundary(scan.ranges[i],scan.angle_min + i*scan.angle_increment)){      
       filt_idx[i] =1;
       }
@@ -518,6 +524,11 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
         cpoints++;
        }
   }
+
+  /////////////////////////////////////
+  // insert fake distanced data for clustering 
+  cpoints++;  
+  /////////////////////////////////////
   const int c_points = cpoints;
   cpoint_size = cpoints;
   // std::cout << "c_ponsts size " << c_points << std::endl;
@@ -538,6 +549,15 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
       }       
     
   }
+
+  /////////////////////////////////////
+  // insert fake distanced data for clustering 
+    polar[j][0] = 100; //first column is the range 
+    polar[j][1] = 271*3.14195/180.0;  //second angle in rad
+    j++;
+  /////////////////////////////////////
+
+
   ros::Time end_time = ros::Time::now();
     ros::Duration elapsed_time = end_time - start_time;
 
@@ -560,7 +580,7 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
   vector<bool> clustered1(c_points+1 ,false); //change to true when it is the first of the cluster
   vector<bool> clustered2(c_points+1 ,false); // change to true when it is clustered by another one
 
-  float l = 45; // λ is an acceptable angle for determining the points to be of the same cluster
+  float l = 45; //45,  λ is an acceptable angle for determining the points to be of the same cluster
   l = l * 0.0174532;   // degree to radian conversion;
   const float s = 0;   // σr is the standard deviation of the noise of the distance measure
   for (unsigned int i=0; i < c_points ; ++i){
@@ -576,6 +596,7 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
     if(d<adaptive) {
       clustered1[i] = true; //both points belong to clusters
       clustered2[i+1] = true;}
+   
   }
 
   clustered2[0] = clustered2[c_points];
@@ -591,14 +612,14 @@ void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::
     if (clustered1[i] == true && clustered2[i] == false && flag == true){
       begin.push_back(i);
       nclus.push_back(1);
-      while(clustered2[i+1] == true && clustered1[i+1] == true ){
-	i++;
-	++nclus.back();
-	if(i==c_points-1 && flag == true){
-	  i = -1;
-	  flag = false;
-	}
-      }
+            while(clustered2[i+1] == true && clustered1[i+1] == true ){
+        i++;
+        ++nclus.back();
+        if(i==c_points-1 && flag == true){
+          i = -1;
+          flag = false;
+        }
+            }
       ++nclus.back();//take care of 0 1 flags - last of the cluster
     }
   i++;

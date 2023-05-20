@@ -9,6 +9,8 @@
 
       <param name="Pminimum_lookahead_distance" value="0.6"/> 
       <!-- <param name="Pminimum_lookahead_distance" value="0.6"/>  -->
+      
+      <param name="Ptrack_margin" value="0.5"/> 
        
       <param name="Pmaximum_lookahead_distance" value="3.0"/> 
       
@@ -32,7 +34,7 @@
       <param name="path_smoothing_times_" value="1"/> 
       
       <param name="path_filter_moving_ave_num_" value="1"/> 
-      <param name="lookahead_path_length" value="5.0"/> 
+      <param name="lookahead_path_length" value="10.0"/> 
 
       <param name="wheelbase" value="0.33"/> 
       <param name="lf" value="0.165"/> 
@@ -42,7 +44,7 @@
 
 </node>
 
-      <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="screen" respawn="true">
+      <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="log" respawn="true">
   	<param name="current" value="-50.0"/>
 	  <param name="tolerance" value="0.5"/> 
   </node> 

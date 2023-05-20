@@ -221,7 +221,7 @@ private:
   ros::ServiceServer update_param_srv;    
   bool updateParamCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res);
 
-    bool ObstacleAvoidance(PathPoint & target_point_, int near_idx);
+    bool ObstacleAvoidance(double & target_vel, PathPoint & target_point_, int near_idx);
   bool vel_clip_accel(double & ref_vel);
   double compute_target_speed(double vel_lookahead_ratio_);
   void compute_lookahead_distance(const double reference_velocity);
@@ -257,9 +257,11 @@ private:
   Butterworth2dFilter lookahead_dist_filter;
   double filt_lookahead;
   const double dt;
+  double Ptrack_margin;
   Trajectory local_traj;
   VehicleState cur_state, cur_obstacle;
   BicubicSplineLookupTable lookup_tb;
+  int obstacle_life_count;
     bool manual_target_lookahead, manual_speed_lookahead;
     double manual_target_lookahead_value, manual_speed_lookahead_value;
     double max_a_lat;

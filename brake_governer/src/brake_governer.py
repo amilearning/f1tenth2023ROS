@@ -50,7 +50,7 @@ class Break_governer:
         self.cmd_velocity = data.drive.speed
         cmd_stop_signal = (self.cmd_velocity+self.brake_governer_tolerance < self.cur_velocity)
         
-        if  (cmd_stop_signal or self.ttc_stop_signal) :
+        if  (cmd_stop_signal or self.ttc_stop_signal) and self.cur_velocity > 0.2 :
             delta = data.drive.steering_angle
             self.brake(self.brake_governer_current,delta)
             if cmd_stop_signal and self.ttc_stop_signal:

@@ -161,7 +161,7 @@ void ControlLoop();
 // void filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker);
 void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom,const bool & odom_twist_in_local);
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-void lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg);
+// void lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg);
 void obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg);
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
 void vescodomCallback(const nav_msgs::OdometryConstPtr& msg);

@@ -40,12 +40,13 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
     
     double lookahead_filter_cutoff = 1;
     lookahead_dist_filter.initialize(0.05, lookahead_filter_cutoff);
-
+    obstacle_life_count = 0;
     debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
     ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
     ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
     // ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
     ctrl_nh.param<double>("Pemergency_stop_distance", emergency_stop_distance,0.0);
+    ctrl_nh.param<double>("Ptrack_margin", Ptrack_margin,0.5);
     
     ctrl_nh.param<double>("speed_minimum_lookahead_distance", speed_minimum_lookahead_distance,0.0);
     ctrl_nh.param<double>("speed_maximum_lookahead_distance", speed_maximum_lookahead_distance,0.4);
@@ -270,10 +271,10 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
      }
 
         
-        obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
-          if (obstacle_avoidance_activate){
-              speed_cmd = 0.0;
-          }
+        obstacle_avoidance_activate = ObstacleAvoidance(speed_cmd, m_target_point,near_idx);                                                                                         
+          // if (obstacle_avoidance_activate){
+          //     speed_cmd = 0.0;
+          // }
 
         cmd_msg.drive.speed =  speed_cmd;
         
@@ -325,7 +326,7 @@ bool PurePursuit::vel_clip_accel(double & ref_vel){
 
 
     if(clip_vel && target_vel > cur_state.vx ){
-        ROS_WARN("clip vel");
+        // ROS_WARN("clip vel");
         double cliped_vel_cmd = cur_state.vx+tmp_max_acceleration;      
         ref_vel  = std::min(cliped_vel_cmd, target_vel);
         return true;
@@ -424,10 +425,10 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
       is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
                                                                                          // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
 
-      obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
-      if (obstacle_avoidance_activate){
-          target_vel = 0.0;
-      }
+      obstacle_avoidance_activate = ObstacleAvoidance(target_vel, m_target_point,near_idx);                                                                                         
+      // if (obstacle_avoidance_activate){
+      //     target_vel = 0.0;
+      // }
       cmd_msg.header.stamp = ros::Time::now();
       cmd_msg.drive.speed = target_vel;
       cmd_msg.drive.steering_angle = compute_steering_rad();
@@ -508,12 +509,23 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_lidar_based_command(b
 }
 
 
-bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
+bool PurePursuit::ObstacleAvoidance(double & target_vel, PathPoint & target_point_, int near_idx){
   if(!is_there_obstacle){
     
     return false;
     
   }
+
+
+  if(obstacle_life_count < 10){
+    obstacle_life_count = obstacle_life_count+ 1;
+  }else{
+    obstacle_life_count = 0;
+  }
+  if(obstacle_life_count ==9){
+    is_there_obstacle = false;
+  }
+  
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////Obstacle avoidance refinement//////////////////////////////
@@ -528,7 +540,8 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
         min_idx = k;
       }
   }
-  double width_safe_dist = 0.3;
+  double width_safe_dist = 0.4;
+  double track_width_safe_margin = 0.2;
   race_mode = RaceMode::Race;
   int refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
 
@@ -541,28 +554,87 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
   debug_msg.pose.orientation.x = cur_obstacle.ey ;
   debug_pub.publish(debug_msg); 
 
+  bool stopping = false; // 
+/// change the target point only if the speed is low
+  
+    if(fabs(cur_state.vx) < 1.6){ 
+                //  -- right side of track = minus
+              // select the direction for overtaking  given the position of ego vehicle
+              bool overtaking_to_right = false;
+              if( fabs(cur_obstacle.ey) < 0.2 ){
+                if(cur_state.ey > 0.0){ //  currently we are in the left side
+                  overtaking_to_right = false;  // overtaking to left
+                }else{
+                  overtaking_to_right = true;  //overtaking to right
+                }  
+              }else{
+                if(cur_obstacle.ey > 0.0){ // obstacle is in the left side 
+                    overtaking_to_right = true;  // overtaking to right
+                }else{ // obstacle is in the right side 
+                  overtaking_to_right = false; // overtaking to left 
+                } 
+              }
 
-    // Obstacle is inside of track width --> overtaking actiavted 
-     double target_ey = 0;
-      if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
-              target_ey = cur_obstacle.ey -width_safe_dist*2;              
-              double track_right_cosntaint = local_traj.ey_r[refined_idx]-width_safe_dist;
-              track_right_cosntaint = std::max(track_right_cosntaint, 0.0);
-              target_ey = std::max(std::min(target_ey, 0.0), -1*track_right_cosntaint);                
-      }else{
-        // obstacle is in the right side of centerline 
-        target_ey = cur_obstacle.ey+width_safe_dist*2;
-        double track_left_constraint = local_traj.ey_l[refined_idx] - width_safe_dist;
-        track_left_constraint = std::max(track_left_constraint, 0.0);
-        target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
-      } 
-      
-      
+                  // Obstacle is inside of track width --> overtaking actiavted 
+                  double target_ey = 0;
+                    if(overtaking_to_right){ // obstacle is in the left side of centerline 
+                            target_ey = cur_obstacle.ey -width_safe_dist*2;              
+                            double track_right_cosntant = local_traj.ey_r[refined_idx]-track_width_safe_margin;
+                            track_right_cosntant = std::max(track_right_cosntant, 0.0);
+                            if(fabs(target_ey) > fabs(-1*track_right_cosntant)){
+                              stopping = true;
+                            }else{
+                            target_ey = std::min(target_ey, 0.0);                  
+                            }
+                            // target_ey = std::max(std::min(target_ey, 0.0), -1*track_right_cosntant);                
+                    }else{
+                      // obstacle is in the right side of centerline 
+                      target_ey = cur_obstacle.ey+width_safe_dist*2;
+                      double track_left_constraint = local_traj.ey_l[refined_idx] - track_width_safe_margin;
+                      track_left_constraint = std::max(track_left_constraint, 0.0);
+                      if(fabs(target_ey) > fabs(track_left_constraint)){
+                              stopping = true;
+                        }else{
+                        target_ey = std::max(target_ey, 0.0);                
+                        }
+                      // target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
+                    } 
+
+                      double yaw_on_centerline = local_traj.yaw[refined_idx];
+                  double new_x, new_y;
+                    if(target_ey >= 0){
+                    new_x = local_traj.x[refined_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
+                    new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);      
+                    }else{
+                    new_x = local_traj.x[refined_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
+                    new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);      
+                    }   
+                    //   
+                    if(!stopping){
+                      target_point_ << new_x, new_y;
+                      }
+                    
+
+    }
     // if(abs(cur_obstacle.ey) > width_safe_dist){
-      
+      std::cout << " cur_obstacle.ey = " << cur_obstacle.ey <<std::endl;
       race_mode = RaceMode::Overtaking;
       // Aggresive Overtaking Action!!
-      ROS_WARN("OVVertaking !!");
+      if(fabs(cur_obstacle.ey) < Ptrack_margin){
+        ROS_WARN("OVVertaking !!");
+          if(stopping){
+            target_vel = 0.0;
+          }else{
+            target_vel = 1.5; 
+          }          
+          return true;
+      }else{
+        // small 
+
+        ROS_WARN("Obstacle, but out side of track !!");
+          return false;
+      }
+      
     // }else{      
     //   // Timid Following Action !!! 
     //   race_mode = RaceMode::Following;
@@ -570,25 +642,7 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
     //   target_ey = std::max(std::min(target_ey, 0.1), -0.1);          
     // }
 
-    double yaw_on_centerline = local_traj.yaw[refined_idx];
-    double new_x, new_y;
-      if(target_ey >= 0){
-      new_x = local_traj.x[refined_idx]+ fabs(target_ey)*cos(M_PI/2.0+yaw_on_centerline); 
-      new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(M_PI/2.0+yaw_on_centerline);
-      
-      }else{
-      new_x = local_traj.x[refined_idx]+ fabs(target_ey)*cos(-M_PI/2.0+yaw_on_centerline); 
-      new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
-      
-      }
-      
-      // target_point_ << new_x, new_y;
-
-  return true;
-    
-  
-    
-
+   
      
 }
 
