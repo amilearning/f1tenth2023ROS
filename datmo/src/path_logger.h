@@ -72,6 +72,8 @@ public:
         double x, y,  vx, yaw, roll, pitch;
         double prev_x  = marker_data.markers[0].pose.position.x;
         double prev_y  = marker_data.markers[0].pose.position.y;
+
+        
         ///////////////////////////////////////
         double dist_sample_thres = 0.1;
         std::vector<int> sampled_idx;
@@ -80,6 +82,8 @@ public:
             x = marker_data.markers[i].pose.position.x;
             y = marker_data.markers[i].pose.position.y;
             
+           
+
             double dist_tmp = sqrt((x-prev_x)*(x-prev_x)+(y-prev_y)*(y-prev_y));
             if  ( dist_tmp > dist_sample_thres ){
                     prev_x = x;
@@ -105,11 +109,12 @@ public:
             //                 marker_data.markers[i].pose.orientation.z,
             //                 marker_data.markers[i].pose.orientation.w);                            
             // q.normalize();
-            // Extract the yaw angle from the quaternion object       
+            // Extract the yaw angle from the quaternion object     
+            double s = marker_data.markers[i].pose.orientation.x;  
             double ey_l = marker_data.markers[i].pose.orientation.y;
             double ey_r = marker_data.markers[i].pose.orientation.z;
             // tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-            ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, ey_l, ey_r);
+            ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, s, ey_l, ey_r);
         }
        
         // encode frenet coordinate 
@@ -128,7 +133,7 @@ public:
         ref_traj.k.push_back(marker_data.markers[sampled_idx[i]].pose.orientation.x);
         }
 
-        std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
+        // std::cout << "ref_traj size = " << ref_traj.size() << std::endl;
     }
     
     

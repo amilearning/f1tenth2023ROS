@@ -1,0 +1,11 @@
+<launch>
+  <arg name="interface_name" default="wlan0"/>
+  <arg name="rssi_sampling_rate" default="1" />
+  <arg name="other_sampling_rate" default="1" />
+  <arg name="node_name" default="server" />
+
+  <node pkg="network_analysis" type="pingactionserver" name="pingactionserver" output="screen" />
+ <node pkg="network_analysis" type="network_delay_convertor" name="network_delay_convertor" output="screen" />
+  <node pkg="health_monitor" type="health_monitor_node" name="health_monitor_node" output="screen" />
+
+</launch>

@@ -37,7 +37,7 @@ Datmo::Datmo(): path_logger(0.05), first_traj_received(false){
   ROS_INFO("Starting Detection And Tracking of Moving Objects");
   
   pose_ready = false;
-
+  cluster_size_thresc_count = 5;
   n_private.param("lidar_frame", lidar_frame, string("base_link"));
   n_private.param("world_frame", world_frame, string("map"));
   ROS_INFO("The lidar_frame is: %s and the world frame is: %s", lidar_frame.c_str(), world_frame.c_str());
@@ -65,7 +65,10 @@ Datmo::~Datmo(){
 }
 
 void Datmo::callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg)
-{
+{ 
+    if(msg->markers.size() < 1){
+      return;
+    }
     std::lock_guard<std::mutex> lock(traj_mtx);
         ros::Time start_time = ros::Time::now();
 //  if(!first_traj_received){
@@ -99,7 +102,9 @@ void Datmo::poseCallback(const geometry_msgs::PoseStamped::ConstPtr& pose){
 
 
 void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
-
+  if(!first_traj_received){
+    return;
+  }
   // delete all Markers 
   visualization_msgs::Marker marker;
   visualization_msgs::MarkerArray markera;
@@ -122,7 +127,11 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
     auto start = chrono::steady_clock::now();
 
     vector<pointList> point_clusters_not_transformed;
-    Datmo::Clustering(scan_in, point_clusters_not_transformed);
+    unsigned int cluster_size;
+    Datmo::Clustering(cluster_size, scan_in, point_clusters_not_transformed);
+    if(cluster_size < cluster_size_thresc_count){
+      return;
+    }
 
     //Transform Clusters to world_frame
     vector<pointList> point_clusters;
@@ -464,65 +473,70 @@ bool Datmo::is_within_track_boundary(const double& scan_dist, const double& scan
        double safety_distance = 0.8;
     if(abs(ey) < safety_distance) //if this scan point is within track boundaries   
     {
-  //       std::cout << "ey_l = " << ey_l << std::endl;
-  // std::cout << "ey_r = " << ey_r  <<std::endl;
-  // std::cout << "ey = " << ey  <<std::endl;
-      // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
+        std::cout << "ey_l = " << ey_l << std::endl;
+      std::cout << "ey_r = " << ey_r  <<std::endl;
+      std::cout << "ey = " << ey  <<std::endl;
+          std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
       return true;
     }
   }else{
-    if(abs(ey) < ey_l-0.2 && abs(ey) < ey_r-0.2) //if this scan point is within track boundaries   
+    if(abs(ey) < ey_l-0.1 && abs(ey) < ey_r-0.1) //if this scan point is within track boundaries   
     {
       // std::cout << "ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
       return true;
     }
   }
- 
+  // std::cout << "angle = " <<  scan_angle*180.0/3.141 << " ey= " << ey<< ", ey_l= " << ey_l << ", ey_r= " << ey_r << std::endl;
   // elsae
   return false;
 }
 
-void Datmo::Clustering(const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<pointList> &clusters){
+void Datmo::Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<pointList> &clusters){
   scan = *scan_in;
 
   int cpoints = 0;
-  
-  //Find the number of non inf laser scan values and save them in c_points
-  for (unsigned int i = 0; i < scan.ranges.size(); ++i){
-    if(isinf(scan.ranges[i]) == 0){
-      cpoints++;
-    }
-  }
-  const int c_points = cpoints;
-
-  int j = 0;
-  vector< vector<float> > polar(c_points +1 ,vector<float>(2)); //c_points+1 for wrapping
 
   int mid_angle_idx = int(scan.ranges.size()/2);
-  double angle_max = 60*3.14195/180.0;
+  double angle_max = 80*3.14195/180.0;
   int angle_max_idx = int(angle_max/scan.angle_increment) + mid_angle_idx;
   int angle_min_idx = -int(angle_max/scan.angle_increment) + mid_angle_idx;
   
+  std::vector<unsigned int> filt_idx(scan.ranges.size()); 
 
+  //Find the number of non inf laser scan values and save them in c_points
+  for (unsigned int i = 0; i < scan.ranges.size(); ++i){
+    filt_idx[i] =0;
+    // only compute +-80 degree 
+    if( i > angle_min_idx && i < angle_max_idx){
+      // check if the points is near track boundary 
+      if(is_within_track_boundary(scan.ranges[i],scan.angle_min + i*scan.angle_increment)){      
+      filt_idx[i] =1;
+      }
+    }
+
+      if(isinf(scan.ranges[i]) == 0 && (filt_idx[i] ==1) ){
+        cpoints++;
+       }
+  }
+  const int c_points = cpoints;
+  cpoint_size = cpoints;
+  std::cout << "c_ponsts size " << c_points << std::endl;
+  if(cpoint_size < cluster_size_thresc_count){
+    return;
+  }
+  int j = 0;
+  vector< vector<float> > polar(c_points +1 ,vector<float>(2)); //c_points+1 for wrapping
+
+ 
   ros::Time start_time = ros::Time::now();
   for(unsigned int i = 0; i<scan.ranges.size(); ++i){
-
-    // only compute the even index as we are using high resolution lidar 
-    if( i%2 ==0){
-      continue;
-    }
-    // only compute +-60 degree 
-    if( i < angle_min_idx || i > angle_max_idx){
-      continue;
-    }
-    if(!isinf(scan.ranges[i])){
-      // check if the points is near track boundary 
-      if(is_within_track_boundary(scan.ranges[i],scan.angle_min + i*scan.angle_increment)){
+    if(!isinf(scan.ranges[i]) && (filt_idx[i] ==1)){
+      
           polar[j][0] = scan.ranges[i]; //first column is the range 
           polar[j][1] = scan.angle_min + i*scan.angle_increment; //second angle in rad
           j++;
       }       
-    }
+    
   }
   ros::Time end_time = ros::Time::now();
     ros::Duration elapsed_time = end_time - start_time;

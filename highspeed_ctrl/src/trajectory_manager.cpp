@@ -368,8 +368,11 @@ visualization_msgs::MarkerArray TrajectoryManager::traj_to_markerArray(const Tra
         marker.pose.position .x = traj.x[i];
         marker.pose.position .y = traj.y[i];
         marker.pose.position .z = traj.z[i];
-        
-        marker.pose.orientation.w = 1.0;
+
+        marker.pose.orientation.x = traj.s[i];
+        marker.pose.orientation.y = traj.ey_l[i];
+        marker.pose.orientation.z = traj.ey_r[i];
+
         marker.scale.x = 0.1;
         marker.scale.y = 0.1;
         marker.scale.z = 0.1;

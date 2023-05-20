@@ -81,6 +81,7 @@ bool PurePursuit::updateParamCallback(std_srvs::Trigger::Request& req, std_srvs:
 ////////////////////////////////////////////////////////////////////////////////
 
 
+
 void PurePursuit::update_ref_traj(const Trajectory & ref){
   local_traj = ref;
  }
@@ -124,10 +125,10 @@ double PurePursuit::getAngleDiffToTargetPoint(){
   tf::Matrix3x3(q).getRPY(roll, pitch, yaw);  
   yaw = normalizeRadian(yaw);
   double speed = sqrt(cur_state.vx*cur_state.vx + cur_state.vy*cur_state.vy);
-  // if(speed < 0.2){
-  //   // speed is too low, replace with yaw angle 
-  //   velocity_heading = yaw;
-  // }else{
+  if(speed < 1.5){
+    // speed is too low, replace with yaw angle 
+    velocity_heading = yaw;
+  }else{
       bool odom_twist_in_local = true;
       if(odom_twist_in_local){
       Eigen::Matrix2d Rbg;
@@ -141,12 +142,7 @@ double PurePursuit::getAngleDiffToTargetPoint(){
       }else{
         velocity_heading = std::atan2(cur_state.vy,cur_state.vx);
       }
-  // }
-  
- 
-
-  
-  
+  }
   
     target_heading = normalizeRadian(target_heading);
     velocity_heading = normalizeRadian(velocity_heading);
@@ -254,7 +250,10 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
     // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
         cmd_msg.header.stamp = ros::Time::now();
         // ackermann_msg.drive.speed =  opt_vel/5.0;
-        cmd_msg.drive.speed =  compute_target_speed(vel_lookahead_ratio);
+        double speed_cmd = compute_target_speed(vel_lookahead_ratio);
+        vel_clip_accel(speed_cmd);
+        cmd_msg.drive.speed =  speed_cmd;
+
         
         if(lookup_tb.is_ready){
             double angle_diff = getAngleDiffToTargetPoint();
@@ -278,6 +277,29 @@ bool PurePursuit::getOvertakingStatus(){
   return obstacle_avoidance_activate;
 }
 
+void PurePursuit::vel_clip_accel(double & ref_vel){
+  
+  // if we are driving ... dont do this.. 
+    // if(cur_state.vx > 2.5){
+    //   return;
+    // }else{
+    // only if the vehicle restart from zero velocity 
+    double ey_thres = 0.1;
+    double epsi_thres = 10*3.14195/180.0;
+    double delta_thres = 10*3.14195/180.0;
+        if(fabs(cur_state.ey) > ey_thres || fabs(cur_state.epsi) > epsi_thres || fabs(cur_state.delta) > delta_thres){
+          // ROS_INFO("ey or epsi increased");
+          ///  TODO: or we can reduce speed to certain value if such case.. 
+          double target_vel = ref_vel;
+          if(target_vel > cur_state.vx ){
+            double cliped_vel_cmd = cur_state.vx+max_acceleration;      
+            ref_vel  = std::min(cliped_vel_cmd, target_vel);
+            // std::cout << "limit vel " << cliped_vel_cmd << std::endl;
+          }
+        }            
+    // } 
+    return;
+}
 
 
 ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
@@ -321,15 +343,16 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
         // filter vx if ey is high 
     ///  TODO: or we can reduce speed to certain value if such case.. 
      // if accel , limit vel via maximum acceleration 
-     if(cur_state.ey > 0.2 || cur_state.epsi > 20*3.14195/180.0){
-      // ROS_INFO("ey or epsi increased");
-      ///  TODO: or we can reduce speed to certain value if such case.. 
-      if(target_vel > cur_state.vx ){
-        double cliped_vel_cmd = cur_state.vx+max_acceleration;      
-        target_vel  = std::min(cliped_vel_cmd, target_vel);
-        // std::cout << "limit vel " << cliped_vel_cmd << std::endl;
-      }
-     }
+     vel_clip_accel(target_vel);
+    //  if(cur_state.ey > 0.2 || cur_state.epsi > 20*3.14195/180.0){
+    //   // ROS_INFO("ey or epsi increased");
+    //   ///  TODO: or we can reduce speed to certain value if such case.. 
+    //   if(target_vel > cur_state.vx ){
+    //     double cliped_vel_cmd = cur_state.vx+max_acceleration;      
+    //     target_vel  = std::min(cliped_vel_cmd, target_vel);
+    //     // std::cout << "limit vel " << cliped_vel_cmd << std::endl;
+    //   }
+    //  }
 
     // hard constraint for recovery 
      if(cur_state.ey > 1.0 ){
@@ -346,10 +369,10 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
         m_lookahead_distance = filt_lookahead;
       }
 
-      geometry_msgs::PoseStamped debug_msg;
-    debug_msg.header.stamp = ros::Time::now();
-    debug_msg.pose.position.x = m_lookahead_distance;
-    debug_pub.publish(debug_msg);
+    //   geometry_msgs::PoseStamped debug_msg;
+    // debug_msg.header.stamp = ros::Time::now();
+    // debug_msg.pose.position.x = m_lookahead_distance;
+    // debug_pub.publish(debug_msg);
 
 
       is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
@@ -357,7 +380,7 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
       obstacle_avoidance_activate = ObstacleAvoidance(m_target_point,near_idx);                                                                                         
       if (obstacle_avoidance_activate){
-          target_vel = 1.5;
+          target_vel = 0.0;
       }
       cmd_msg.header.stamp = ros::Time::now();
       cmd_msg.drive.speed = target_vel;
@@ -459,22 +482,22 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
         min_idx = k;
       }
   }
-  // std::cout << "min_dist_to_local_path = " << min_dist_to_local_path <<std::endl;
-  
-  
-  
-  // if (  tmp_dist <  1.5 && s_diff > 0){
-    // ROS_INFO("obstacle on the local trajectory ");
-    
-    
-    
-  // }
-  
   double width_safe_dist = 0.3;
   race_mode = RaceMode::Race;
-  double refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
-  
-      double target_ey = 0;
+  int refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
+
+      
+  geometry_msgs::PoseStamped debug_msg;
+  debug_msg.header.stamp = ros::Time::now();
+  debug_msg.pose.position.x = cur_obstacle.s;
+  debug_msg.pose.position.y = -1*local_traj.ey_r[refined_idx];
+  debug_msg.pose.position.z = local_traj.ey_l[refined_idx];
+  debug_msg.pose.orientation.x = cur_obstacle.ey ;
+  debug_pub.publish(debug_msg); 
+
+
+    // Obstacle is inside of track width --> overtaking actiavted 
+     double target_ey = 0;
       if(cur_obstacle.ey > 0){ // obstacle is in the left side of centerline 
               target_ey = cur_obstacle.ey -width_safe_dist*2;              
               double track_right_cosntaint = local_traj.ey_r[refined_idx]-width_safe_dist;
@@ -512,11 +535,15 @@ bool PurePursuit::ObstacleAvoidance(PathPoint & target_point_, int near_idx){
       new_y = local_traj.y[refined_idx]+ fabs(target_ey)*sin(-M_PI/2.0+yaw_on_centerline);
       
       }
-      target_point_ << new_x, new_y;
-
-
+      
+      // target_point_ << new_x, new_y;
 
   return true;
+    
+  
+    
+
+     
 }
 
 visualization_msgs::Marker PurePursuit::getTargetPointhMarker(int point_idx){
@@ -606,6 +633,7 @@ void PurePursuit::compute_lookahead_distance(const double reference_velocity)
     std::max(minimum_lookahead_distance,
     std::min(lookahead_distance, maximum_lookahead_distance));
    
+ 
     if(manual_target_lookahead){
       m_lookahead_distance = manual_target_lookahead_value;
 

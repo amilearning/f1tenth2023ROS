@@ -72,7 +72,7 @@ public:
   void callback(const sensor_msgs::LaserScan::ConstPtr &);
   void poseCallback(const geometry_msgs::PoseStamped::ConstPtr& pose);
   void callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg);
-  void Clustering(const sensor_msgs::LaserScan::ConstPtr& , vector<pointList> &);
+  void Clustering(unsigned int &cpoint_size, const sensor_msgs::LaserScan::ConstPtr& , vector<pointList> &);
   void visualiseGroupedPoints(const vector<pointList> &);
   bool is_within_track_boundary(const double& scan_dist, const double& scan_angle);
   void transformPointList(const pointList& , pointList& );
@@ -91,6 +91,7 @@ private:
   vector<Cluster> clusters;
   PathLogger path_logger;
   //Tuning Parameteres
+  unsigned int cluster_size_thresc_count;
   double dt;
   ros::Time time;
   std::mutex traj_mtx;

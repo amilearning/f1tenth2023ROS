@@ -101,6 +101,9 @@ bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex odom_mtx, imu_mtx, pose_mtx, vesc_mtx, lidar_mtx;
 ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub, vesodomSub, lidarSub;
 
+
+std::vector<double> start_line_time;
+
 bool first_traj_received;
 bool first_pose_received;
 Butterworth2dFilter x_vel_filter, y_vel_filter;
@@ -112,6 +115,7 @@ double manual_target_vel;
 
 PurePursuit pp_ctrl;
 TrajectoryManager traj_manager;
+Trajectory local_traj;
 hmcl_msgs::Lane current_waypoints_;
 
 dynamic_reconfigure::Server<highspeed_ctrl::testConfig> srv;
