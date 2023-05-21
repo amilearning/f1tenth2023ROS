@@ -458,8 +458,11 @@ void Ctrl::ControlLoop()
     while (ros::ok()){         
         
         auto start = std::chrono::steady_clock::now();        
-        
-        traj_manager.updatelookaheadPath(cur_state,lookahead_path_length);
+        /// speed dependent lookahead_path_length
+        double tmp_lookahead_path_length = 1.64*cur_state.vx+3.28;        
+        tmp_lookahead_path_length = std::min(std::max(tmp_lookahead_path_length,5.0),10.0);
+        // 
+        traj_manager.updatelookaheadPath(cur_state,tmp_lookahead_path_length);
       
         visualization_msgs::Marker global_traj_marker = traj_manager.getGlobalPathMarker();
         visualization_msgs::Marker centerline_info_marker = traj_manager.getCenterLineInfo();
