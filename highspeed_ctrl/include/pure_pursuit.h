@@ -230,6 +230,7 @@ private:
   bool compute_target_point(const double & lookahead_distance, PathPoint & target_point_, int & near_idx);
   bool getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy);
   double getAngleDiffToTargetPoint();
+  void adjustLookahead(double& lookahead);
   double compute_points_distance_squared(
     const PathPoint & point1,
     const PathPoint & point2);
@@ -247,8 +248,8 @@ private:
 
  
    ros::Publisher debug_pub;
-  
-    
+  double lookahead_filter_cutoff;
+    double lookahead_adjust_gain;
     RaceMode race_mode;
     bool obstacle_avoidance_activate;
   double m_lookahead_distance;

@@ -38,12 +38,14 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
     
     update_param_srv = ctrl_nh.advertiseService("/pure_param_update", &PurePursuit::updateParamCallback, this);
     
-    double lookahead_filter_cutoff = 1;
+    
+    ctrl_nh.param<double>("Plookahead_filter_cutoff",lookahead_filter_cutoff, 0.5);
     lookahead_dist_filter.initialize(0.05, lookahead_filter_cutoff);
     obstacle_life_count = 0;
     debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
     ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
     ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
+    ctrl_nh.param<double>("Plookahead_adjust_gain", lookahead_adjust_gain,0.5);
     // ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
     ctrl_nh.param<double>("Pemergency_stop_distance", emergency_stop_distance,0.0);
     ctrl_nh.param<double>("Ptrack_margin", Ptrack_margin,0.5);
@@ -65,10 +67,12 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
 bool PurePursuit::updateParamCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res)
 {   
     ctrl_nh.getParam("vel_lookahead_ratio",vel_lookahead_ratio);    
+    ctrl_nh.getParam("Plookahead_filter_cutoff",lookahead_filter_cutoff);    
     ctrl_nh.getParam("Pminimum_lookahead_distance",minimum_lookahead_distance);    
     ctrl_nh.getParam("Pmaximum_lookahead_distance",maximum_lookahead_distance);    
     ctrl_nh.getParam("speed_minimum_lookahead_distance",speed_minimum_lookahead_distance);    
     ctrl_nh.getParam("speed_maximum_lookahead_distance",speed_maximum_lookahead_distance);  
+        ctrl_nh.getParam("Plookahead_adjust_gain",lookahead_adjust_gain);    
     // ctrl_nh.getParam("Pspeed_to_lookahead_ratio",speed_to_lookahead_ratio);    
     ctrl_nh.getParam("Pemergency_stop_distance",emergency_stop_distance);    
     // nh_->get_parameter("Pspeed_thres_traveling_direction",speed_thres_traveling_direction);    
@@ -249,34 +253,57 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
   
 //   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
   int near_idx;
+  double adaptive_vel_lookahead_ratio;
+  if(fabs(cur_state.k) < 0.2 ){
+    // if we drive on straight line
+    adaptive_vel_lookahead_ratio = 2*  vel_lookahead_ratio;
+  }else{
+     // if we drive on curvy road 
+    adaptive_vel_lookahead_ratio = vel_lookahead_ratio/2;
+  }
+
+
   compute_lookahead_distance(cur_state.vx);  // update m_lookahead_distance 
-  
-  // compute_lookahead_distance(3.0);  // update m_lookahead_distance 
-  const auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
-  
+  double target_vel_init_guess = compute_target_speed(adaptive_vel_lookahead_ratio);
+  compute_lookahead_distance(target_vel_init_guess);  // update m_lookahead_distance
+
+  // compute_lookahead_distance(3.0);  // update m_lookahead_distance   
+  auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
   if (is_success) {
     // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
         cmd_msg.header.stamp = ros::Time::now();
         // ackermann_msg.drive.speed =  opt_vel/5.0;
-        double speed_cmd = compute_target_speed(vel_lookahead_ratio);
-        bool vel_cliped = vel_clip_accel(speed_cmd);
+        double target_vel = refine_target_vel_via_curvature(target_vel_init_guess, near_idx);
+        vel_clip_accel(target_vel);
+        
+        // double speed_cmd = compute_target_speed(vel_lookahead_ratio);
+        // bool vel_cliped = vel_clip_accel(speed_cmd);
 
     // hard constraint for recovery 
      if(fabs(cur_state.ey) > 0.5){
-      speed_cmd  =1.5;
+      target_vel  =1.5;
      }
 
      if(fabs(cur_state.epsi) > 60*3.14195/180.0){
-        speed_cmd  =1.5;
+        target_vel  =1.5;
      }
 
-        
-        obstacle_avoidance_activate = ObstacleAvoidance(speed_cmd, m_target_point,near_idx);                                                                                         
+      compute_lookahead_distance(cur_state.vx);     
+       adjustLookahead(m_lookahead_distance);                                     // true lookahead for steering
+      filt_lookahead = lookahead_dist_filter.filter(m_lookahead_distance);
+      double cur_speed = sqrt(cur_state.vx*cur_state.vx+cur_state.vy*cur_state.vy);
+      if(cur_speed > target_vel){
+      m_lookahead_distance = filt_lookahead;
+      }
+      is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
+
+      obstacle_avoidance_activate = ObstacleAvoidance(target_vel, m_target_point,near_idx);                                                                                         
+      
           // if (obstacle_avoidance_activate){
           //     speed_cmd = 0.0;
           // }
 
-        cmd_msg.drive.speed =  speed_cmd;
+        cmd_msg.drive.speed =  target_vel;
         
         if(lookup_tb.is_ready){
             double angle_diff = getAngleDiffToTargetPoint();
@@ -294,6 +321,17 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
     
   }
   return cmd_msg;
+}
+
+
+void PurePursuit::adjustLookahead(double& lookahead){
+  
+  if( fabs(cur_state.ey) > 0.2){
+    double init_lookahead = lookahead;
+    lookahead = lookahead+fabs(cur_state.ey)*lookahead_adjust_gain;
+    lookahead = std::min(std::max(lookahead,init_lookahead), init_lookahead+1.0);
+  }  
+  
 }
 
 bool PurePursuit::getOvertakingStatus(){
@@ -410,7 +448,9 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
 
 
       compute_lookahead_distance(cur_state.vx);                                          // true lookahead for steering
+      adjustLookahead(m_lookahead_distance);
       filt_lookahead = lookahead_dist_filter.filter(m_lookahead_distance);
+      
       double cur_speed = sqrt(cur_state.vx*cur_state.vx+cur_state.vy*cur_state.vy);
       if(cur_speed > target_vel){
         m_lookahead_distance = filt_lookahead;

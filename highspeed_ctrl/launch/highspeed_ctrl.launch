@@ -13,6 +13,10 @@
       <param name="Ptrack_margin" value="0.5"/> 
        
       <param name="Pmaximum_lookahead_distance" value="3.0"/> 
+      <param name="Plookahead_adjust_gain" value="0.0"/> 
+      <param name="Plookahead_filter_cutoff" value="1.5"/> 
+      
+      
       
       
       <param name="Pemergency_stop_distance" value="0.0"/> 

@@ -103,8 +103,8 @@ class PublishTrack():
             track_marker.pose.orientation.x = track[i,3] #curvature
             track_marker.pose.orientation.y = track[i,4] #left_width
             track_marker.pose.orientation.z = track[i,5] #right_width
-            track_marker.pose.orientation.w = track[i,7] #ey
-            track_marker.color.r = track[i,6] # yaw
+            track_marker.pose.orientation.w = track[i,6] #psi
+            track_marker.color.r = track[i,7] #lookahead
             track_marker.color.g =255
             track_marker.color.b =0 
             track_marker.color.a = 1
@@ -127,7 +127,7 @@ class PublishTrack():
             marker.pose.orientation.x = self.track.markers[marker.id].pose.orientation.x #curvature
             marker.pose.orientation.y = self.track.markers[marker.id].pose.orientation.y #left_width
             marker.pose.orientation.z = self.track.markers[marker.id].pose.orientation.z #right_width
-            marker.pose.orientation.w = self.track.markers[marker.id].pose.orientation.w # ey 
+            marker.pose.orientation.w = self.track.markers[marker.id].pose.orientation.w # psi
             marker.ns= int_marker.controls[0].markers[0].ns
             marker.type = int_marker.controls[0].markers[0].type
             marker.action = int_marker.controls[0].markers[0].action
@@ -379,7 +379,7 @@ class PublishTrack():
             int_marker.pose.position.x = marker.pose.position.x #position x
             int_marker.pose.position.y = marker.pose.position.y #posiiton y
             int_marker.pose.position.z = marker.pose.position.z #velocity
-            yaw = marker.color.r
+            yaw = marker.pose.orientation.w
             qx = 0.0
             qy = 0.0
             qz = math.sin(yaw / 2.0)
@@ -403,7 +403,7 @@ class PublishTrack():
             track_marker.header.stamp = rospy.Time.now()
             track_marker.type = Marker.SPHERE
             track_marker.ns = "track"
-            track_marker.color.r = yaw # yaw
+            track_marker.color.r = marker.color.r # lookahead
             track_marker.color.g =255
             track_marker.color.b =0 
             if id%wp_sampling ==0:
@@ -458,7 +458,7 @@ class MangeTrackHistroy():
                 # Write the pose information to a new line in the file
                 file.write('{}, {}, {}, {}, {}, {}, {}, {}\n'.format(
                     marker.pose.position.x, marker.pose.position.y, marker.pose.position.z,
-                    marker.pose.orientation.x, marker.pose.orientation.y, marker.pose.orientation.z, marker.color.r, marker.pose.orientation.w))
+                    marker.pose.orientation.x, marker.pose.orientation.y, marker.pose.orientation.z, marker.pose.orientation.w, marker.color.r))
         self.PublishTrack.track = self.PublishTrack.read_file(self.name_current,0)
         shutil.copy2(self.name_current,self.name_modified)
         print("End saving track...")
