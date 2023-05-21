@@ -77,7 +77,8 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
         vx_tmp = vx_filter.filter(odom.twist.twist.linear.x);
         yaw_tmp = normalizeRadian(yaw);
         if (distance >= threshold_ && is_record) {
-            ref_traj.push_back(x_tmp,y_tmp, 0.0, yaw_tmp, vx_tmp, 0.0, 0.0, 0.0, 0.0, 3.0, 3.0);  // fake distance for left and right wall
+            double lkh=0.0;
+            ref_traj.push_back(x_tmp,y_tmp, 0.0, yaw_tmp, vx_tmp, 0.0, 0.0, 0.0, 0.0, 3.0, 3.0,lkh);  // fake distance for left and right wall
             
             // path_.push_back(std::make_tuple(odom.pose.pose.position.x, odom.pose.pose.position.y, yaw));
             last_odom = odom;
@@ -191,8 +192,9 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
             // Extract the yaw angle from the quaternion object       
             double ey_l = marker_data.markers[i].pose.orientation.y;
             double ey_r = marker_data.markers[i].pose.orientation.z;
+            double lkh = marker_data.markers[i].color.r;
             // tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-              ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, ey_l, ey_r);
+              ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, ey_l, ey_r, lkh);
         }
        
         // encode frenet coordinate 
@@ -228,8 +230,10 @@ void logPath(const nav_msgs::Odometry& odom, bool is_record) {
     ref_traj.clear();
     // Read the path from the file
     double x, y,  yaw, vx;
+    double lkh = 0.0;
     while (ifs >> x >> y >>yaw >> vx ) {
-        ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, 3.0, 3.0); // fake distance for ey_l, ey_r
+        
+        ref_traj.push_back(x,y,0.0, yaw, vx, 0.0, 0.0, 0.0, 0.0, 3.0, 3.0,lkh); // fake distance for ey_l, ey_r
         
         
     }

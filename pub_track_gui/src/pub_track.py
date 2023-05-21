@@ -47,11 +47,9 @@ class PublishTrack():
         print(file_name)
         file_name = current_script_path + '/result/'+ file_name1
         self.track =  self.read_file(file_name,0)
-        # self.track =  np.loadtxt(file_name, delimiter=",", dtype = float)
         shutil.copy2(file_name,self.track_manager.name_current)
         self.publish_interative_marker()
   
-        
         if obstacle:
             file_name = current_script_path+"/result/traj1_with_boundary.txt"
             self.track1 = self.read_file(file_name, 1000)
@@ -351,6 +349,8 @@ class PublishTrack():
                 self.multiply_path_z(self.anchor1, self.anchor2)
                 print("multiply vel finished")
                 self.track_manager.track_save_flag = True
+            elif selected_menu == "Lookahead_Set":
+                self.set_lookahead(self.anchor1, self.anchor2,input_lookahed)
             elif selected_menu == "Control-Z":
                 self.track_manager.control_z_track()
                 print("load last track finished")

@@ -250,7 +250,6 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
   }
   const auto start = std::chrono::system_clock::now();
 
-  
 //   TrajectoryPoint current_point = current_pose.state;  // copy 32bytes
   int near_idx;
   double adaptive_vel_lookahead_ratio;
@@ -262,39 +261,28 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
     adaptive_vel_lookahead_ratio = vel_lookahead_ratio/2;
   }
 
-
   compute_lookahead_distance(cur_state.vx);  // update m_lookahead_distance 
   double target_vel_init_guess = compute_target_speed(adaptive_vel_lookahead_ratio);
   compute_lookahead_distance(target_vel_init_guess);  // update m_lookahead_distance
 
-  // compute_lookahead_distance(3.0);  // update m_lookahead_distance   
   auto is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
   if (is_success) {
-    // m_command.long_accel_mps2 = compute_command_accel_mps(current_point, false);
+    
         cmd_msg.header.stamp = ros::Time::now();
-        // ackermann_msg.drive.speed =  opt_vel/5.0;
-        double target_vel = refine_target_vel_via_curvature(target_vel_init_guess, near_idx);
-        vel_clip_accel(target_vel);
+    
+      double target_vel = refine_target_vel_via_curvature(target_vel_init_guess, near_idx);
+      vel_clip_accel(target_vel);
         
-        // double speed_cmd = compute_target_speed(vel_lookahead_ratio);
-        // bool vel_cliped = vel_clip_accel(speed_cmd);
-
-    // hard constraint for recovery 
-     if(fabs(cur_state.ey) > 0.5){
-      target_vel  =1.5;
-     }
-
-     if(fabs(cur_state.epsi) > 60*3.14195/180.0){
-        target_vel  =1.5;
-     }
-
       compute_lookahead_distance(cur_state.vx);     
-       adjustLookahead(m_lookahead_distance);                                     // true lookahead for steering
+                                         // true lookahead for steering
       filt_lookahead = lookahead_dist_filter.filter(m_lookahead_distance);
       double cur_speed = sqrt(cur_state.vx*cur_state.vx+cur_state.vy*cur_state.vy);
       if(cur_speed > target_vel){
       m_lookahead_distance = filt_lookahead;
       }
+
+       adjustLookahead(m_lookahead_distance);  
+
       is_success = compute_target_point(m_lookahead_distance, m_target_point, near_idx); // update target_point, near_idx
 
       obstacle_avoidance_activate = ObstacleAvoidance(target_vel, m_target_point,near_idx);                                                                                         
@@ -326,12 +314,13 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_model_based_command()
 
 void PurePursuit::adjustLookahead(double& lookahead){
   
-  if( fabs(cur_state.ey) > 0.2){
-    double init_lookahead = lookahead;
-    lookahead = lookahead+fabs(cur_state.ey)*lookahead_adjust_gain;
-    lookahead = std::min(std::max(lookahead,init_lookahead), init_lookahead+1.0);
-  }  
-  
+ 
+  if(local_traj.lkh.size() > 0){
+          if(local_traj.lkh[0] > 0.0){
+          lookahead = local_traj.lkh[0];      
+        }  
+    }
+
 }
 
 bool PurePursuit::getOvertakingStatus(){
@@ -340,6 +329,12 @@ bool PurePursuit::getOvertakingStatus(){
 
 bool PurePursuit::vel_clip_accel(double & ref_vel){
   
+     // hard constraint for recovery 
+     if(fabs(cur_state.ey) > 0.5 || fabs(cur_state.epsi) > 60*3.14195/180.0){
+      ref_vel  =1.0;
+     }
+
+
   // if we are driving ... dont do this.. 
     // if(cur_state.vx < 1.0 || cur_state.vx > 2.5){
     //   return;
@@ -351,6 +346,8 @@ bool PurePursuit::vel_clip_accel(double & ref_vel){
     double tmp_max_acceleration = max_acceleration;
     bool clip_vel = false;
     double target_vel = ref_vel;
+
+  
         // if(fabs(cur_state.ey) > ey_thres || fabs(cur_state.epsi) > epsi_thres || fabs(cur_state.delta) > delta_thres){
     if(fabs(cur_state.ey) > ey_thres){
       tmp_max_acceleration = max_acceleration;
@@ -361,12 +358,13 @@ bool PurePursuit::vel_clip_accel(double & ref_vel){
         tmp_max_acceleration = max_acceleration;
         clip_vel = true;
     }
-
+    
 
     if(clip_vel && target_vel > cur_state.vx ){
         // ROS_WARN("clip vel");
         double cliped_vel_cmd = cur_state.vx+tmp_max_acceleration;      
         ref_vel  = std::min(cliped_vel_cmd, target_vel);
+        
         return true;
     }
             
@@ -422,33 +420,14 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
       if (target_vel != target_vel_init_guess){
       }
 
-        // filter vx if ey is high 
-    ///  TODO: or we can reduce speed to certain value if such case.. 
-     // if accel , limit vel via maximum acceleration 
+
      vel_clip_accel(target_vel);
-    //  if(cur_state.ey > 0.2 || cur_state.epsi > 20*3.14195/180.0){
-    //   // ROS_INFO("ey or epsi increased");
-    //   ///  TODO: or we can reduce speed to certain value if such case.. 
-    //   if(target_vel > cur_state.vx ){
-    //     double cliped_vel_cmd = cur_state.vx+max_acceleration;      
-    //     target_vel  = std::min(cliped_vel_cmd, target_vel);
-    //     // std::cout << "limit vel " << cliped_vel_cmd << std::endl;
-    //   }
-    //  }
-
-
-    // hard constraint for recovery 
-     if(fabs(cur_state.ey) > 0.5){
-      target_vel  =1.5;
-     }
-
-     if(fabs(cur_state.epsi) > 60*3.14195/180.0){
-        target_vel  =1.5;
-     }
+   
+     
 
 
       compute_lookahead_distance(cur_state.vx);                                          // true lookahead for steering
-      adjustLookahead(m_lookahead_distance);
+      
       filt_lookahead = lookahead_dist_filter.filter(m_lookahead_distance);
       
       double cur_speed = sqrt(cur_state.vx*cur_state.vx+cur_state.vy*cur_state.vy);
@@ -456,6 +435,10 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_command()
         m_lookahead_distance = filt_lookahead;
       }
 
+      adjustLookahead(m_lookahead_distance);
+
+    
+    
     //   geometry_msgs::PoseStamped debug_msg;
     // debug_msg.header.stamp = ros::Time::now();
     // debug_msg.pose.position.x = m_lookahead_distance;

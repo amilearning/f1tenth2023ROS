@@ -37,6 +37,7 @@ public:
   std::vector<double> s; // progress   
   std::vector<double> ey_l; // track_left_wall_distance   
   std::vector<double> ey_r; // track_right_wall_distance   
+  std::vector<double> lkh; // lookahead
   std::vector<std::vector<double>> path; // 
   void erase_to(const int & idx);
   /**
@@ -44,7 +45,7 @@ public:
    */
   void push_back(const double &xp, const double &yp, const double &zp,
                  const double &yawp, const double &vxp, const double &vyp, const double &kp,
-                 const double &tp, const double &sp, const double &ey_lp, const double &ey_rp);
+                 const double &tp, const double &sp, const double &ey_lp, const double &ey_rp, const double &lkhp);
   /**
    * @brief clear for all values
    */
