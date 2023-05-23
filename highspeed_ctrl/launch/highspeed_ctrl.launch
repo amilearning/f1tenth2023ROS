@@ -7,7 +7,16 @@
         
       <param name="waypoint_topic" value="/track_info"/> 
 
+
       <param name="Pminimum_lookahead_distance" value="0.6"/> 
+      <param name="Ptrack_width_safe_margin" value="0.3"/> 
+      <param name="Pspeed_to_overtake" value="1.3"/> 
+      <param name="Povertaking_speed" value="1.3"/> 
+
+       <param name="Ptrack_margin" value="0.4"/>   <!--overtake only if fabs(target_ey) < Ptrack_margin -->
+      
+
+
       <!-- <param name="Pminimum_lookahead_distance" value="0.6"/>  -->
       
       <param name="Ptrack_margin" value="0.5"/> 

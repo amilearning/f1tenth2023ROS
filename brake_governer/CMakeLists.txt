@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
   vesc_msgs
 )
 
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

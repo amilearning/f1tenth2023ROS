@@ -97,7 +97,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
 
   // keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
   target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("target_point", 1);
-  speed_target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("speed_target_point", 1);
+  // speed_target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("speed_target_point", 1);
   local_traj_marker_pub = nh_traj.advertise<visualization_msgs::MarkerArray>("local_traj", 1);
   pred_traj_marker_pub = nh_traj.advertise<visualization_msgs::MarkerArray>("predicted_traj", 1);
   ackmanPub = nh_ctrl.advertise<ackermann_msgs::AckermannDriveStamped>(control_topic, 2);    
@@ -192,8 +192,8 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
   double dist_for_trigger = 2*std::min(std::max(ttc_distance, 2.5), 10.0);
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   if(any_front_obstacle){    
-    std::cout << "dist_for_trigger = " <<  dist_for_trigger << std::endl;
-    std::cout << "min_dist = " <<  min_dist << std::endl;
+    // std::cout << "dist_for_trigger = " <<  dist_for_trigger << std::endl;
+    // std::cout << "min_dist = " <<  min_dist << std::endl;
      if (min_dist < dist_for_trigger && min_dist > 0.0){
       pp_ctrl.is_there_obstacle = true;
       visualization_msgs::Marker closest_obstacle_marker;
@@ -233,7 +233,6 @@ bool Ctrl::odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_
   ros::Time odom_time = odom.header.stamp;
   ros::Duration diff = odom_time - pose_time;
   double msg_diff_sec = diff.toSec();
-
 
   if(dist_tmp > odom_pose_diff_threshold || msg_diff_sec < -0.5){
     // incorrect odom data.. use pose instead 
@@ -498,8 +497,8 @@ void Ctrl::ControlLoop()
        pp_cmd = pp_ctrl.compute_command();
         targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
         target_pointmarker_pub.publish(targetPoint_marker);
-        speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
-        speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
+        // speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
+        // speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
         
         }else if(ctrl_select ==2){
                 // Model based Purepursuit Computation 
@@ -507,8 +506,8 @@ void Ctrl::ControlLoop()
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
          targetPoint_marker = pp_ctrl.getTargetPointhMarker(1); // 1 for steering lookahead 
         target_pointmarker_pub.publish(targetPoint_marker);
-         speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1); // -1 for speed lookahead
-        speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
+        //  speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1); // -1 for speed lookahead
+        // speed_target_pointmarker_pub.publish(speed_targetPoint_marker);
           pp_cmd = pp_ctrl.compute_model_based_command();
         }
         
@@ -545,6 +544,7 @@ void Ctrl::ControlLoop()
           // pp_cmd.drive.speed = 1.5;
         // } 
 //  
+        // set minimum velocity for avoiding any motor issue
         if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed <= 0.5){
           pp_cmd.drive.speed = 0.5;
         }

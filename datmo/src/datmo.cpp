@@ -52,7 +52,7 @@ Datmo::Datmo(): path_logger(0.05), first_traj_received(false){
 
   pub_tracks_box_kf     = n.advertise<hmcl_msgs::TrackArray>("datmo/box_kf", 10);
   pub_marker_array   = n.advertise<visualization_msgs::MarkerArray>("datmo/marker_array", 10);
-  pub_obs_msg = n.advertise<hmcl_msgs::obstacle>("datmo/obstacle", 10);
+  // pub_obs_msg = n.advertise<hmcl_msgs::obstacle>("datmo/obstacle", 10);
   sub_scan = n.subscribe("/scan", 1, &Datmo::callback, this);
   sub_pose = n.subscribe("/tracked_pose",1 ,&Datmo::poseCallback, this);
   // waypointSub = n.subscribe("/track_info", 2, &Datmo::callbackRefPath, this);
@@ -111,7 +111,7 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
   visualization_msgs::MarkerArray markera;
   marker.action =3;
   markera.markers.push_back(marker);
-  pub_marker_array.publish(markera);
+  // pub_marker_array.publish(markera);
 
   // Only if there is a transform between the world and lidar frame continue
   if(tf_listener.canTransform(world_frame, lidar_frame, ros::Time())){
@@ -270,24 +270,27 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
       //   pub_obs_array_viz.publish(obs_array);
       // }
       
-      hmcl_msgs::obstacle obs;
-      obs.id = clusters[best_idx].id;
-      obs.x = clusters[best_idx].cx;
-      obs.y = clusters[best_idx].cy;
-      obs.theta = clusters[best_idx].psi;
-      obs.vx = clusters[best_idx].cvx;
-      obs.vy = clusters[best_idx].cvy;
-      obs.lx = clusters[best_idx].L1;
-      obs.ly = clusters[best_idx].L2;
-      pub_obs_msg.publish(obs);
+      // hmcl_msgs::obstacle obs;
+      // obs.id = clusters[best_idx].id;
+      // obs.x = clusters[best_idx].cx;
+      // obs.y = clusters[best_idx].cy;
+      // obs.theta = clusters[best_idx].psi;
+      // obs.vx = clusters[best_idx].cvx;
+      // obs.vy = clusters[best_idx].cvy;
+      // obs.lx = clusters[best_idx].L1;
+      // obs.ly = clusters[best_idx].L2;
+      // pub_obs_msg.publish(obs);
       // }
       
     }
 
 
-    pub_marker_array.publish(marker_array);
+    
     pub_tracks_box_kf.publish(track_array_box_kf);
+    if (p_marker_pub){
+      pub_marker_array.publish(marker_array);
     visualiseGroupedPoints(point_clusters);
+    }
     
   }
   else{ //If the tf is not possible init all states at 0

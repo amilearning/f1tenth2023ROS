@@ -44,6 +44,16 @@ PurePursuit::PurePursuit(const ros::NodeHandle& nh_ctrl) : ctrl_nh(nh_ctrl), dt(
     obstacle_life_count = 0;
     debug_pub = ctrl_nh.advertise<geometry_msgs::PoseStamped>("/pp_debug",1);
     ctrl_nh.param<double>("Pminimum_lookahead_distance",minimum_lookahead_distance, 0.5);
+    ctrl_nh.param<double>("Pwidth_safe_dist",width_safe_dist, 0.3);
+    ctrl_nh.param<double>("Ptrack_width_safe_margin",track_width_safe_margin, 0.2);
+    ctrl_nh.param<double>("Pspeed_to_overtake",speed_to_overtake, 1.7);
+    ctrl_nh.param<double>("Povertaking_speed",overtaking_speed, 1.5);
+    ctrl_nh.param<double>("Pvel_clip_ey_thres",vel_clip_ey_thres, 0.2);
+    ctrl_nh.param<double>("Pvel_clip_epsi_thres",vel_clip_epsi_thres, 20*3.14195/180.0);
+    ctrl_nh.param<double>("Pvel_clip_continue_ref",vel_clip_continue_ref, 2.0);
+    
+     
+    
     ctrl_nh.param<double>("Pmaximum_lookahead_distance", maximum_lookahead_distance,2.0);
     ctrl_nh.param<double>("Plookahead_adjust_gain", lookahead_adjust_gain,0.5);
     // ctrl_nh.param<double>("Pspeed_to_lookahead_ratio", speed_to_lookahead_ratio,1.2);
@@ -331,8 +341,8 @@ bool PurePursuit::vel_clip_accel(double & ref_vel){
   
      // hard constraint for recovery 
      
-     if(fabs(cur_state.ey) > 0.5 && fabs(cur_state.epsi) < 10*3.14195/180.0){
-      ref_vel  =2.0;
+     if(fabs(cur_state.ey) > 0.5 && fabs(cur_state.epsi) < 10*3.14195/180.0){            
+      ref_vel  = std::min(vel_clip_continue_ref, ref_vel);      
      }
      else if(fabs(cur_state.ey) > 0.5){
       ref_vel  =1.0;
@@ -347,15 +357,15 @@ bool PurePursuit::vel_clip_accel(double & ref_vel){
     //   return;
     // }else{
     // only if the vehicle restart from zero velocity 
-    double ey_thres = 0.2;
-    double epsi_thres = 20*3.14195/180.0;
-    double delta_thres = 20*3.14195/180.0;
+    
+    double ey_thres = vel_clip_ey_thres;     
+    double epsi_thres = vel_clip_epsi_thres;    
     double tmp_max_acceleration = max_acceleration;
     bool clip_vel = false;
     double target_vel = ref_vel;
 
   
-        // if(fabs(cur_state.ey) > ey_thres || fabs(cur_state.epsi) > epsi_thres || fabs(cur_state.delta) > delta_thres){
+        
     if(fabs(cur_state.ey) > ey_thres){
       tmp_max_acceleration = max_acceleration;
       clip_vel = true;
@@ -533,8 +543,8 @@ ackermann_msgs::AckermannDriveStamped PurePursuit::compute_lidar_based_command(b
       is_straight = false;
       double  cost,  slope,  y_intercept;
       estimateLineEquation(cost,  slope,  y_intercept,x_laser,y_laser);
-      std::cout << "Line equation: y = " << slope << "x + " << y_intercept << std::endl;
-      std::cout << "Fit cost: " << cost << std::endl;
+      // std::cout << "Line equation: y = " << slope << "x + " << y_intercept << std::endl;
+      // std::cout << "Fit cost: " << cost << std::endl;
 
 }
 
@@ -570,8 +580,8 @@ bool PurePursuit::ObstacleAvoidance(double & target_vel, PathPoint & target_poin
         min_idx = k;
       }
   }
-  double width_safe_dist = 0.4;
-  double track_width_safe_margin = 0.2;
+  
+  
   race_mode = RaceMode::Race;
   int refined_idx = std::min(near_idx,min_idx); // closer index is set as taret idx
 
@@ -585,9 +595,8 @@ bool PurePursuit::ObstacleAvoidance(double & target_vel, PathPoint & target_poin
   debug_pub.publish(debug_msg); 
 
   bool stopping = false; // 
-/// change the target point only if the speed is low
-  
-    if(fabs(cur_state.vx) < 1.6){ 
+/// change the target point only if the speed is low  
+    if(fabs(cur_state.vx) < speed_to_overtake){ 
                 //  -- right side of track = minus
               // select the direction for overtaking  given the position of ego vehicle
               bool overtaking_to_right = false;
@@ -647,6 +656,7 @@ bool PurePursuit::ObstacleAvoidance(double & target_vel, PathPoint & target_poin
 
     }
     // if(abs(cur_obstacle.ey) > width_safe_dist){
+      
       std::cout << " cur_obstacle.ey = " << cur_obstacle.ey <<std::endl;
       race_mode = RaceMode::Overtaking;
       // Aggresive Overtaking Action!!
@@ -655,7 +665,7 @@ bool PurePursuit::ObstacleAvoidance(double & target_vel, PathPoint & target_poin
           if(stopping){
             target_vel = 0.0;
           }else{
-            target_vel = 1.5; 
+            target_vel = overtaking_speed; 
           }          
           return true;
       }else{

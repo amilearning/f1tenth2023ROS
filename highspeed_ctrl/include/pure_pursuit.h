@@ -249,6 +249,11 @@ private:
  
    ros::Publisher debug_pub;
   double lookahead_filter_cutoff;
+  double width_safe_dist;
+  double track_width_safe_margin;
+  double speed_to_overtake;
+  double overtaking_speed;
+  double vel_clip_ey_thres, vel_clip_epsi_thres, vel_clip_continue_ref;
     double lookahead_adjust_gain;
     RaceMode race_mode;
     bool obstacle_avoidance_activate;
