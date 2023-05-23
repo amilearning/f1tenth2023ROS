@@ -52,6 +52,6 @@
 
       <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="log" respawn="true">
   	<param name="current" value="-50.0"/>
-	  <param name="tolerance" value="1000.5"/> 
+	  <param name="tolerance" value="0.3"/> 
   </node> 
 </launch>

@@ -330,10 +330,17 @@ bool PurePursuit::getOvertakingStatus(){
 bool PurePursuit::vel_clip_accel(double & ref_vel){
   
      // hard constraint for recovery 
-     if(fabs(cur_state.ey) > 0.5 || fabs(cur_state.epsi) > 60*3.14195/180.0){
+     
+     if(fabs(cur_state.ey) > 0.5 && fabs(cur_state.epsi) < 10*3.14195/180.0){
+      ref_vel  =2.0;
+     }
+     else if(fabs(cur_state.ey) > 0.5){
       ref_vel  =1.0;
      }
 
+    if(fabs(cur_state.epsi) > 60*3.14195/180.0){
+      ref_vel  =1.0;
+     }
 
   // if we are driving ... dont do this.. 
     // if(cur_state.vx < 1.0 || cur_state.vx > 2.5){
