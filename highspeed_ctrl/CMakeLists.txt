@@ -62,7 +62,7 @@ add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 
 add_executable(dynamic_reconfigure_node src/pure_pursuit.cpp src/utils.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
 add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)
-# target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
+#target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
 target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm)
 SET(CMAKE_CXX_FLAGS "-O2 -g -Wall ${CMAKE_CXX_FLAGS}")
 
