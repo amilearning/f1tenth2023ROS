@@ -36,7 +36,7 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
-
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 # node executable
 add_executable(vesc_to_odom_node src/vesc_to_odom_node.cpp
                                  src/vesc_to_odom.cpp)

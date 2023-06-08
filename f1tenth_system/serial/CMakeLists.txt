@@ -3,7 +3,7 @@ project(serial)
 
 # Find catkin
 find_package(catkin REQUIRED)
-
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 if(APPLE)
 	find_library(IOKIT_LIBRARY IOKit)
 	find_library(FOUNDATION_LIBRARY Foundation)

@@ -24,7 +24,7 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
-
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 # node executable
 add_executable(vesc_driver_node src/vesc_driver_node.cpp
                                 src/vesc_driver.cpp

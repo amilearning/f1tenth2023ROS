@@ -64,6 +64,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
 
 
   nh_p.param<double>("lookahead_path_length", lookahead_path_length, 5.0);
+  nh_p.param<double>("max_decel", max_decel, 5.0);
   
   nh_p.param<double>("wheelbase", wheelbase, 0.33);
   nh_p.param<double>("lf", lf, 0.165);
@@ -84,9 +85,9 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   odomSub = nh_state_.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
   vesodomSub = nh_state_.subscribe("/vesc/odom", 2, &Ctrl::vescodomCallback, this);  
   poseSub  = nh_ctrl.subscribe("/tracked_pose", 2, &Ctrl::poseCallback, this);  
-  imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
+  // imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
   obstacleSub = nh_traj.subscribe("/datmo/box_kf", 2, &Ctrl::obstacleCallback, this);  
-  lidarSub = nh_traj.subscribe("/scan", 2, &Ctrl::lidarCallback, this);  
+  // lidarSub = nh_traj.subscribe("/scan", 2, &Ctrl::lidarCallback, this);  
 
   fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("/fren_pose",1);
   global_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("global_traj", 1);
@@ -144,18 +145,18 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
               }
           }
   
-          double conserve_track_width  = -0.15 + std::min(local_traj.ey_l[min_idx], local_traj.ey_r[min_idx]);
-          conserve_track_width  = std::max(0.0, conserve_track_width);
-          if(fabs(tmp_state.ey) < conserve_track_width){              
+          // double conserve_track_width  = -0.15 + std::min(local_traj.ey_l[min_idx], local_traj.ey_r[min_idx]);
+          // conserve_track_width  = std::max(0.0, conserve_track_width);
+          // if(fabs(tmp_state.ey) < conserve_track_width){              
             obstacles_vehicleState.push_back(tmp_state);
-          }
+          // }
      }
 
   
   }
 
   if(obstacles_vehicleState.size() < 1){
-    ROS_INFO("Obstacles are all outside of track");
+    ROS_INFO("no obstacles are added");
     pp_ctrl.is_there_obstacle = false;   
     return;
   }
@@ -182,11 +183,18 @@ void Ctrl::obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg){
 
     }
   ////////////////////////////////////////////////////////////////////////////////////////////////////
-  double dist_for_trigger = 100.0;
+  // time to collision - > distance / relative speed 
+  // (Velocity^2) / (2 * Deceleration)
+  double final_cmd__vel = final_cmd.drive.speed;
+  double cur_tar_vel = std::max(final_cmd__vel, cur_state.vx);
+  // double ttc_distance = (cur_state.vx*cur_state.vx) / (2*max_decel);    
+  double ttc_distance = (cur_tar_vel*cur_tar_vel) / (2*max_decel);  
+  double dist_for_trigger = 2*std::min(std::max(ttc_distance, 2.5), 10.0);
   ////////////////////////////////////////////////////////////////////////////////////////////////////
-  if(any_front_obstacle){
-    std::cout << "any front obstacle   = true" << std::endl;
-     if (min_dist < dist_for_trigger && min_dist > -0.5){
+  if(any_front_obstacle){    
+    std::cout << "dist_for_trigger = " <<  dist_for_trigger << std::endl;
+    std::cout << "min_dist = " <<  min_dist << std::endl;
+     if (min_dist < dist_for_trigger && min_dist > 0.0){
       pp_ctrl.is_there_obstacle = true;
       visualization_msgs::Marker closest_obstacle_marker;
       trackToMarker(obstacles.tracks[best_idx], closest_obstacle_marker);
@@ -218,7 +226,6 @@ void Ctrl::trackToMarker(const hmcl_msgs::Track& track, visualization_msgs::Mark
 }
 
 
-
 bool Ctrl::odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::Odometry& odom){
   double dist_tmp = (pos.pose.position.x - odom.pose.pose.position.x)*(pos.pose.position.x - odom.pose.pose.position.x)+(pos.pose.position.y - odom.pose.pose.position.y)*(pos.pose.position.y - odom.pose.pose.position.y);
 
@@ -243,9 +250,9 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
   std::lock_guard<std::mutex> lock(pose_mtx);
 
 
-  if(!imu_received){
-    return;
-  }
+  // if(!imu_received){
+  //   return;
+  // }
   if(!first_pose_received){
     prev_pose = *msg;
     first_pose_received = true;
@@ -294,9 +301,9 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
       odom_msg.twist.twist.linear.y = 0.0;
     }    
     odom_msg.twist.twist.linear.z = 0.0;
-    odom_msg.twist.twist.angular.x = cur_imu.angular_velocity.x;
-    odom_msg.twist.twist.angular.y = cur_imu.angular_velocity.y;
-    odom_msg.twist.twist.angular.z = cur_imu.angular_velocity.z;    
+    // odom_msg.twist.twist.angular.x = cur_imu.angular_velocity.x;
+    // odom_msg.twist.twist.angular.y = cur_imu.angular_velocity.y;
+    // odom_msg.twist.twist.angular.z = cur_imu.angular_velocity.z;    
     est_odom_pub.publish(odom_msg);    
     //
       cur_state.accel = 0.0;
@@ -321,19 +328,11 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
           } 
 
 
-      if(traj_manager.getRefTrajSize() > 5 && !traj_manager.is_recording() && traj_manager.frenet_ready){
-        
-          
-          visualization_msgs::MarkerArray pred_marker = PathPrediction(cur_state,10);
-          pred_traj_marker_pub.publish(pred_marker);
-        }
+ 
 
     prev_pose = cur_pose;
-
     // check the laptime 
-
     prev_state = cur_state;
-
     // if (prev_state.s > cur_state.s):
     //   start_line_time.push_back(ros::Time::now().toSec());
     //   start_line_time[start_line_time.size()-1]
@@ -344,13 +343,13 @@ void Ctrl::poseCallback(const geometry_msgs::PoseStampedConstPtr& msg){
 }
 
 
-void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
-  std::lock_guard<std::mutex> lock(imu_mtx);
-  if(!imu_received){
-    imu_received = true;
-  }
-  cur_imu = *msg;
-}
+// void Ctrl::imuCallback(const sensor_msgs::Imu::ConstPtr& msg){
+//   std::lock_guard<std::mutex> lock(imu_mtx);
+//   if(!imu_received){
+//     imu_received = true;
+//   }
+//   cur_imu = *msg;
+// }
 
 
 void Ctrl::vescodomCallback(const nav_msgs::OdometryConstPtr& msg){
@@ -368,9 +367,9 @@ return;
 
 void Ctrl::odomCallback(const nav_msgs::OdometryConstPtr& msg){
     std::lock_guard<std::mutex> lock(odom_mtx);
-    if(!imu_received){
-      return;
-    }
+    // if(!imu_received){
+    //   return;
+    // }
     if(!first_odom_received){
       prev_odom = *msg;
       first_odom_received = true;
@@ -400,7 +399,7 @@ void Ctrl::odomCallback(const nav_msgs::OdometryConstPtr& msg){
                 if(cur_state.vx < 0.1){
                   cur_state.vx = 0.1;
                 }
-                cur_state.wz = cur_odom.twist.twist.angular.z;    
+                // cur_state.wz = cur_odom.twist.twist.angular.z;    
       
      }
     prev_odom = cur_odom;
@@ -439,12 +438,12 @@ visualization_msgs::MarkerArray Ctrl::PathPrediction(const VehicleState state, i
 }
 
 
-void Ctrl::lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg)
-{
-  std::lock_guard<std::mutex> lock(lidar_mtx);
-  cur_scan = msg;
+// void Ctrl::lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg)
+// {
+//   std::lock_guard<std::mutex> lock(lidar_mtx);
+//   cur_scan = msg;
   
-};
+// };
 
 
 
@@ -459,8 +458,11 @@ void Ctrl::ControlLoop()
     while (ros::ok()){         
         
         auto start = std::chrono::steady_clock::now();        
-        
-        traj_manager.updatelookaheadPath(cur_state,lookahead_path_length);
+        /// speed dependent lookahead_path_length
+        double tmp_lookahead_path_length = 1.64*cur_state.vx+3.28;        
+        tmp_lookahead_path_length = std::min(std::max(tmp_lookahead_path_length,5.0),10.0);
+        // 
+        traj_manager.updatelookaheadPath(cur_state,tmp_lookahead_path_length);
       
         visualization_msgs::Marker global_traj_marker = traj_manager.getGlobalPathMarker();
         visualization_msgs::Marker centerline_info_marker = traj_manager.getCenterLineInfo();
@@ -480,24 +482,20 @@ void Ctrl::ControlLoop()
           ackermann_msgs::AckermannDriveStamped pp_cmd;
           visualization_msgs::Marker targetPoint_marker, speed_targetPoint_marker;
           
-
-          // if(is_odom_used){
+             // if(is_odom_used){
           //   // factor estimation is enabled ... we can do model pp 
           //   ctrl_select = 2;
           // }
           // else{
           //   ctrl_select = 1;
           // }
-
-
-
-        if(ctrl_select == 1){ 
+        if(ctrl_select == 1){
                   // Purepursuit Computation 
         local_traj = traj_manager.getlookaheadPath();
         pp_ctrl.update_ref_traj(traj_manager.getlookaheadPath());
-        bool is_straight; 
+        // bool is_straight; 
         // pp_cmd = pp_ctrl.compute_lidar_based_command(is_straight, cur_scan);
-        pp_cmd = pp_ctrl.compute_command();
+       pp_cmd = pp_ctrl.compute_command();
         targetPoint_marker = pp_ctrl.getTargetPointhMarker(1);
         target_pointmarker_pub.publish(targetPoint_marker);
         speed_targetPoint_marker = pp_ctrl.getTargetPointhMarker(-1);
@@ -518,22 +516,22 @@ void Ctrl::ControlLoop()
         // pp_cmd.drive.steering_angle = 0.0;
 
         if(!traj_manager.is_recording() && ctrl_select > 0){
-          
-         
-
-
-           
-
-
+        
+        
+        
+        
+        
+        
+        
           if (manual_velocity){
             // ROS_INFO("cmd vel = %f", pp_cmd.drive.speed);  
             pp_cmd.drive.speed = manual_target_vel;
             }         
             // multiply weight on vel
             pp_cmd.drive.speed = pp_cmd.drive.speed*manual_weight_ctrl;
-
-        
-          
+            
+         
+            
 
 
           //    if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed < 1.0){
@@ -543,10 +541,15 @@ void Ctrl::ControlLoop()
                //////////////////// Check if obstacle within the line to the tareget point 
         bool is_overtaking = pp_ctrl.getOvertakingStatus();
         // if(is_overtaking){
-        //   filter_given_TargetClearance(pp_cmd, targetPoint_marker);
+          // filter_given_TargetClearance(pp_cmd, targetPoint_marker);
+          // pp_cmd.drive.speed = 1.5;
         // } 
-
+//  
+        if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed <= 0.5){
+          pp_cmd.drive.speed = 0.5;
+        }
           ackmanPub.publish(pp_cmd);
+          final_cmd = pp_cmd;
           cur_state.delta = pp_cmd.drive.steering_angle;          
         }
         
@@ -564,28 +567,28 @@ void Ctrl::ControlLoop()
     }
 }
 
-void Ctrl::filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker){
-  double target_x = obst_marker.pose.position.x;
-  double target_y = obst_marker.pose.position.y;
-  double del_x = target_x-cur_state.pose.position.x;
-  double del_y = target_x-cur_state.pose.position.x;
+// void Ctrl::filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker){
+//   double target_x = obst_marker.pose.position.x;
+//   double target_y = obst_marker.pose.position.y;
+//   double del_x = target_x-cur_state.pose.position.x;
+//   double del_y = target_x-cur_state.pose.position.x;
   
-  double local_x =  del_x*cos(-1*cur_state.yaw) - del_y*sin(-1*cur_state.yaw);              
-  double local_y = del_y*sin(-1*cur_state.yaw) + del_y*cos(-1*cur_state.yaw);    
+//   double local_x =  del_x*cos(-1*cur_state.yaw) - del_y*sin(-1*cur_state.yaw);              
+//   double local_y = del_y*sin(-1*cur_state.yaw) + del_y*cos(-1*cur_state.yaw);    
 
-  double local_angle_to_target = std::atan2(local_y,local_x);
-  double local_dist_to_target = sqrt(local_x*local_x + local_y+local_y);
-  std::cout << "angle = " << local_angle_to_target*180/3.14195 << std::endl;
-  std::cout << "dist = " << local_dist_to_target << std::endl;
+//   double local_angle_to_target = std::atan2(local_y,local_x);
+//   double local_dist_to_target = sqrt(local_x*local_x + local_y+local_y);
+//   std::cout << "angle = " << local_angle_to_target*180/3.14195 << std::endl;
+//   std::cout << "dist = " << local_dist_to_target << std::endl;
   
-  int scan_idx = int((normalizeRadian(local_angle_to_target)-cur_scan->angle_min)/cur_scan->angle_increment);
-  if( scan_idx < 0 || scan_idx > cur_scan->ranges.size()){
-    std::cout << "target point is out of current scan data range" <<  std::endl;
-    return;
-  }
+//   int scan_idx = int((normalizeRadian(local_angle_to_target)-cur_scan->angle_min)/cur_scan->angle_increment);
+//   if( scan_idx < 0 || scan_idx > cur_scan->ranges.size()){
+//     std::cout << "target point is out of current scan data range" <<  std::endl;
+//     return;
+//   }
   
   
-}
+// }
 
 void Ctrl::dyn_callback(highspeed_ctrl::testConfig &config, uint32_t level)
 {

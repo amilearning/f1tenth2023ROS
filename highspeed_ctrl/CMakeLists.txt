@@ -3,7 +3,7 @@ project(highspeed_ctrl)
 
 find_package(Eigen3 REQUIRED)
 
-set(GSL_ROOT_DIR /home/hjpc/gsl)
+set(GSL_ROOT_DIR /home/ros2nx/gsl)
 
 find_package(GSL REQUIRED)
 
@@ -58,6 +58,7 @@ include_directories(
 
 link_directories(${GSL_LIBRARY_DIRS})
 
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 
 add_executable(dynamic_reconfigure_node src/pure_pursuit.cpp src/utils.cpp src/trajectory.cpp src/trajectory_manager.cpp src/lowpass_filter.cpp src/main_ctrl.cpp)
 add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)

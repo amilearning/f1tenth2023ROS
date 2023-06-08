@@ -101,7 +101,7 @@ bool my_steering_ok_,my_position_ok_, my_odom_ok_;
 std::mutex odom_mtx, imu_mtx, pose_mtx, vesc_mtx, lidar_mtx;
 ros::Subscriber  waypointSub,  odomSub, poseSub, imuSub, obstacleSub, vesodomSub, lidarSub;
 
-
+double max_decel;
 std::vector<double> start_line_time;
 
 bool first_traj_received;
@@ -150,6 +150,7 @@ bool first_odom_received;
 sensor_msgs::Imu cur_imu;
 bool imu_received;
 bool is_odom_used;
+ackermann_msgs::AckermannDriveStamped final_cmd;
 
 sensor_msgs::LaserScan::ConstPtr cur_scan;
 
@@ -157,15 +158,15 @@ public:
 Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& nh_state, ros::NodeHandle& nh_p_);
 ~Ctrl();
 void ControlLoop();
-void filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker);
+// void filter_given_TargetClearance(ackermann_msgs::AckermannDriveStamped prev_cmd,visualization_msgs::Marker obst_marker);
 void odomToVehicleState(VehicleState & vehicle_state, const nav_msgs::Odometry & odom,const bool & odom_twist_in_local);
 // void callbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-void lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg);
+// void lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg);
 void obstacleCallback(const hmcl_msgs::TrackArrayConstPtr& msg);
 void odomCallback(const nav_msgs::OdometryConstPtr& msg);
 void vescodomCallback(const nav_msgs::OdometryConstPtr& msg);
 void poseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
-void imuCallback(const sensor_msgs::Imu::ConstPtr& msg);
+// void imuCallback(const sensor_msgs::Imu::ConstPtr& msg);
 void callbackRefPath(const visualization_msgs::MarkerArray::ConstPtr &msg);
 void trackToMarker(const hmcl_msgs::Track& state, visualization_msgs::Marker & marker);
 bool odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::Odometry& odom);
@@ -173,7 +174,7 @@ bool odom_close_to_pose(const geometry_msgs::PoseStamped & pos, const nav_msgs::
 void dyn_callback(highspeed_ctrl::testConfig& config, uint32_t level);
 
 visualization_msgs::MarkerArray PathPrediction(const VehicleState state, int n_step);
-
+   
 
 };
 

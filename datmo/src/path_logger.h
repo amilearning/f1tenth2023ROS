@@ -98,9 +98,9 @@ public:
             // orientation.y -->  left wall width
             // orientation.z --> right wall width 
             
-            if(i < marker_data.markers.size()-1){
-                double diff_x = marker_data.markers[i+1].pose.position.x - marker_data.markers[i].pose.position.x;
-                double diff_y = marker_data.markers[i+1].pose.position.y - marker_data.markers[i].pose.position.y;
+            if(i < marker_data.markers.size()-3){
+                double diff_x = marker_data.markers[i+3].pose.position.x - marker_data.markers[i].pose.position.x;
+                double diff_y = marker_data.markers[i+3].pose.position.y - marker_data.markers[i].pose.position.y;
                 yaw = atan2(diff_y, diff_x);                
             }
             // tf::Quaternion q(marker_data.markers[i].pose.orientation.x, 

@@ -221,8 +221,8 @@ private:
   ros::ServiceServer update_param_srv;    
   bool updateParamCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res);
 
-    bool ObstacleAvoidance(PathPoint & target_point_, int near_idx);  
-  void vel_clip_accel(double & ref_vel);
+    bool ObstacleAvoidance(double & target_vel, PathPoint & target_point_, int near_idx);
+  bool vel_clip_accel(double & ref_vel);
   double compute_target_speed(double vel_lookahead_ratio_);
   void compute_lookahead_distance(const double reference_velocity);
 
@@ -230,6 +230,7 @@ private:
   bool compute_target_point(const double & lookahead_distance, PathPoint & target_point_, int & near_idx);
   bool getLookupTablebasedDelta(double& delta, const double&  diff_angel, const double& lookahead_dist, const double& vx, const double& vy);
   double getAngleDiffToTargetPoint();
+  void adjustLookahead(double& lookahead);
   double compute_points_distance_squared(
     const PathPoint & point1,
     const PathPoint & point2);
@@ -247,8 +248,8 @@ private:
 
  
    ros::Publisher debug_pub;
-  
-    
+  double lookahead_filter_cutoff;
+    double lookahead_adjust_gain;
     RaceMode race_mode;
     bool obstacle_avoidance_activate;
   double m_lookahead_distance;
@@ -257,9 +258,11 @@ private:
   Butterworth2dFilter lookahead_dist_filter;
   double filt_lookahead;
   const double dt;
+  double Ptrack_margin;
   Trajectory local_traj;
   VehicleState cur_state, cur_obstacle;
   BicubicSplineLookupTable lookup_tb;
+  int obstacle_life_count;
     bool manual_target_lookahead, manual_speed_lookahead;
     double manual_target_lookahead_value, manual_speed_lookahead_value;
     double max_a_lat;

@@ -93,6 +93,7 @@ private:
   //Tuning Parameteres
   unsigned int cluster_size_thresc_count;
   double dt;
+  double track_margin;
   ros::Time time;
   std::mutex traj_mtx;
   //initialised as one, because 0 index take the msgs that fail to be initialized
