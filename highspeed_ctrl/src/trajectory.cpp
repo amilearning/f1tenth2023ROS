@@ -18,7 +18,7 @@
 
 void Trajectory::push_back(const double &xp, const double &yp, const double &zp,
                               const double &yawp, const double &vxp, const double &vyp, const double &kp,
-                              const double &tp, const double &sp, const double &ey_lp, const double &ey_rp, const double &lkhp)
+                              const double &tp, const double &sp, const double &ey_lp, const double &ey_rp, const double &lkhp, const double &ovtp)
 {
   x.push_back(xp);
   y.push_back(yp);
@@ -32,6 +32,7 @@ void Trajectory::push_back(const double &xp, const double &yp, const double &zp,
   ey_l.push_back(ey_lp);
   ey_r.push_back(ey_rp);
   lkh.push_back(lkhp);
+  ovt.push_back(ovtp);
 };
 
 void Trajectory::clear()
@@ -48,6 +49,7 @@ void Trajectory::clear()
   ey_l.clear();
   ey_r.clear();
   lkh.clear();
+  ovt.clear();
 };
 
 void Trajectory::encode_traj_to_path_info(){
@@ -65,6 +67,7 @@ void Trajectory::encode_traj_to_path_info(){
   path.push_back(ey_l);
   path.push_back(ey_r);
   path.push_back(lkh);
+  path.push_back(ovt);
   
 
  
@@ -84,6 +87,7 @@ void Trajectory::encode_from_path_to_traj(std::vector<std::vector<double>> path)
   ey_l = path[9];
   ey_r = path[10];
   lkh = path[11];
+  ovt = path[12];
 
 }
 
@@ -104,6 +108,7 @@ void Trajectory::erase_to(const int & idx){
   ey_l.erase(ey_l.begin(), ey_l.begin() + idx);  
   ey_r.erase(ey_r.begin(), ey_r.begin() + idx);  
   lkh.erase(lkh.begin(), lkh.begin() + idx);  
+  ovt.erase(ovt.begin(), ovt.begin() + idx);  
 }
 
 
@@ -150,7 +155,8 @@ Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
         s[i],
         ey_l[i],
         ey_r[i],
-        lkh[i]
+        lkh[i],
+        ovt[i]
       );
     }
   }
@@ -168,7 +174,8 @@ Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
                                 s[i],
                                 ey_l[i],
                                 ey_r[i],
-                                lkh[i]
+                                lkh[i],
+                                ovt[i]
           );
          }
 
@@ -184,7 +191,8 @@ Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
                                 s[i],
                                 ey_l[i],
                                 ey_r[i],
-                                lkh[i]
+                                lkh[i],
+                                ovt[i]
           );
          }
 
@@ -202,7 +210,8 @@ Trajectory Trajectory::get_segment(size_t start_idx, size_t end_idx) const
                                 s[start_idx],
                                 ey_l[start_idx],
                                 ey_r[start_idx],
-                                lkh[start_idx]
+                                lkh[start_idx],
+                                ovt[start_idx]
           );
   }
 
