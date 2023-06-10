@@ -15,7 +15,13 @@
   </node>
 
   <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" />
-  <node pkg="vesc_ackermann" type="vesc_to_odom_node" name="vesc_to_odom" />
+  <!-- <node pkg="vesc_ackermann" type="vesc_to_odom_node" name="vesc_to_odom" /> -->
+
+   <node pkg="vesc_ackermann" type="vesc_to_odom_node" name="vesc_to_odom">
+    <param name="odom_frame" value="target/odom"/>
+    <param name="base_frame" value="target/base_link"/>
+  </node>
+  
   <!-- <node name="throttle_interpolator" pkg="ackermann_cmd_mux" type="throttle_interpolator.py" /> -->
 
 </launch>

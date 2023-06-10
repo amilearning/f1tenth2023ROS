@@ -3,7 +3,7 @@
   <arg name="racecar_version" default="racecar-v2" />
   <arg name="run_camera" default="false"/>
 
-  <group ns="vesc">
+  <group ns="target">
     <!-- joystick node -->
     <include file="$(find racecar)/launch/includes/common/joy_teleop.launch.xml" >
       <arg name="racecar_version" value="$(arg racecar_version)" />
@@ -16,7 +16,7 @@
     <include file="$(find racecar)/launch/includes/$(arg racecar_version)/vesc.launch.xml" >
       <arg name="racecar_version" value="$(arg racecar_version)" />
     </include>
-  </group>
+   </group>
 
   <!-- start imu and laser scanner -->
   <!-- <include file="$(find racecar)/launch/includes/common/sensors.launch.xml" >
@@ -26,4 +26,11 @@
   <!-- static transforms, e.g. base_link to imu -->
   <include file="$(find racecar)/launch/includes/$(arg racecar_version)/static_transforms.launch.xml" />
 
+  <arg name="my_namespace"           default="target" />
+  <node ns="$(arg my_namespace)" name="urg_node" pkg="urg_node" type="urg_node" output="screen">
+    <param name="ip_address" value="192.168.0.10"/>
+    <param name="frame_id" value="target/laser"/>
+    <!-- <remap from="scan" to="/spencer/sensors/laser_front/echo0"/> -->
+  </node>
+ 
 </launch>

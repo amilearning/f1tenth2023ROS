@@ -77,13 +77,15 @@ class JoyTeleop:
         rospy.Timer(rospy.Duration(1/50.), self.check_command)
 
     def joy_callback(self, data):
+        
         buttons = list(data.buttons)
+        axes = list(data.axes)
         if buttons[4] ==1:
             self.joy_data = data
             self.last_received_joy = rospy.Time.now()
             self.auto_mode = False
 
-        if buttons[5] ==1:
+        if axes[2] == -1:
             self.auto_mode  = True
         #     self.auto_mode_count = self.auto_mode_count+1
         
@@ -101,19 +103,22 @@ class JoyTeleop:
         self.last_received_joy = rospy.Time.now()
 
     def check_command(self, evt=None):
-        if self.joy_data and self.last_received_joy and rospy.Time.now() - self.last_received_joy < self.joy_timeout:
-            try:
-                for c in self.command_list:
-                    if self.match_command(c, self.joy_data.buttons):
-                        self.run_command(c, self.joy_data)
-                        # Only run 1 command at a time
-                        break
-            except JoyTeleopException as e:
-                rospy.logerr("error while parsing joystick input: %s", str(e))
-            self.old_buttons = self.joy_data.buttons
-        elif not self.joy_data or rospy.Time.now() - self.last_received_joy > self.joy_timeout:
-            self.run_command('default', self.joy_data)
-            rospy.logerr_throttle(10, "Publishing default because no joystick messages")
+        if self.joy_data is None:
+            return
+        # if self.joy_data and self.last_received_joy and rospy.Time.now() - self.last_received_joy < self.joy_timeout:
+        try:
+            for c in self.command_list:
+                if self.match_command(c, self.joy_data.buttons):
+                    self.run_command(c, self.joy_data)
+                    # Only run 1 command at a time
+                    break
+        except JoyTeleopException as e:
+            rospy.logerr("error while parsing joystick input: %s", str(e))
+        self.old_buttons = self.joy_data.buttons
+        # elif not self.joy_data or rospy.Time.now() - self.last_received_joy > self.joy_timeout:
+            
+        #     self.run_command('default', self.joy_data)
+        #     rospy.logerr_throttle(10, "Publishing default because no joystick messages")
 
     def register_topic(self, name, command):
         """Add a topic publisher for a joystick command"""

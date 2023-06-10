@@ -88,7 +88,7 @@ namespace localization_core
     double accSigma, gyroSigma, initialVelNoise, initialBiasNoiseAcc, initialBiasNoiseGyro, initialRotationNoise,
         carXAngle, carYAngle, carZAngle, sensorX, sensorY, sensorZ, sensorXAngle, sensorYAngle, sensorZAngle,
         gravityMagnitude;
-
+    node_ns = ros::this_node::getNamespace()+"/";
     nh_.param<double>("InitialRotationNoise", initialRotationNoise, 0.1);
     nh_.param<double>("InitialVelocityNoise", initialVelNoise, 0.1);
     nh_.param<double>("InitialBiasNoiseAcc", initialBiasNoiseAcc, 1e-1);
@@ -179,7 +179,7 @@ namespace localization_core
     while (!ip)
       {
         ROS_WARN("Waiting for valid initial orientation");
-        ip = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/tracked_pose", nh_, ros::Duration(15));
+        ip = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("tracked_pose", nh_, ros::Duration(15));
         prev_local_pose = ip;
       }
 
@@ -237,9 +237,9 @@ namespace localization_core
      noiseModelBetweenBias_sigma_ = (Vector(6) << sigma_acc_bias_c, sigma_gyro_bias_c).finished();
 
      
-     imuSub_ = nh_.subscribe("/imu/data", 10, &StateEstimator::ImuCallback, this);
+     imuSub_ = nh_.subscribe("imu/data", 10, &StateEstimator::ImuCallback, this);
      
-     localPoseSub_ = nh_.subscribe("/tracked_pose", 2, &StateEstimator::localPoseCallback, this);
+     localPoseSub_ = nh_.subscribe("tracked_pose", 2, &StateEstimator::localPoseCallback, this);
      boost::thread optimizer(&StateEstimator::MainLoop,this); // main loop
   }
 
@@ -653,9 +653,15 @@ namespace localization_core
     poseNew.twist.twist.angular.x = gyro.x() + optimizedBias.gyroscope().x();
     poseNew.twist.twist.angular.y = gyro.y() + optimizedBias.gyroscope().y();
     poseNew.twist.twist.angular.z = gyro.z() + optimizedBias.gyroscope().z();
-
-    poseNew.child_frame_id = "base_link";
-    poseNew.header.frame_id = "map";
+  
+    std::string child_frame_ = "base_link";
+    std::string frame_ = "map";
+    
+      std::string child_frame_id = node_ns + child_frame_;
+      std::string frame_id = node_ns + frame_;
+    
+    poseNew.child_frame_id = "target/base_link";
+    poseNew.header.frame_id = "target/map";
 
     posePub_.publish(poseNew);
     
@@ -663,7 +669,7 @@ namespace localization_core
     est_pose_new.header = poseNew.header;
     est_pose_new.pose.position = poseNew.pose.pose.position;
     est_pose_new.pose.orientation = poseNew.pose.pose.orientation;
-    est_pose_new.header.frame_id = "map";
+    est_pose_new.header.frame_id = "target/map";
     estPosePub.publish(est_pose_new);
 
     geometry_msgs::Point delays;

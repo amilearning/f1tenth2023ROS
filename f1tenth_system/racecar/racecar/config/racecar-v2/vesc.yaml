@@ -1,7 +1,7 @@
 
 # erpm (electrical rpm) = speed_to_erpm_gain * speed (meters / second) + speed_to_erpm_offset
 speed_to_erpm_gain: 4500  ## 4500
-speed_to_erpm_offset: 200.0
+speed_to_erpm_offset: 300.0
 
 # Set gains for converting acceleration to current and brake control values
 accel_to_current_gain: 100
@@ -18,7 +18,8 @@ throttle_smoother_rate: 5000.0 # messages/sec
 
 # servo value (0 to 1) =  steering_angle_to_servo_gain * steering angle (radians) + steering_angle_to_servo_offset
 steering_angle_to_servo_gain: -0.62  ## -0.58
-steering_angle_to_servo_offset: 0.631 
+# steering_angle_to_servo_offset: 0.631 
+steering_angle_to_servo_offset: 0.38
 
 # publish odom to base link tf
 vesc_to_odom/publish_tf: false

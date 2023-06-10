@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 
 <launch>
-  
+    <arg name="my_namespace"  default="target" />
 
-  <node name="state_estimator" pkg="state_estimator" type="StateEstimator" output="screen"  respawn="true">      
+  <node ns="$(arg my_namespace)" name="state_estimator" pkg="state_estimator" type="StateEstimator" output="screen"  respawn="true">      
       <!-- subscribe topics  -->
       <!-- <remap from="state_estimator/gps" to="/fix"/> -->
       <!-- <remap from="state_estimator/imu" to="/nav/filtered_imu/data"/> -->
@@ -11,7 +11,9 @@
       
       <!-- <remap from="state_estimator/local_pose" to="/gnss_pose_world"/>      
       <remap from="state_estimator/wheel_odom" to="/wheel_odom"/> -->
-
+      <!-- subscribe topics -->
+      <remap from="state_estimator/tracked_pose" to="tracked_pose"/>
+      <remap from="state_estimator/imu/data" to="imu/data"/>
       <!-- publish topics-->
       <remap from="state_estimator/pose" to="pose_estimate"/>
       <remap from="state_estimator/estimated_pose" to="geo_pose_estimate"/>

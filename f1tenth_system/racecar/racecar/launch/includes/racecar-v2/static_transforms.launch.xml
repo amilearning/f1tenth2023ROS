@@ -7,13 +7,17 @@
 
           <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_imu" 
         args="0.0 0.0 0.0 0.0 0.0 0.0 1.0 /base_link /imu_link" /> -->
+  <arg name="my_namespace"  default="target" />
+ 
 
+  <node ns="$(arg my_namespace)" pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_laser" 
+        args="0.1425 0.0 0.10 0.0 0.0 0.0 1.0 $(arg my_namespace)/base_link $(arg my_namespace)/laser" />
 
-  <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_laser" 
-        args="0.1425 0.0 0.10 0.0 0.0 0.0 1.0 /base_link /laser" />
+  <node ns="$(arg my_namespace)" pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_base_footprint" 
+        args="0.0 0.0 0.0     0.0 0.0 0.0 1.0 $(arg my_namespace)/base_link $(arg my_namespace)/base_footprint" />
 
-  <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_base_footprint" 
-        args="0.0 0.0 0.0     0.0 0.0 0.0 1.0 /base_link /base_footprint" />
+<node ns="$(arg my_namespace)" pkg="tf2_ros" type="static_transform_publisher" name="target_map_to_ego_map" 
+        args="0.0 0.0 0.0     0.0 0.0 0.0 1.0 $(arg my_namespace)/map /map" />
 
   <!-- todo: zed camera -->
   <!-- todo: structure sensor -->

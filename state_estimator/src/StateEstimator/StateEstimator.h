@@ -89,7 +89,7 @@ namespace localization_core
     ros::Publisher  timePub_;
     ros::Publisher statusPub_;
     ros::Publisher gpsPosPub_;
-
+    std::string node_ns;
     double lastImuT_, lastImuTgps_; 
     double local_pose_dt;
     unsigned char status_;
