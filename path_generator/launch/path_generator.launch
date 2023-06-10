@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-    <node pkg="path_generator" type="tar_main_node.py" name="target_ov_ctrl_node" output="screen">                
+    <node pkg="path_generator" type="path_generator.py" name="target_ov_ctrl_node" output="screen">                
        
     </node>
 
