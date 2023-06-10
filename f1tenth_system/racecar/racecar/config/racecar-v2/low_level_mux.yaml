@@ -20,7 +20,7 @@ subscribers:
 
   - name:        "Nav_hmcl"
     topic:       "input/nav_hmcl"
-    timeout:     0.1
+    timeout:     0.2
     priority:    10
     short_desc:  "Input for autonomous navigation"
 

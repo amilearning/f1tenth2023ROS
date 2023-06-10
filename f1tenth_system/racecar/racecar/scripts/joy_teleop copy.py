@@ -77,15 +77,13 @@ class JoyTeleop:
         rospy.Timer(rospy.Duration(1/50.), self.check_command)
 
     def joy_callback(self, data):
-        
         buttons = list(data.buttons)
-        axes = list(data.axes)
-        if buttons[4] ==1:
+        if buttons[4] == 1:
             self.joy_data = data
             self.last_received_joy = rospy.Time.now()
             self.auto_mode = False
 
-        if axes[2] == -1:
+        if buttons[2] == -1:
             self.auto_mode  = True
         #     self.auto_mode_count = self.auto_mode_count+1
         
@@ -95,9 +93,9 @@ class JoyTeleop:
         #     rospy.sleep(0.1)
             
         if self.auto_mode:
-            buttons[5] = 1
+            buttons[2] = -1
         else:
-            buttons[5] = 0
+            buttons[2] = 1
         data.buttons = tuple(buttons)
         self.joy_data = data
         self.last_received_joy = rospy.Time.now()

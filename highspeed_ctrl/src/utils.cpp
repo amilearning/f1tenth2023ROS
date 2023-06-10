@@ -195,8 +195,8 @@ bool interp1dTraj(const std::vector<double> &index, const Trajectory &values,
     const double t = ref_time[j];
     double vy = 0.0;
     double s = 0.0;
-    double lkh=0.0;
-    ret.push_back(x, y, z, yaw, vx, vy, k, t, s, 3.0, 3.0, lkh);
+    // double lkh = 0.0;
+    ret.push_back(x, y, z, yaw, vx, vy, k, t, s, 3.0, 3.0, 0.0, 0.0);
   }
   return true;
 }
@@ -304,7 +304,7 @@ void convertWaypointsToMPCTraj(const hmcl_msgs::Lane &lane, Trajectory &mpc_traj
     double vy = 0.0;
     double s_tmp= 0.0;
     double lkh = 0.0;
-    mpc_traj.push_back(x, y, z, yaw, vx, vy, k_tmp, t_tmp,s_tmp, 3.0, 3.0,lkh);
+    mpc_traj.push_back(x, y, z, yaw, vx, vy, k_tmp, t_tmp,s_tmp, 3.0, 3.0,0.0, 0.0);
   }
 }
 
@@ -381,8 +381,8 @@ void convertWaypointsToMPCTrajWithResample(const hmcl_msgs::Lane &path, const st
     const double t = ((ref_index_dist - a) * path_time.at(j - 1) + a * path_time.at(j)) / ref_index_dist;
     double vy = 0.0;
     double s= 0.0;
-    double lkh=0.0;
-    ref_traj.push_back(x, y, z, yaw, vx, vy, curvature_tmp, t, s, 3.0, 3.0,lkh);
+    // double lkh=0.0;
+    ref_traj.push_back(x, y, z, yaw, vx, vy, curvature_tmp, t, s, 3.0, 3.0, 0.0, 0.0 );
     point += d_ref_index;
   }
 }

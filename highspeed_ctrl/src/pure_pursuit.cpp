@@ -639,6 +639,8 @@ bool PurePursuit::ObstacleAvoidance(double & target_vel, PathPoint & target_poin
                       // target_ey = std::max(std::min(target_ey, track_left_constraint), 0.0);                
                     } 
 
+                    // if(local_traj.ovt[0] < 1.0){ stopping = true;}                    
+
                       double yaw_on_centerline = local_traj.yaw[refined_idx];
                   double new_x, new_y;
                     if(target_ey >= 0){
