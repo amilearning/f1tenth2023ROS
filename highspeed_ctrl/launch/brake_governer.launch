@@ -1,9 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-
-
-      <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="screen">
-  	<param name="current" value="-50.0"/>
-	  <param name="tolerance" value="0.2"/>
-  </node> 
-</launch>
