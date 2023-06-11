@@ -340,6 +340,14 @@ class VehiclePrediction(PythonMsg):
         self.v_y = (np.multiply(self.v_long, np.sin(self.psi)) + np.multiply(self.v_tran, np.cos(self.psi))).tolist()
         self.a_x = (np.multiply(self.a_long, np.cos(self.psi)) - np.multiply(self.a_tran, np.sin(self.psi))).tolist()
         self.a_y = (np.multiply(self.a_long, np.sin(self.psi)) + np.multiply(self.a_tran, np.cos(self.psi))).tolist()
+    
+    def convert_local_to_global_cov(self):
+        local_x = self.xy_cov[0,0]
+        local_y = self.xy_cov[1,1]
+        global_x = np.multiply(local_x, np.cos(self.psi)) - np.multiply(local_y, np.sin(self.psi))
+        global_y = np.multiply(local_x, np.sin(self.psi)) + np.multiply(local_y, np.cos(self.psi))
+        self.xy_cov[0,0] = global_x
+        self.xy_cov[1,1] = global_y
 
     def track_cov_to_local(self, track, N : int, cov_factor : float):
         """

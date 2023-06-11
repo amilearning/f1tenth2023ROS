@@ -43,6 +43,7 @@ from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Point
 from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.common.pytypes import VehicleState, VehiclePrediction
+from typing import List
 
 def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose : PoseStamped):
     state.x.x = pose.pose.position.x
@@ -436,3 +437,13 @@ def torch_path_to_marker(path):
         marker_ref.colors.append(color_msg)    
     marker_refs.markers.append(marker_ref)
     return marker_refs
+
+def prediction_to_marker(predictions: List[VehiclePrediction]):
+    for pred in predictions:
+        tmp = VehiclePrediction()
+        tmp.x
+        tmp.y
+        tmp.xy_cov
+        pred.
+    pred_path = MarkerArray()
+    return pred_path

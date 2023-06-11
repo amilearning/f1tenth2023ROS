@@ -277,4 +277,5 @@ class GPPredictor(BasePredictor):
         pred = self.gp.get_true_prediction_par(ego_state, target_state, ego_prediction, self.track, self.M)
         # fill in covariance transformation to x,y
         pred.track_cov_to_local(self.track, self.N, self.cov_factor)
+        pred.convert_local_to_global_cov()
         return pred
