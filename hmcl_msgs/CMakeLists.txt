@@ -36,9 +36,9 @@ add_message_files(
     CtrlVehicleStates.msg    
 )
 
-add_service_files(
-  FILES RecognizeLightState.srv mpcc.srv
-)
+# add_service_files(
+#   FILES RecognizeLightState.srv
+# )
 
 generate_messages(
   DEPENDENCIES

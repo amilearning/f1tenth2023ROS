@@ -34,7 +34,7 @@ from re import L
 import rospy
 import time
 import threading
-
+import os
 import numpy as np
 import math 
 from std_msgs.msg import Bool
@@ -42,6 +42,7 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import MarkerArray
 from vesc_msgs.msg import VescStateStamped
+from ackermann_msgs.msg import AckermannDriveStamped
 
 from hmcl_msgs.srv import mpcc
 import torch 
@@ -53,12 +54,18 @@ from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 from predictor.controllers.headless_MPCC import MPCC_H2H_approx
 from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from predictor.h2h_configs import *
+from predictor.common.utils.file_utils import *
+from predictor.common.utils.scenario_utils import RealData
+
+from dynamic_reconfigure.server import Server
+from predictor.cfg import predictorDynConfig
+
 rospack = rospkg.RosPack()
 pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
-        
+        self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
         self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
         self.torch_device = "cuda:0"   ## Specify the name of GPU 
@@ -109,6 +116,7 @@ class Predictor:
         self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
 
         # Publishers                
+        self.ackman_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl',AckermannDriveStamped,queue_size = 2)
         self.ego_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         self.target_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         self.target_predict_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
@@ -124,11 +132,16 @@ class Predictor:
 
         # prediction callback   
         self.tv_pred = None
-        self.prediction_hz = rospy.get_param('~prediction_hz', default=0.5)
+        self.prediction_hz = rospy.get_param('~prediction_hz', default=3)
         self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
         ## controller callback
-        self.cmd_hz = 0.5
+        self.cmd_hz = 10
         self.cmd_timer = rospy.Timer(rospy.Duration(1/self.cmd_hz), self.cmd_callback)         
+        self.ego_list = []
+        self.tar_list = []
+        self.data_save = False
+        self.save_buffer_legnth = 100
+        
         
         
         rate = rospy.Rate(1)     
@@ -138,7 +151,22 @@ class Predictor:
             # self.status_pub.publish(msg)          
             rate.sleep()
 
+    def dyn_callback(self,config,level):
+        self.data_save = config.logging_vehicle_states
+        print("dyn reconfigured")
         
+        return config
+        
+    def clear_buffer(self):
+        if len(self.ego_list) > 0:
+            self.ego_list.clear()
+            self.tar_list.clear()
+
+    def save_buffer(self):
+        real_data = RealData(self.track_info.track, self.ego_list, self.tar_list)
+        create_dir(path=real_dir)        
+        pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '.pkl'))
+        self.clear_buffer()
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:
@@ -162,17 +190,8 @@ class Predictor:
         
     def prediction_callback(self,event):
         start_time = time.time()
-        if self.ego_odom_ready and self.tar_odom_ready:
-            
-            pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
-            odom_to_vehicleState(self.cur_ego_state, self.cur_ego_odom)
-            
-            pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
-            odom_to_vehicleState(self.cur_tar_state, self.cur_tar_odom)
-            
-        else:
-            rospy.loginfo("state not ready")
-            return 
+        if self.ego_odom_ready is False or self.tar_odom_ready is False:
+            return
         
         if self.predictor and self.cur_ego_state is not None:            
             ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
@@ -185,18 +204,44 @@ class Predictor:
         print(f"Prediction execution time: {execution_time} seconds")
 
     def cmd_callback(self,event):
-        print("reqeust service ")         
+        if self.ego_odom_ready and self.tar_odom_ready:
+            pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
+            odom_to_vehicleState(self.cur_ego_state, self.cur_ego_odom)
+            
+            pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
+            odom_to_vehicleState(self.cur_tar_state, self.cur_tar_odom)
+            if self.data_save:
+                self.ego_list.append(self.cur_ego_state)
+                self.tar_list.append(self.cur_tar_state)
+                if len(self.tar_list) > self.save_buffer_legnth:
+                    self.save_buffer()
+
+        else:
+            rospy.loginfo("state not ready")
+            return 
+        
         self.use_predictions_from_module = True
         problem = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
-
+        pp_cmd = AckermannDriveStamped()
+        pp_cmd.header.stamp = self.cur_ego_pose.header.stamp   
         try:
-            srv_res = self.mpcc_srv(problem["xinit"], problem["all_parameters"], problem["x0"])
-            print("got the response")
-            print(srv_res)
+            srv_res = self.mpcc_srv(problem["xinit"], problem["all_parameters"], problem["x0"])            
+            cur_control = self.gp_mpcc_ego_controller.extract_sol(srv_res.output,srv_res.exitflag)
+            
+            pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
+            vel_cmd = pred_v_lon[1]
+            vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
+            
+            # pp_cmd.drive.speed = vel_cmd            
+            pp_cmd.drive.speed = 0.0            
+            pp_cmd.drive.steering_angle = cur_control.u_steer
+            
         except rospy.ServiceException as e:
+            pp_cmd.drive.speed = 0.0           
             print("Service call failed: %s"%e)
         
-        
+        self.ackman_pub.publish(pp_cmd)
+
 
 ###################################################################################
 

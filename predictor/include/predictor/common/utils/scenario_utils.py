@@ -85,7 +85,13 @@ class ScenarioDefinition:
         if self.track.phase_out:
             self.length = self.track.track_length - self.track.cl_segs[-1][0]
 
-
+@dataclass
+class RealData():
+    track: RadiusArclengthTrack
+    N: int
+    ego_states: List[VehicleState]
+    tar_states: List[VehicleState]
+    
 @dataclass
 class SimData():
     scenario_def: ScenarioDefinition

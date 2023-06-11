@@ -24,6 +24,18 @@ find_package(catkin REQUIRED COMPONENTS
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
 catkin_python_setup()
 
+
+#add dynamic reconfigure api
+#find_package(catkin REQUIRED dynamic_reconfigure)
+generate_dynamic_reconfigure_options(
+  cfg/predictor_dyn.cfg
+  #...
+)
+
+# make sure configure headers are built before any node using them
+add_dependencies(predictor ${PROJECT_NAME}_gencfg)
+
+
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################

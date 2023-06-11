@@ -1,7 +1,7 @@
 #!/usr/bin python3
 import warnings
 from typing import List
-import random
+
 import casadi
 import numpy as np
 
@@ -9,16 +9,20 @@ import casadi as ca
 
 import sys, os, pathlib
 
+current_path = os.getcwd()
+sys.path.append(os.path.join(os.path.expanduser('~'), '/home/hjpc/forcespro'))
+import forcespro
+import forcespro.nlp
 
-from predictor.dynamics.models.dynamics_models import CasadiDynamicsModel
-from predictor.common.pytypes import VehicleState, VehicleActuation, VehiclePrediction
-from predictor.dynamics.models.obstacle_types import RectangleObstacle
+from dynamics_models import CasadiDynamicsModel, CasadiDynamicBicycleFull
+from pytypes import VehicleState, VehicleActuation, VehiclePrediction
+from .obstacle_types import RectangleObstacle
 
-from predictor.controllers.abstract_controller import AbstractController
-from predictor.controllers.utils.controllerTypes import MPCCApproxFullModelParams
-from predictor.common.utils.file_utils import *
+from abstract_controller import AbstractController
+from controllerTypes import MPCCApproxFullModelParams
+from file_utils import *
 from dataclasses import fields
-
+from h2h_configs import ego_dynamics_config
 
 class MPCC_H2H_approx(AbstractController):
     """
@@ -26,12 +30,13 @@ class MPCC_H2H_approx(AbstractController):
     """
 
     def __init__(self, dynamics, track, control_params=MPCCApproxFullModelParams(), name=None, track_name=None):
+        t_start = 0
+        CasadiDynamicBicycleFull(t_start, ego_dynamics_config, track=track)
 
         assert isinstance(dynamics, CasadiDynamicsModel)
         self.all_tracks = control_params.all_tracks
         self.dynamics = dynamics
 
-        self.key_pts = None
         self.track = track
         self.track_name = track_name
 
@@ -115,7 +120,7 @@ class MPCC_H2H_approx(AbstractController):
 
         self.num_std_deviations = control_params.num_std_deviations
         self.policy_map = {None: self.no_blocking_policy, "aggressive_blocking": self.aggressive_blocking_policy,
-                           "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy, "timid": self.no_blocking_policy}
+                           "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy}
 
         self.optlevel = control_params.optlevel
 
@@ -136,7 +141,7 @@ class MPCC_H2H_approx(AbstractController):
             self.solver_name = name
         self.state_input_prediction = VehiclePrediction()
 
-        self.initialized = True
+        self.initialized = False
 
         self.first = True
         self.theta_prev = []
@@ -144,7 +149,13 @@ class MPCC_H2H_approx(AbstractController):
         self.n_sol_count = 0
 
     def initialize(self):
-        return
+        if self.solver_dir:
+            self.solver_dir = pathlib.Path(self.solver_dir).expanduser()  # allow the use of ~
+            self._load_solver(self.solver_dir)
+        else:
+            self._build_solver()
+
+        self.initialized = True
 
     def get_prediction(self):
         return self.state_input_prediction.copy()
@@ -242,21 +253,24 @@ class MPCC_H2H_approx(AbstractController):
                                                         std_local_x=self.num_std_deviations * np.sqrt(xy_std[0, 0]),
                                                         std_local_y=self.num_std_deviations * np.sqrt(xy_std[1, 1]))
 
-        problem = self.solve(ego_state, ego_state.p.s, x_ref, xref_scale, obstacle, blocking)
-        return problem 
-        # ego_state.u.u_a = control.u_a
-        # ego_state.p.s -= self.track_length*num_lap
-        # ego_state.u.u_steer = control.u_steer
-        # if logger is not None:
-        #     x_vals = []
-        #     for obs in obstacle:
-        #         x_vals.append(obs.xc)
-        #     logger(f"X current: {tv_state.x.x}")
-        #     logger(f"X obs: {x_vals[0]}")
-        # return info, blocking, exitflag
+        control, info, exitflag = self.solve(ego_state, ego_state.p.s, x_ref, xref_scale, obstacle, blocking)
+
+        ego_state.u.u_a = control.u_a
+        ego_state.p.s -= self.track_length*num_lap
+        ego_state.u.u_steer = control.u_steer
+        if logger is not None:
+            x_vals = []
+            for obs in obstacle:
+                x_vals.append(obs.xc)
+            logger(f"X current: {tv_state.x.x}")
+            logger(f"X obs: {x_vals[0]}")
+        return info, blocking, exitflag
 
     def solve(self, state: VehicleState, s0, x_ref: np.array, xref_scale, obstacle: List[RectangleObstacle], blocking):
-        
+        if not self.initialized:
+            raise (RuntimeError(
+                'MPCC controller is not initialized, run MPCC.initialize() before calling MPCC.solve()'))
+
         x, _ = self.dynamics.state2qu(state)
 
         if self.x_ws is None:
@@ -289,9 +303,6 @@ class MPCC_H2H_approx(AbstractController):
                 difference -= 1
             for i in range(5 - len(key_pts)):
                 key_pts.append(self.track.key_pts[key_pt_idx_s + i])
-        ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
-        self.key_pts = key_pts
-        ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
         for stageidx in range(self.N):
             # Default to respecting obstacles
@@ -349,79 +360,28 @@ class MPCC_H2H_approx(AbstractController):
         problem["xinit"] = np.concatenate((np.append(np.append(x, state.p.s), state.p.s), self.u_prev))
         problem["all_parameters"] = parameters
         problem["x0"] = initial_guess
-        ### send service 
-        return problem
-        # request service to other node 
-        # output, exitflag, solve_info = self.solver.solve(problem)
-        
-        # if exitflag == 1:
-        #     if exitflag == 0:
-        #         info = {"success": False, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
-        #                 "info": solve_info}
-        #     else:
-        #         info = {"success": True, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
-        #                 "info": solve_info}
 
-        #     for k in range(self.N):
-        #         sol = output["x%02d" % (k + 1)]
-        #         self.x_pred[k, :] = sol[:self.n]
-        #         self.u_pred[k, :] = sol[self.n:self.n + self.d]
+        output, exitflag, solve_info = self.solver.solve(problem)
 
-        #     # Construct initial guess for next iteration
-        #     x_ws = self.x_pred[1:]
-        #     u_ws = self.u_pred[1:]
-        #     if self.all_tracks:
-        #         q_integrated = np.array(self.dynamics.f_d_rk4_forces(x_ws[-1, :-2], self.track.track_length, ca.transpose(
-        #                 ca.horzcat(key_pts[0], key_pts[1], key_pts[2], key_pts[3], key_pts[4])),
-        #                                                          u_ws[-1, :-1]))
-        #         x_ws = np.vstack((x_ws,
-        #                           np.append(q_integrated,
-        #                                     (q_integrated[7][0], x_ws[-1, -1]))))  # TODO fix this
-        #     else:
-        #         q_integrated = np.array(self.dynamics.f_d_rk4(x_ws[-1, :-2],
-        #                                                   u_ws[-1, :-1]))
-        #         x_ws = np.vstack((x_ws,
-        #                           np.append(q_integrated,
-        #                                     (q_integrated[7][0], x_ws[-1, -1]))))  # TODO fix this
-        #     u_ws = np.vstack((u_ws, u_ws[-1]))  # stack previous input
-        #     self.set_warm_start(x_ws, u_ws)
+        if exitflag == 1:
+            if exitflag == 0:
+                info = {"success": False, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
+                        "info": solve_info}
+            else:
+                info = {"success": True, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
+                        "info": solve_info}
 
-        #     u = self.u_pred[0]
-        #     self.n_sol_count = 0
-
-        #     self.dynamics.qu2prediction(self.state_input_prediction, self.x_pred, self.u_pred)
-
-
-        # else:
-        #     info = {"success": False, "return_status": 'Solving Failed, exitflag = %d' % exitflag, "solve_time": None,
-        #             "info": solve_info}
-        #     self.n_sol_count += 1
-        #     u = self.u_pred[self.n_sol_count] if self.n_sol_count < self.u_pred.shape[0] else np.zeros((self.d))
-
-        # self.u_prev = u
-
-        # control = VehicleActuation()
-        # self.dynamics.u2input(control, u)
-
-        # return control, info, exitflag
-
-    def extract_sol(self,output,exitflag):
-        
-        numRows = 19  # Number of rows in each column vector
-        columnVectors = [output[i:i+numRows] for i in range(0, len(output), numRows)]
-        
-        if exitflag == 1 or exitflag > -2000:
             for k in range(self.N):
-                # sol = output["x%02d" % (k + 1)]
-                self.x_pred[k, :] = columnVectors[k][:self.n] # sol[:self.n]
-                self.u_pred[k, :] = columnVectors[k][self.n:self.n + self.d] #sol[self.n:self.n + self.d]
+                sol = output["x%02d" % (k + 1)]
+                self.x_pred[k, :] = sol[:self.n]
+                self.u_pred[k, :] = sol[self.n:self.n + self.d]
 
             # Construct initial guess for next iteration
             x_ws = self.x_pred[1:]
             u_ws = self.u_pred[1:]
             if self.all_tracks:
                 q_integrated = np.array(self.dynamics.f_d_rk4_forces(x_ws[-1, :-2], self.track.track_length, ca.transpose(
-                        ca.horzcat(self.key_pts[0], self.key_pts[1], self.key_pts[2], self.key_pts[3], self.key_pts[4])),
+                        ca.horzcat(key_pts[0], key_pts[1], key_pts[2], key_pts[3], key_pts[4])),
                                                                  u_ws[-1, :-1]))
                 x_ws = np.vstack((x_ws,
                                   np.append(q_integrated,
@@ -442,6 +402,8 @@ class MPCC_H2H_approx(AbstractController):
 
 
         else:
+            info = {"success": False, "return_status": 'Solving Failed, exitflag = %d' % exitflag, "solve_time": None,
+                    "info": solve_info}
             self.n_sol_count += 1
             u = self.u_pred[self.n_sol_count] if self.n_sol_count < self.u_pred.shape[0] else np.zeros((self.d))
 
@@ -449,10 +411,8 @@ class MPCC_H2H_approx(AbstractController):
 
         control = VehicleActuation()
         self.dynamics.u2input(control, u)
-   
-        return control
 
-        # return control, info, exitflag
+        return control, info, exitflag
 
     def _load_solver(self, solver_dir):
         solver_found = True
@@ -897,8 +857,3 @@ class MPCC_H2H_approx(AbstractController):
                                                                                                                dslope2))))
 
         return tran_min, tran_max
-
-    def random_step(self, ego_state: VehicleState, policy: str = None, logger=None, num_lap=0):
-        ego_state.p.s += self.track_length * num_lap
-        ego_state.u.u_a = random.uniform(self.control_params.u_a_min, self.control_params.u_a_max)
-        ego_state.u.u_steer = random.uniform(self.control_params.u_steer_min, self.control_params.u_steer_max)

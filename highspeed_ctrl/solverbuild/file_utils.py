@@ -2,15 +2,11 @@ import os
 import pickle
 import pathlib
 
-import sys
-sys.path.append("/home/orin1/gp-opponent-prediction-models/barcgp")
-
 gp_dir = os.path.expanduser('~') + '/barc_data/'
 train_dir = os.path.join(gp_dir, 'trainingData/')
-real_dir = os.path.join(gp_dir, 'realData/')
 eval_dir = os.path.join(gp_dir, 'evaluationData/')
-model_dir = os.path.join(train_dir, 'models/')
-param_dir = os.path.join(gp_dir, 'params/')
+model_dir = os.path.join(train_dir, 'models')
+
 
 def dir_exists(path=''):
     dest_path = pathlib.Path(path).expanduser()
@@ -35,7 +31,6 @@ def pickle_write(data, path):
 
 
 def pickle_read(path):
-    print("path = "+ str(path))
     dbfile = open(path, 'rb')
     data = pickle.load(dbfile)
     dbfile.close()
