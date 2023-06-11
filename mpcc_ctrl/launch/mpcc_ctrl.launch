@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="mpcc_ctrl" pkg="mpcc_ctrl" type="mpcc_ctrl" output="screen" respawn="true">      
+      
+
+</node>
+
+     
+</launch>

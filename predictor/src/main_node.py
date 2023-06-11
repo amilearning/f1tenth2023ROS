@@ -44,9 +44,10 @@ from visualization_msgs.msg import MarkerArray
 from vesc_msgs.msg import VescStateStamped
 import torch 
 import rospkg
-from predictor.pytypes import VehicleState, VehiclePrediction, ParametricPose, BodyLinearVelocity
+from predictor.common.pytypes import VehicleState, VehiclePrediction, ParametricPose, BodyLinearVelocity
 from predictor.utils import quaternion_to_euler, wrap_to_pi, pose_to_vehicleState, odom_to_vehicleState
 from predictor.path_generator import PathGenerator
+from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 rospack = rospkg.RosPack()
 pkg_dir = rospack.get_path('predictor')
 
@@ -65,7 +66,10 @@ class Predictor:
         while self.track_info.track_ready is False:
              rospy.sleep(0.01)
         ##
-
+        gp_model_name = "aggressive_blocking"
+        use_GPU = False
+        M = 50
+        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
         self._thread = threading.Thread()        
 
         self.cur_ego_odom = Odometry()        

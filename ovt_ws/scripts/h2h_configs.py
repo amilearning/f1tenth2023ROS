@@ -12,7 +12,7 @@ n_iter = N+1
 width = 0.75
 
 # Force rebuild all FORCES code-gen controllers
-rebuild = False
+rebuild = True
 # Use a key-point lookahead strategy that is dynamic (all_tracks=True) or pre-generated (all_tracks=False)
 all_tracks = True
 offset = 32 if not all_tracks else 0
@@ -35,7 +35,8 @@ ego_dynamics_config = DynamicBicycleConfig(dt=dt, model_name='dynamic_bicycle_fu
 gp_mpcc_ego_params = MPCCApproxFullModelParams(
     dt=dt,
     all_tracks=all_tracks,
-    solver_dir='' if rebuild else '~/.mpclab_controllers/gp_mpcc_h2h_ego',
+    #solver_dir='' if rebuild else '~/.mpclab_controllers/gp_mpcc_h2h_ego',
+    solver_dir='~/f1tenth_ws/src/ovt_ws/ctrl_so/gp_mpcc_h2h_ego',    
     # solver_dir='',
     optlevel=2,
 
@@ -71,7 +72,7 @@ mpcc_ego_params = MPCCApproxFullModelParams(
     dt=dt,
     all_tracks=all_tracks,
     solver_dir='' if rebuild else '~/.mpclab_controllers/mpcc_h2h_ego',
-    # solver_dir='',
+    #solver_dir='~/f1tenth_ws/src/ovt_ws/ctrl_so/mpcc_h2h_ego',
     optlevel=2,
 
     N=N,

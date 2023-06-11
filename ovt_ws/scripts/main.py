@@ -24,6 +24,8 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from utils import get_local_vel
 
+from hmcl_msgs.srv import mpcc, mpccResponse
+
 class OvertakingAgent:
     def __init__(self):
         print("init")
@@ -63,11 +65,31 @@ class OvertakingAgent:
         self.tar_odom_sub = rospy.Subscriber("/target//pose_estimate",Odometry,self.tar_odom_callback)
         self.tar_pose_sub = rospy.Subscriber("/target/tracked_pose",PoseStamped,self.tar_pose_callback)
 
+        self.controller_server = rospy.Service('compute_mpcc', mpcc, self.mpcc_srv_hanlder)
 
         self.ackman_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl',AckermannDriveStamped,queue_size = 2)
         
-        self.timercallback = rospy.Timer(rospy.Duration(0.05), self.timer_callback)  
+        # self.timercallback = rospy.Timer(rospy.Duration(0.05), self.timer_callback)  
+        return 
+    
+        rate = rospy.Rate(1)     
+        while not rospy.is_shutdown():                        
+            rate.sleep()
+    
+    def mpcc_srv_hanlder(self,req):
+        print("service recieved")
+        problem = dict()
+        problem["xinit"] = np.array(req.xinit)
+        problem["all_parameters"] = np.array(req.all_parameters)
+        problem["x0"] = np.array(req.x0)
+        output, exitflag, solve_info = self.gp_mpcc_ego_controller.srv_solve(problem)
         
+        stacked_output  = np.concatenate([value for value in output.values()])
+        print("exitflag = ")
+        print(exitflag)
+        return mpccResponse(exitflag, stacked_output)
+
+
     def tar_odom_callback(self,msg):
         self.cur_tar_odom = msg
     def tar_pose_callback(self,msg):
@@ -140,9 +162,9 @@ class OvertakingAgent:
             pp_cmd.drive.speed = vel_cmd            
             # pp_cmd.drive.speed = 0.0            
             pp_cmd.drive.steering_angle = -1*self.cur_ego_state.u.u_steer
-            self.ackman_pub.publish(pp_cmd)
+            # self.ackman_pub.publish(pp_cmd)
             # print("accel = : {:.5f}".format(self.cur_ego_state.u.u_a))
-            # print("steer = : {:.5f}".format(self.cur_ego_state.u.u_steer))
+            print("steer = : {:.5f}".format(self.cur_ego_state.u.u_steer))
 
             
     def warm_start(self):

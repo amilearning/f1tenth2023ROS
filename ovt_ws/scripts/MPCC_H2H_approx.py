@@ -267,6 +267,10 @@ class MPCC_H2H_approx(AbstractController):
             logger(f"X obs: {x_vals[0]}")
         return info, blocking, exitflag
 
+    def srv_solve(self,problem):        
+        output, exitflag, solve_info = self.solver.solve(problem)
+        return output, exitflag, solve_info
+
     def solve(self, state: VehicleState, s0, x_ref: np.array, xref_scale, obstacle: List[RectangleObstacle], blocking):
         if not self.initialized:
             raise (RuntimeError(
@@ -761,7 +765,7 @@ class MPCC_H2H_approx(AbstractController):
 
         # Creates code for symbolic model formulation given above, then contacts server to generate new solver
         self.model.generate_solver(self.options)
-        self.install_dir = self.install()  # install the model to ~/.mpclab_controllers
+        self.install_dir = self.install(path='~/f1tenth_ws/src/ovt_ws/ctrl_so/')  # install the model to ~/.mpclab_controllers
         # Copy solver config.
         pickle_write([self.control_params, self.track_name], os.path.join(self.install_dir, 'params.pkl'))
         self.solver = forcespro.nlp.Solver.from_directory(self.install_dir)
