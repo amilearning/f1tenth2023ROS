@@ -10,9 +10,7 @@ import casadi as ca
 import array
 import sys, os, pathlib
 
-sys.path.append(os.path.join(os.path.expanduser('~'), 'forces_pro_client'))
-import forcespro
-import forcespro.nlp
+
 import time
 from predictor.common.utils.file_utils import *
 import torch 
@@ -136,6 +134,7 @@ with torch.no_grad() and torch.cuda.amp.autocast():
             nx[:,2] = epsi + self.dt * ( wz - (vx * torch.cos(epsi) - vy * torch.sin(epsi)) / (1 - curs * ey) * curs )
             
             next_curs = get_curvature_from_keypts_torch(nx[:,0].clone().detach(),self.track)
+            
             # next_curs = []  
             # for i in range(int(3)):
             #     tmp = get_curvature_from_keypts_torch(nx[:,0].clone().detach()+0.5*i,self.track)

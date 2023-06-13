@@ -16,7 +16,7 @@ from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.h2h_configs import nl_mpc_params, N
 from predictor.dynamics.models.model_types import DynamicBicycleConfig
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
-from predictor.controllers.NL_MPC import NL_MPC
+# from predictor.controllers.NL_MPC import NL_MPC
 from predictor.controllers.utils.controllerTypes import *
 
 
@@ -211,55 +211,6 @@ class MPCPredictor(BasePredictor):
                        ego_prediction: VehiclePrediction, tar_prediction=None):
         return tar_prediction
 
-
-class NLMPCPredictor(BasePredictor):
-    def __init__(self, N:int, track : RadiusArclengthTrack, cov: float = 0, v_ref : int = 1.9):
-        super(NLMPCPredictor, self).__init__(N, track)
-        self.cov = cov
-        self.v_ref = v_ref
-
-    def set_warm_start(self):
-        self.cl_dynamics_config = DynamicBicycleConfig(dt=self.dt, model_name='dynamic_bicycle_cl',
-                                                       wheel_dist_front=0.13, wheel_dist_rear=0.13)
-        self.cl_dynamics_simulator = DynamicsSimulator(0, dynamics_config=self.cl_dynamics_config, track=self.track)
-
-        nl_mpc_params.vectorize_constraints()
-
-        self.nl_mpc_controller = NL_MPC(self.cl_dynamics_simulator.model, self.track, nl_mpc_params)
-        state_ref = np.tile(np.array([self.v_ref, 0, 0, 0, 0, 0]), (N + 1, 1))  # vref = 2.0
-        self.nl_mpc_controller.set_x_ref(state_ref)
-        self.nl_mpc_controller.initialize()
-
-        state = VehicleState(t=0.0, p=ParametricPose(s=0, x_tran=0, e_psi=0), v=BodyLinearVelocity(v_long=1.2))
-        input = VehicleActuation(u_a=0.0, u_steer=0.0)
-
-        state_history_tv = [self.cl_dynamics_simulator.model.state2qu(state)[0] for _ in range(N+1)]
-        input_history_tv = [self.cl_dynamics_simulator.model.input2u(input) for _ in range(N)]
-        self.nl_mpc_controller.set_warm_start(np.array(state_history_tv), np.array(input_history_tv))
-
-    # def set_warm_start(self, state_history_vehiclestates : List[VehicleState], input_history_vehiclestates : List[VehicleActuation]):
-    #     self.cl_dynamics_config = DynamicBicycleConfig(dt=self.dt, model_name='dynamic_bicycle_cl',
-    #                                                    wheel_dist_front=0.13, wheel_dist_rear=0.13)
-    #     self.cl_dynamics_simulator = DynamicsSimulator(0, dynamics_config=self.cl_dynamics_config, track=self.track)
-    #
-    #     nl_mpc_params.vectorize_constraints()
-    #
-    #     self.nl_mpc_controller = NL_MPC(self.cl_dynamics_simulator.model, self.track, nl_mpc_params)
-    #     state_ref = np.tile(np.array([self.v_ref, 0, 0, 0, 0, 0]), (N + 1, 1))  # vref = 2.0
-    #     self.nl_mpc_controller.set_x_ref(state_ref)
-    #     self.nl_mpc_controller.initialize()
-    #
-    #     state_history_tv = [self.cl_dynamics_simulator.model.state2qu(state)[0] for state in state_history_vehiclestates]
-    #     input_history_tv = [self.cl_dynamics_simulator.model.input2u(input) for input in input_history_vehiclestates]
-    #     self.nl_mpc_controller.set_warm_start(np.array(state_history_tv), np.array(input_history_tv))
-
-    def get_prediction(self, ego_state: VehicleState, target_state: VehicleState,
-                       ego_prediction: VehiclePrediction, tar_prediction=None):
-        self.nl_mpc_controller.step(target_state, env_state=None)
-        pred = self.nl_mpc_controller.get_prediction().copy()
-        pred.s = pred.s[:self.N]
-        pred.xy_cov = np.repeat(np.diag([self.cov, self.cov])[np.newaxis, :, :], self.N, axis=0)
-        return pred
 
 
 class GPPredictor(BasePredictor):

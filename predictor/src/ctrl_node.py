@@ -60,7 +60,8 @@ from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
-
+from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction
+from hmcl_msgs.msg import VehiclePredictionROS  
 from dynamic_reconfigure.server import Server
 from predictor.cfg import predictorDynConfig
 
@@ -69,11 +70,8 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
-        self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
-        self.torch_device = "cuda:0"   ## Specify the name of GPU 
-        # self.torch_dtype  = torch.double
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        
         ## 
         # Generate Racing track info 
@@ -82,11 +80,7 @@ class Predictor:
         while self.track_info.track_ready is False:
              rospy.sleep(0.01)
         ##
-        gp_model_name = "aggressive_blocking"
-        use_GPU = True
-        M = 10
         
-
         self.cur_ego_odom = Odometry()        
         self.cur_ego_pose = PoseStamped()
         self.cur_ego_vehicle_state_msg  =VescStateStamped()
@@ -100,15 +94,13 @@ class Predictor:
                                       u=VehicleActuation(t=0.0, u_a=0.0, u_steer = 0.0))
         self.cur_tar_state = VehicleState()
             
-        
         ego_odom_topic = "/pose_estimate"
         ego_pose_topic = "/tracked_pose"
         ego_vehicle_status_topic = "/vesc/sensor/core"
-        ego_control_topic = "vesc/cmd"
 
         target_odom_topic = "/target/pose_estimate"
         target_pose_topic = "/target/tracked_pose"
-        target_vehicle_status_topic = "/target/sensor/core"
+        
         
         self.ego_odom_ready = False
         self.tar_odom_ready = False
@@ -117,13 +109,14 @@ class Predictor:
         self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
 
         # Publishers                
-        self.tv_pred_marker_pub = rospy.Publisher('/tv_pred',MarkerArray,queue_size = 2)
         self.ackman_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl',AckermannDriveStamped,queue_size = 2)
         self.ego_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         self.target_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         self.target_predict_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         
         # Subscribers
+        self.tv_pred = None
+        self.tv_pred_sub = rospy.Subscriber("/tar_pred",VehiclePredictionROS, self.tar_pred_callback)
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
         self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         # self.ego_vehicle_status_sub = rospy.Subscriber(ego_vehicle_status_topic, VescStateStamped, self.ego_vehicle_status_callback)                
@@ -131,24 +124,13 @@ class Predictor:
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
         self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
-        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")
         self.warm_start()
-            
-        # prediction callback   
-        self.tv_pred = None
-        self.prediction_hz = rospy.get_param('~prediction_hz', default=1)
-        self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
+        
         ## controller callback
         self.cmd_hz = 20
         self.cmd_timer = rospy.Timer(rospy.Duration(1/self.cmd_hz), self.cmd_callback)         
-        self.ego_list = []
-        self.tar_list = []
-        self.data_save = False
-        self.save_buffer_legnth = 100
-        
-        
         
         rate = rospy.Rate(1)     
         while not rospy.is_shutdown():            
@@ -157,24 +139,8 @@ class Predictor:
             # self.status_pub.publish(msg)          
             rate.sleep()
 
-    def dyn_callback(self,config,level):
-        self.data_save = config.logging_vehicle_states
-        print("dyn reconfigured")
-        
-        return config
-        
-    def clear_buffer(self):
-        if len(self.ego_list) > 0:
-            self.ego_list.clear()
-            self.tar_list.clear()
-
-    def save_buffer(self):
-        real_data = RealData(self.track_info.track, self.ego_list, self.tar_list)
-        create_dir(path=real_dir)        
-        pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '.pkl'))
-        rospy.loginfo("states data saved")
-        self.clear_buffer()
-        rospy.loginfo("states buffer has been cleaned")
+    def tar_pred_callback(self,msg):
+        self.tar_pred = rosmsg_to_prediction(msg)
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:
@@ -237,25 +203,6 @@ class Predictor:
         print("warm start done")
 
 
-    def prediction_callback(self,event):
-        start_time = time.time()
-        if self.ego_odom_ready is False or self.tar_odom_ready is False:
-            return
-        
-        if self.predictor and self.cur_ego_state is not None:            
-            ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
-       
-            # print(ego_pred.s)            
-            if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
-                
-                self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
-                fill_global_info(self.track_info.track, self.tv_pred)
-                tv_pred_markerArray = prediction_to_marker(self.tv_pred)
-                self.tv_pred_marker_pub.publish(tv_pred_markerArray)
-                
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"Prediction execution time: {execution_time} seconds")
 
     def cmd_callback(self,event):
         if self.ego_odom_ready and self.tar_odom_ready:
@@ -264,12 +211,7 @@ class Predictor:
             
             pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
             odom_to_vehicleState(self.cur_tar_state, self.cur_tar_odom)
-            if self.data_save:
-                self.ego_list.append(self.cur_ego_state)
-                self.tar_list.append(self.cur_tar_state)
-                if len(self.tar_list) > self.save_buffer_legnth:
-                    self.save_buffer()
-
+            
         else:
             rospy.loginfo("state not ready")
             return 
@@ -302,7 +244,7 @@ class Predictor:
 ###################################################################################
 
 def main():
-    rospy.init_node("predictor")    
+    rospy.init_node("controller")    
     Predictor()
 
 if __name__ == "__main__":

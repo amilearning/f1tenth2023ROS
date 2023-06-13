@@ -30,8 +30,8 @@
   @brief: torch version of util functions
 """
 #!/usr/bin/env python3
-
-
+import array
+import rospy
 import math
 import pyquaternion
 import numpy as np
@@ -44,6 +44,8 @@ from geometry_msgs.msg import Point
 from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.common.pytypes import VehicleState, VehiclePrediction
 from typing import List
+from hmcl_msgs.msg import VehiclePredictionROS
+
 
 def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose : PoseStamped):
     state.x.x = pose.pose.position.x
@@ -64,6 +66,14 @@ def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose 
 def odom_to_vehicleState(state:VehicleState, odom: Odometry):
     
     local_vel = get_local_vel(odom, is_odom_local_frame = False)
+    if local_vel is None: 
+        return 
+    
+    # local_vel[0] = max(0.2,local_vel[0]) ## limit the minimum velocity 
+    if abs(local_vel[0]) > 0.0:
+        local_vel[0] = max(0.5,local_vel[0]) ## limit the minimum velocity 
+    else:
+        local_vel[0] = min(-0.5,local_vel[0]) ## limit the minimum velocity 
     state.v.v_long = local_vel[0]
     state.v.v_tran = local_vel[1]
     state.w.w_psi = odom.twist.twist.angular.z
@@ -438,12 +448,103 @@ def torch_path_to_marker(path):
     marker_refs.markers.append(marker_ref)
     return marker_refs
 
-def prediction_to_marker(predictions: List[VehiclePrediction]):
-    for pred in predictions:
-        tmp = VehiclePrediction()
-        tmp.x
-        tmp.y
-        tmp.xy_cov
-        pred.
-    pred_path = MarkerArray()
-    return pred_path
+def fill_global_info(track,pred):
+    if pred.s is not None and len(pred.s) > 0 :
+        pred.x = np.zeros(len(pred.s))
+        pred.y = np.zeros(len(pred.s))
+        pred.psi = np.zeros(len(pred.s))
+        for i in range(len(pred.s)):
+            cl_coord = [pred.s[i], pred.x_tran[i], pred.e_psi[i]]
+            gl_coord = track.local_to_global(cl_coord)
+            pred.x[i] = gl_coord[0]
+            pred.y[i] = gl_coord[1]
+            pred.psi[i] = gl_coord[2]
+
+
+def prediction_to_marker(predictions):
+    
+    pred_path_marker_array = MarkerArray()
+    if predictions is None or predictions.x is None:
+        return pred_path_marker_array
+    if len(predictions.x) <= 0:
+        return pred_path_marker_array
+    for i in range(len(predictions.x)):
+  
+        marker_ref = Marker()
+        marker_ref.header.frame_id = "map"  
+        marker_ref.header.stamp = rospy.Time.now()
+        marker_ref.ns = "pred"
+        marker_ref.id = i
+        marker_ref.type = Marker.SPHERE
+        marker_ref.action = Marker.ADD                
+        marker_ref.pose.position.x = predictions.x[i]
+        marker_ref.pose.position.y = predictions.y[i]
+        marker_ref.pose.position.z = 0.0        
+        marker_ref.color.r, marker_ref.color.g, marker_ref.color.b = (1.0, i/10.0, 0.0)
+        marker_ref.color.a = 0.2     
+        # marker_ref.scale.x, marker_ref.scale.y, marker_ref.scale.z = (0.6, 0.4, 0.3)
+        x_cov = max(predictions.xy_cov[i][0,0],0.1)
+        y_cov = max(predictions.xy_cov[i][1,1],0.1)
+        marker_ref.scale.x = 2*np.sqrt(x_cov)
+        marker_ref.scale.y = 2*np.sqrt(y_cov)
+        marker_ref.scale.z = 0.1
+        pred_path_marker_array.markers.append(marker_ref)
+        
+    return pred_path_marker_array
+
+
+def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
+    ros_msg = VehiclePredictionROS()
+
+    # Assign values from the VehiclePrediction object to the ROS message
+    ros_msg.t = vehicle_prediction_obj.t
+    ros_msg.x = vehicle_prediction_obj.x.tolist()
+    ros_msg.y = vehicle_prediction_obj.y.tolist()
+    ros_msg.v_x = vehicle_prediction_obj.v_x.tolist()
+    ros_msg.v_y = vehicle_prediction_obj.v_y.tolist()
+    ros_msg.a_x = vehicle_prediction_obj.a_x.tolist()
+    ros_msg.a_y = vehicle_prediction_obj.a_y.tolist()
+    ros_msg.psi = vehicle_prediction_obj.psi.tolist()
+    ros_msg.psidot = vehicle_prediction_obj.psidot.tolist()
+    ros_msg.v_long = vehicle_prediction_obj.v_long.tolist()
+    ros_msg.v_tran = vehicle_prediction_obj.v_tran.tolist()
+    ros_msg.a_long = vehicle_prediction_obj.a_long.tolist()
+    ros_msg.a_tran = vehicle_prediction_obj.a_tran.tolist()
+    ros_msg.e_psi = vehicle_prediction_obj.e_psi.tolist()
+    ros_msg.s = vehicle_prediction_obj.s.tolist()
+    ros_msg.x_tran = vehicle_prediction_obj.x_tran.tolist()
+    ros_msg.u_a = vehicle_prediction_obj.u_a.tolist()
+    ros_msg.u_steer = vehicle_prediction_obj.u_steer.tolist()
+    ros_msg.lap_num = vehicle_prediction_obj.lap_num
+    ros_msg.sey_cov = vehicle_prediction_obj.sey_cov.tolist()
+    ros_msg.xy_cov = vehicle_prediction_obj.xy_cov.tolist()
+
+    return ros_msg
+
+def rosmsg_to_prediction(ros_msg: VehiclePredictionROS):
+    vehicle_prediction_obj = VehiclePrediction()
+
+    # Assign values from the ROS message to the VehiclePrediction object
+    vehicle_prediction_obj.t = ros_msg.t
+    vehicle_prediction_obj.x = array.array('f', ros_msg.x)
+    vehicle_prediction_obj.y = array.array('f', ros_msg.y)
+    vehicle_prediction_obj.v_x = array.array('f', ros_msg.v_x)
+    vehicle_prediction_obj.v_y = array.array('f', ros_msg.v_y)
+    vehicle_prediction_obj.a_x = array.array('f', ros_msg.a_x)
+    vehicle_prediction_obj.a_y = array.array('f', ros_msg.a_y)
+    vehicle_prediction_obj.psi = array.array('f', ros_msg.psi)
+    vehicle_prediction_obj.psidot = array.array('f', ros_msg.psidot)
+    vehicle_prediction_obj.v_long = array.array('f', ros_msg.v_long)
+    vehicle_prediction_obj.v_tran = array.array('f', ros_msg.v_tran)
+    vehicle_prediction_obj.a_long = array.array('f', ros_msg.a_long)
+    vehicle_prediction_obj.a_tran = array.array('f', ros_msg.a_tran)
+    vehicle_prediction_obj.e_psi = array.array('f', ros_msg.e_psi)
+    vehicle_prediction_obj.s = array.array('f', ros_msg.s)
+    vehicle_prediction_obj.x_tran = array.array('f', ros_msg.x_tran)
+    vehicle_prediction_obj.u_a = array.array('f', ros_msg.u_a)
+    vehicle_prediction_obj.u_steer = array.array('f', ros_msg.u_steer)
+    vehicle_prediction_obj.lap_num = ros_msg.lap_num
+    vehicle_prediction_obj.sey_cov = np.array(ros_msg.sey_cov)
+    vehicle_prediction_obj.xy_cov = np.array(ros_msg.xy_cov)
+
+    return vehicle_prediction_obj

@@ -449,7 +449,7 @@ class MPCC_H2H_approx(AbstractController):
 
         control = VehicleActuation()
         self.dynamics.u2input(control, u)
-   
+
         return control
 
         # return control, info, exitflag
