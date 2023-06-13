@@ -44,6 +44,7 @@ from vesc_msgs.msg import VescStateStamped
 from hmcl_msgs.srv import mpcc
 import rospkg
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
+from predictor.utils import pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
 from predictor.utils import prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
@@ -130,7 +131,7 @@ class Predictor:
             
         # prediction callback   
         self.tv_pred = None
-        self.prediction_hz = rospy.get_param('~prediction_hz', default=1)
+        self.prediction_hz = rospy.get_param('~prediction_hz', default=10)
         self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
         ## controller callback        
         self.ego_list = []
@@ -194,9 +195,19 @@ class Predictor:
         if self.ego_odom_ready is False or self.tar_odom_ready is False:
             return
         
-        
+        if self.ego_odom_ready and self.tar_odom_ready:
+            pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
+            odom_to_vehicleState(self.cur_ego_state, self.cur_ego_odom)
+            
+            pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
+            odom_to_vehicleState(self.cur_tar_state, self.cur_tar_odom)
+            
+        else:
+            rospy.loginfo("state not ready")
+            return 
 
         if self.predictor and self.cur_ego_state is not None:    
+            
             if self.data_save:
                 self.ego_list.append(self.cur_ego_state)
                 self.tar_list.append(self.cur_tar_state)
@@ -210,13 +221,14 @@ class Predictor:
                 
                 self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
                 ## publish prediction 
-                tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
-                self.tar_pred_pub.publish(tar_pred_msg)
-                ##
-                
-                fill_global_info(self.track_info.track, self.tv_pred)
-                tv_pred_markerArray = prediction_to_marker(self.tv_pred)
-                self.tv_pred_marker_pub.publish(tv_pred_markerArray)
+                if self.tv_pred is not None:
+                    tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
+                    self.tar_pred_pub.publish(tar_pred_msg)
+                    ##
+                    print("done")
+                    fill_global_info(self.track_info.track, self.tv_pred)
+                    tv_pred_markerArray = prediction_to_marker(self.tv_pred)
+                    self.tv_pred_marker_pub.publish(tv_pred_markerArray)
                 
         end_time = time.time()
         execution_time = end_time - start_time

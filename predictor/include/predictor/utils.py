@@ -493,33 +493,84 @@ def prediction_to_marker(predictions):
     return pred_path_marker_array
 
 
+
 def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
     ros_msg = VehiclePredictionROS()
 
     # Assign values from the VehiclePrediction object to the ROS message
     ros_msg.t = vehicle_prediction_obj.t
-    ros_msg.x = vehicle_prediction_obj.x.tolist()
-    ros_msg.y = vehicle_prediction_obj.y.tolist()
-    ros_msg.v_x = vehicle_prediction_obj.v_x.tolist()
-    ros_msg.v_y = vehicle_prediction_obj.v_y.tolist()
-    ros_msg.a_x = vehicle_prediction_obj.a_x.tolist()
-    ros_msg.a_y = vehicle_prediction_obj.a_y.tolist()
-    ros_msg.psi = vehicle_prediction_obj.psi.tolist()
-    ros_msg.psidot = vehicle_prediction_obj.psidot.tolist()
-    ros_msg.v_long = vehicle_prediction_obj.v_long.tolist()
-    ros_msg.v_tran = vehicle_prediction_obj.v_tran.tolist()
-    ros_msg.a_long = vehicle_prediction_obj.a_long.tolist()
-    ros_msg.a_tran = vehicle_prediction_obj.a_tran.tolist()
-    ros_msg.e_psi = vehicle_prediction_obj.e_psi.tolist()
-    ros_msg.s = vehicle_prediction_obj.s.tolist()
-    ros_msg.x_tran = vehicle_prediction_obj.x_tran.tolist()
-    ros_msg.u_a = vehicle_prediction_obj.u_a.tolist()
-    ros_msg.u_steer = vehicle_prediction_obj.u_steer.tolist()
+
+    if isinstance(vehicle_prediction_obj.x, list):
+        ros_msg.x = array.array('f', vehicle_prediction_obj.x)
+    if isinstance(vehicle_prediction_obj.y, list):
+        ros_msg.y = array.array('f', vehicle_prediction_obj.y)
+    if isinstance(vehicle_prediction_obj.v_x, list):
+        ros_msg.v_x = array.array('f', vehicle_prediction_obj.v_x)
+    if isinstance(vehicle_prediction_obj.v_y, list):
+        ros_msg.v_y = array.array('f', vehicle_prediction_obj.v_y)
+    if isinstance(vehicle_prediction_obj.a_x, list):
+        ros_msg.a_x = array.array('f', vehicle_prediction_obj.a_x)
+    if isinstance(vehicle_prediction_obj.a_y, list):
+        ros_msg.a_y = array.array('f', vehicle_prediction_obj.a_y)
+    if isinstance(vehicle_prediction_obj.psi, list):
+        ros_msg.psi = array.array('f', vehicle_prediction_obj.psi)
+    if isinstance(vehicle_prediction_obj.psidot, list):
+        ros_msg.psidot = array.array('f', vehicle_prediction_obj.psidot)
+    if isinstance(vehicle_prediction_obj.v_long, list):
+        ros_msg.v_long = array.array('f', vehicle_prediction_obj.v_long)
+    if isinstance(vehicle_prediction_obj.v_tran, list):
+        ros_msg.v_tran = array.array('f', vehicle_prediction_obj.v_tran)
+    if isinstance(vehicle_prediction_obj.a_long, list):
+        ros_msg.a_long = array.array('f', vehicle_prediction_obj.a_long)
+    if isinstance(vehicle_prediction_obj.a_tran, list):
+        ros_msg.a_tran = array.array('f', vehicle_prediction_obj.a_tran)
+    if isinstance(vehicle_prediction_obj.e_psi, list):
+        ros_msg.e_psi = array.array('f', vehicle_prediction_obj.e_psi)
+    if isinstance(vehicle_prediction_obj.s, list):
+        ros_msg.s = array.array('f', vehicle_prediction_obj.s)
+    if isinstance(vehicle_prediction_obj.x_tran, list):
+        ros_msg.x_tran = array.array('f', vehicle_prediction_obj.x_tran)
+    if isinstance(vehicle_prediction_obj.u_a, list):
+        ros_msg.u_a = array.array('f', vehicle_prediction_obj.u_a)
+    if isinstance(vehicle_prediction_obj.u_steer, list):
+        ros_msg.u_steer = array.array('f', vehicle_prediction_obj.u_steer)
+
     ros_msg.lap_num = vehicle_prediction_obj.lap_num
-    ros_msg.sey_cov = vehicle_prediction_obj.sey_cov.tolist()
-    ros_msg.xy_cov = vehicle_prediction_obj.xy_cov.tolist()
+
+    if isinstance(vehicle_prediction_obj.sey_cov, np.ndarray):
+        ros_msg.sey_cov = vehicle_prediction_obj.sey_cov.tolist()
+    if isinstance(vehicle_prediction_obj.xy_cov, np.ndarray):
+        ros_msg.xy_cov = vehicle_prediction_obj.xy_cov.tolist()
 
     return ros_msg
+
+# def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
+#     ros_msg = VehiclePredictionROS()
+
+#     # Assign values from the VehiclePrediction object to the ROS message    
+#     ros_msg.t = vehicle_prediction_obj.t
+#     ros_msg.x = vehicle_prediction_obj.x.tolist()
+#     ros_msg.y = vehicle_prediction_obj.y.tolist()
+#     ros_msg.v_x = vehicle_prediction_obj.v_x.tolist()
+#     ros_msg.v_y = vehicle_prediction_obj.v_y.tolist()
+#     ros_msg.a_x = vehicle_prediction_obj.a_x.tolist()
+#     ros_msg.a_y = vehicle_prediction_obj.a_y.tolist()
+#     ros_msg.psi = vehicle_prediction_obj.psi.tolist()
+#     ros_msg.psidot = vehicle_prediction_obj.psidot.tolist()
+#     ros_msg.v_long = vehicle_prediction_obj.v_long.tolist()
+#     ros_msg.v_tran = vehicle_prediction_obj.v_tran.tolist()
+#     ros_msg.a_long = vehicle_prediction_obj.a_long.tolist()
+#     ros_msg.a_tran = vehicle_prediction_obj.a_tran.tolist()
+#     ros_msg.e_psi = vehicle_prediction_obj.e_psi.tolist()
+#     ros_msg.s = vehicle_prediction_obj.s.tolist()
+#     ros_msg.x_tran = vehicle_prediction_obj.x_tran.tolist()
+#     ros_msg.u_a = vehicle_prediction_obj.u_a.tolist()
+#     ros_msg.u_steer = vehicle_prediction_obj.u_steer.tolist()
+#     ros_msg.lap_num = vehicle_prediction_obj.lap_num
+#     ros_msg.sey_cov = vehicle_prediction_obj.sey_cov.tolist()
+#     ros_msg.xy_cov = vehicle_prediction_obj.xy_cov.tolist()
+
+#     return ros_msg
 
 def rosmsg_to_prediction(ros_msg: VehiclePredictionROS):
     vehicle_prediction_obj = VehiclePrediction()
