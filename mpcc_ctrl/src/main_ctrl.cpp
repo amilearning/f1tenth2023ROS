@@ -27,8 +27,12 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl,ros::NodeHandle& nh_p_):
   mem = gp_mpcc_h2h_ego_internal_mem(0);
   exitflag = 0;
   return_val = 0;
+  service_recieved = false;
+  nh_p.param<std::string>("control_topic", control_topic, "/vesc/ackermann_cmd");
   // nh_p.param<double>("odom_pose_diff_threshold", odom_pose_diff_threshold, 1.0);
    mpcc_srv = nh_ctrl_.advertiseService("compute_mpcc", &Ctrl::mpccService, this);
+   ackmanPub = nh_ctrl.advertise<ackermann_msgs::AckermannDriveStamped>(control_topic,2);    
+   
   boost::thread ControlLoopHandler(&Ctrl::ControlLoop,this);   
   
 
@@ -44,7 +48,6 @@ Ctrl::~Ctrl()
 bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
          hmcl_msgs::mpcc::Response &res)
 {
-  
       
 // /* vector of size 14 */ 
     // gp_mpcc_h2h_ego_float xinit[14];
@@ -69,12 +72,36 @@ bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
         // Copy the column vector to the stacked vector
         std::copy(output.x01, output.x01 + numRows, stackedVector.begin() + column * numRows);
         }
-      
+
+        // Create an Eigen matrix and assign values row-wise
+        Eigen::Matrix<gp_mpcc_h2h_ego_float, 10, 19> sol_matrix;
+
+        // Assign values for each row
+        for (int row = 0; row < 10; row++) {
+        sol_matrix.col(row) << output.x01[row], output.x02[row], output.x03[row],
+        output.x04[row], output.x05[row], output.x06[row], output.x07[row],
+        output.x08[row], output.x09[row], output.x10[row];
+        }
+
+        // Print the Eigen matrix
+        // std::cout << "Eigen matrix:\n";
+        // std::cout << sol_matrix << std::endl;
+      // self.zvars = ['vx', 'vy', 'psidot', 'posx', 'posy', 'psi', 'e_psi', 's', 'x_tran', 'theta', 's_prev', 'u_a',
+      //                     'u_delta', 'v_proj',
+      //                     'u_a_prev', 'u_delta_prev', 'v_proj_prev', 'obs_slack', 'obs_slack_e']
         
-//         if (exitflag !=1)
-//         {
-//             std::cout<< "/n/nmyMPC did not return optimla solution)" <<std::endl;
-//         } 
+        if (exitflag ==1)
+        { service_recieved = true;
+            cur_cmd.header.stamp = ros::Time::now();
+            cur_cmd.drive.steering_angle = output.x01[12];
+            cur_cmd.drive.speed = output.x02[0];
+        }else{
+          ROS_WARN("solver infeasible .. with exitflat = %d", exitflag);
+          // roll_to_next_sequence
+          cur_cmd.drive.speed = 0.0;
+        }
+
+        // return the solution 
     res.exitflag = exitflag;
     res.output.resize(stackedVector.size());
     for (size_t i = 0; i < stackedVector.size(); ++i) {
@@ -89,11 +116,15 @@ bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
 
 void Ctrl::ControlLoop()
 { 
-  
-    ros::Rate loop_rate(1); // rate  
+    double hz = 20;
+    double ctrl_dt = 1/hz;
+    ros::Rate loop_rate(20); // rate  
+
     
     while (ros::ok()){         
-        
+      if(service_recieved){
+        ackmanPub.publish(cur_cmd);
+        }
      loop_rate.sleep();
    
     }

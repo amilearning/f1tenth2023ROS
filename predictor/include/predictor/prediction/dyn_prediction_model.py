@@ -136,6 +136,7 @@ with torch.no_grad() and torch.cuda.amp.autocast():
             nx[:,2] = epsi + self.dt * ( wz - (vx * torch.cos(epsi) - vy * torch.sin(epsi)) / (1 - curs * ey) * curs )
             
             next_curs = get_curvature_from_keypts_torch(nx[:,0].clone().detach(),self.track)
+            
             # next_curs = []  
             # for i in range(int(3)):
             #     tmp = get_curvature_from_keypts_torch(nx[:,0].clone().detach()+0.5*i,self.track)

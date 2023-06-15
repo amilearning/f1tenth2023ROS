@@ -410,7 +410,7 @@ class MPCC_H2H_approx(AbstractController):
         numRows = 19  # Number of rows in each column vector
         columnVectors = [output[i:i+numRows] for i in range(0, len(output), numRows)]
         
-        if exitflag == 1 or exitflag > -2000:
+        if exitflag == 1:
             for k in range(self.N):
                 # sol = output["x%02d" % (k + 1)]
                 self.x_pred[k, :] = columnVectors[k][:self.n] # sol[:self.n]
@@ -449,7 +449,7 @@ class MPCC_H2H_approx(AbstractController):
 
         control = VehicleActuation()
         self.dynamics.u2input(control, u)
-   
+
         return control
 
         # return control, info, exitflag

@@ -431,7 +431,7 @@ class ThetaGPTrained(GPController):
             prediction_samples[i].psidot = array.array('d', prediction_samples[i].psidot)            
 
           
-
+        
         return prediction_samples
 
 

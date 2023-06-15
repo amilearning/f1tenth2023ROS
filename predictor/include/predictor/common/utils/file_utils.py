@@ -11,6 +11,7 @@ real_dir = os.path.join(gp_dir, 'realData/')
 eval_dir = os.path.join(gp_dir, 'evaluationData/')
 model_dir = os.path.join(train_dir, 'models/')
 param_dir = os.path.join(gp_dir, 'params/')
+track_dir = os.path.join(gp_dir, 'tracks/')
 
 def dir_exists(path=''):
     dest_path = pathlib.Path(path).expanduser()

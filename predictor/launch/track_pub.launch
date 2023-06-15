@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- <node pkg="predictor" type="main_node.py" name="predictor_node" output="screen">        
+    </node> -->
+    
+       <node pkg="predictor" type="track_pub.py" name="traj_pub_node" output="log">        
+    </node>
+    
+</launch>

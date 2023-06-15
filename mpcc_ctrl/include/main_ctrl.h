@@ -55,7 +55,7 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
-
+#include <ackermann_msgs/AckermannDriveStamped.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <mpcc_ctrl/testConfig.h>
@@ -83,13 +83,15 @@ class Ctrl
 {  
 private:
 ros::NodeHandle nh_ctrl_, nh_p;
+ros::Publisher ackmanPub;
+std::string control_topic;
 bool manual_velocity;
 dynamic_reconfigure::Server<mpcc_ctrl::testConfig> srv;
 dynamic_reconfigure::Server<mpcc_ctrl::testConfig>::CallbackType f;
 ros::ServiceServer mpcc_srv;
 
 // gp_mpcc_h2h_ego_mem * mem_handle;
-
+ackermann_msgs::AckermannDriveStamped cur_cmd, prev_cmd;
 gp_mpcc_h2h_ego_params mpc_problem;
 gp_mpcc_h2h_ego_info info;
 gp_mpcc_h2h_ego_output output;
@@ -104,6 +106,7 @@ int neq;
 int npar;
 int exitflag;
 int return_val;
+bool service_recieved;
 
 
 

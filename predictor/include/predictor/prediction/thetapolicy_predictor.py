@@ -82,8 +82,10 @@ class ThetaPolicyPredictor(BasePredictor):
         
         #############
         if is_encoder_input_ready: ## encoder_is_ready = True
+            
             pred = self.theta_predict_gp.get_true_prediction_par(self.policy_encoder,self.encoder_input,  ego_state, target_state, ego_prediction, self.track, self.M)            
         else:
+         
             pred = self.get_constant_vel_prediction_par(target_state) # self.gp.get_true_prediction_par(ego_state, target_state, ego_prediction, self.track, self.M)
 
 
@@ -95,7 +97,7 @@ class ThetaPolicyPredictor(BasePredictor):
         
         # fill in covariance transformation to x,y
         pred.track_cov_to_local(self.track, self.N, self.cov_factor)
-        
+        # pred.convert_local_to_global_cov()
         return pred
 
 

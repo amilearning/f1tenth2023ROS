@@ -1,8 +1,9 @@
 <?xml version="1.0"?>
 <launch>
 
-    <node pkg="predictor" type="main_node.py" name="predictor_node" output="screen">        
+    <node pkg="predictor" type="prediction_node.py" name="tv_pred_node" output="screen">        
     </node>
     
+   
     
 </launch>

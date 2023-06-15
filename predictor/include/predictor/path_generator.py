@@ -44,8 +44,20 @@ class PathGenerator:
         
     def gen_path(self):
         self.track = RadiusArclengthTrack()
-        self.cl_segs = np.array([[5.0, 0.0],[2*np.pi, 2.0],[5.0, 0.0],[2*np.pi-0.01, 2.0]])
-        self.track.initialize(self.track_width,self.slack, self.cl_segs)
+        # [distance, curvature pair]
+        stright = np.array([[4.0, 0.0]])
+        curvy_straith = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0]])
+        curve = np.array([[2.0*np.pi, 2.0]])
+        end_curve = np.array([[2.0*np.pi-0.01, 2.0]])
+        track = np.vstack([stright,curve, stright,end_curve])
+        # track = np.vstack([curve, end_curve])
+        self.cl_segs = track
+        # self.cl_segs = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0]])                                
+        
+        # ,[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi, 1.5],[1.5, 0.0],[1.5*np.pi/30.0, -1.5],[1.5, 0.0],[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi-0.2, 1.5]])                                
+            # [5.0, 0.0],[1.5*np.pi, 1.5],[5.0, 0.0],[1.5*np.pi-0.01, 1.5]])
+        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.5, -.9, -0.1))
+        
         self.track_ready = True
         self.get_track_points()
         # fig, ax = plt.subplots()

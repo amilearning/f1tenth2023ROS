@@ -75,32 +75,35 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     # solver_dir='',
     optlevel=2,
 
+   
     N=N,
-    Qc=50,
-    Ql=500.0,
-    Q_theta=200.0,
-    Q_xref=0.0,
-    R_d=2.0,
-    R_delta=20.0,
+    Qc=0.1, # e_cont , countouring error 
+    Ql=500.0, #500.0  # e_lag, lag error 
+    Q_theta= 0.2, # progress speed  v_proj_prev 
+    Q_xref=0.0, #  reference tracking for blocking 
+    R_d=2.0, # u_a, u_a_dot 
+    R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 
     slack=True,
-    l_cs=5,
-    Q_cs=2.0,
+    l_cs=5, # obstacle_slack
+    Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft=1.4,
-    Q_ts=500.0,
-    Q_cs_e=8.0,
-    l_cs_e=35.0,
+    vlong_max_soft=2.7, ## reference speed .. only activate if speed exceeds it 
+    Q_ts=500.0, # track boundary
+    Q_cs_e=8.0, # obstacle slack
+    l_cs_e=35.0,  # obstacle slack
 
-    u_a_max=0.55,
-    vx_max=1.6,
-    u_a_min=-1,
+    num_std_deviations= 2.0,
+
+    u_a_max=1.0,
+    vx_max=2.5,
+    u_a_min=-1.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
     u_a_rate_min=-10,
-    u_steer_rate_max=2,
-    u_steer_rate_min=-2
+    u_steer_rate_max=1,
+    u_steer_rate_min=-1
 )
 
 mpcc_ego_params = MPCCApproxFullModelParams(

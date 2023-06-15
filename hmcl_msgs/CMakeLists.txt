@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   DIRECTORY msg
   FILES
+  VehiclePredictionROS.msg
     obstacle.msg
     Track.msg
     TrackArray.msg
@@ -36,9 +37,9 @@ add_message_files(
     CtrlVehicleStates.msg    
 )
 
-# add_service_files(
-#   FILES RecognizeLightState.srv
-# )
+add_service_files(
+  FILES RecognizeLightState.srv mpcc.srv
+)
 
 generate_messages(
   DEPENDENCIES
