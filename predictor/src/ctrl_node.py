@@ -139,8 +139,9 @@ class Predictor:
             # self.status_pub.publish(msg)          
             rate.sleep()
 
-    def tar_pred_callback(self,msg):
-        self.tar_pred = rosmsg_to_prediction(msg)
+    def tar_pred_callback(self,tar_pred_msg):        
+        self.tv_pred = rosmsg_to_prediction(tar_pred_msg)
+        print(self.tv_pred)
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:
@@ -230,8 +231,8 @@ class Predictor:
             vel_cmd = pred_v_lon[1]
             vel_cmd = np.clip(vel_cmd, 0.0, 1.5)
             
-            pp_cmd.drive.speed = vel_cmd            
-            # pp_cmd.drive.speed = 0.0            
+            # pp_cmd.drive.speed = vel_cmd            
+            pp_cmd.drive.speed = 0.0            
             pp_cmd.drive.steering_angle = -1*cur_control.u_steer
             
         except rospy.ServiceException as e:

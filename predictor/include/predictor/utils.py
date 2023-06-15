@@ -30,6 +30,7 @@
   @brief: torch version of util functions
 """
 #!/usr/bin/env python3
+import tf 
 import array
 import rospy
 import math
@@ -46,6 +47,32 @@ from predictor.common.pytypes import VehicleState, VehiclePrediction
 from typing import List
 from hmcl_msgs.msg import VehiclePredictionROS
 
+def shift_in_local_x(pose_msg: PoseStamped, dist = -0.13):
+        # Convert orientation to a rotation matrix
+    position = pose_msg.pose.position
+    orientation = pose_msg.pose.orientation
+    
+    # orientation_q = pose.pose.orientation    
+    # quat = [orientation_q.w, orientation_q.x, orientation_q.y, orientation_q.z]
+    # (cur_roll, cur_pitch, cur_yaw) = quaternion_to_euler (quat)
+    # cur_yaw = wrap_to_pi(cur_yaw)
+
+    quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
+    rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
+
+    # Create a translation vector representing 1 meter displacement in the local coordinate system
+    local_translation = np.array([dist, 0., 0.])  # Adjust the values based on your desired displacement
+
+    # Transform the translation vector from local to global coordinate system
+    global_translation = rotation_matrix.dot(local_translation)
+
+    # Add the transformed translation vector to the original position
+    new_position = np.array([position.x, position.y, position.z]) + global_translation
+
+    # Update the position values in the PoseStamped message
+    pose_msg.pose.position.x = new_position[0]
+    pose_msg.pose.position.y = new_position[1]
+
 
 def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose : PoseStamped):
     state.x.x = pose.pose.position.x
@@ -57,6 +84,7 @@ def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose 
     xy_coord = (state.x.x, state.x.y, state.e.psi)
     cl_coord = track.global_to_local(xy_coord)
     if cl_coord is None:
+        print('cl_coord is none')
         return
     state.t = pose.header.stamp.to_sec()
     state.p.s = cl_coord[0]
@@ -483,8 +511,8 @@ def prediction_to_marker(predictions):
         marker_ref.color.r, marker_ref.color.g, marker_ref.color.b = (1.0, i/10.0, 0.0)
         marker_ref.color.a = 0.2     
         # marker_ref.scale.x, marker_ref.scale.y, marker_ref.scale.z = (0.6, 0.4, 0.3)
-        x_cov = max(predictions.xy_cov[i][0,0],0.1)
-        y_cov = max(predictions.xy_cov[i][1,1],0.1)
+        x_cov = max(predictions.xy_cov[i][0,0],0.00001)
+        y_cov = max(predictions.xy_cov[i][1,1],0.00001)
         marker_ref.scale.x = 2*np.sqrt(x_cov)
         marker_ref.scale.y = 2*np.sqrt(y_cov)
         marker_ref.scale.z = 0.1
@@ -496,81 +524,56 @@ def prediction_to_marker(predictions):
 
 def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
     ros_msg = VehiclePredictionROS()
-
+    ros_msg.header.stamp= rospy.Time.now()
+    ros_msg.header.frame_id = "map"
     # Assign values from the VehiclePrediction object to the ROS message
     ros_msg.t = vehicle_prediction_obj.t
-
-    if isinstance(vehicle_prediction_obj.x, list):
+    
+    if vehicle_prediction_obj.x is not None:
         ros_msg.x = array.array('f', vehicle_prediction_obj.x)
-    if isinstance(vehicle_prediction_obj.y, list):
+    if vehicle_prediction_obj.y is not None:
         ros_msg.y = array.array('f', vehicle_prediction_obj.y)
-    if isinstance(vehicle_prediction_obj.v_x, list):
+    if vehicle_prediction_obj.v_x is not None:
         ros_msg.v_x = array.array('f', vehicle_prediction_obj.v_x)
-    if isinstance(vehicle_prediction_obj.v_y, list):
+    if vehicle_prediction_obj.v_y is not None:
         ros_msg.v_y = array.array('f', vehicle_prediction_obj.v_y)
-    if isinstance(vehicle_prediction_obj.a_x, list):
+    if vehicle_prediction_obj.a_x is not None:
         ros_msg.a_x = array.array('f', vehicle_prediction_obj.a_x)
-    if isinstance(vehicle_prediction_obj.a_y, list):
+    if vehicle_prediction_obj.a_y is not None:
         ros_msg.a_y = array.array('f', vehicle_prediction_obj.a_y)
-    if isinstance(vehicle_prediction_obj.psi, list):
+    if vehicle_prediction_obj.psi is not None:
         ros_msg.psi = array.array('f', vehicle_prediction_obj.psi)
-    if isinstance(vehicle_prediction_obj.psidot, list):
+    if vehicle_prediction_obj.psidot is not None:
         ros_msg.psidot = array.array('f', vehicle_prediction_obj.psidot)
-    if isinstance(vehicle_prediction_obj.v_long, list):
+    if vehicle_prediction_obj.v_long is not None:
         ros_msg.v_long = array.array('f', vehicle_prediction_obj.v_long)
-    if isinstance(vehicle_prediction_obj.v_tran, list):
+    if vehicle_prediction_obj.v_tran is not None:
         ros_msg.v_tran = array.array('f', vehicle_prediction_obj.v_tran)
-    if isinstance(vehicle_prediction_obj.a_long, list):
+    if vehicle_prediction_obj.a_long is not None:
         ros_msg.a_long = array.array('f', vehicle_prediction_obj.a_long)
-    if isinstance(vehicle_prediction_obj.a_tran, list):
+    if vehicle_prediction_obj.a_tran is not None:
         ros_msg.a_tran = array.array('f', vehicle_prediction_obj.a_tran)
-    if isinstance(vehicle_prediction_obj.e_psi, list):
+    if vehicle_prediction_obj.e_psi is not None:
         ros_msg.e_psi = array.array('f', vehicle_prediction_obj.e_psi)
-    if isinstance(vehicle_prediction_obj.s, list):
+    if vehicle_prediction_obj.s is not None:
         ros_msg.s = array.array('f', vehicle_prediction_obj.s)
-    if isinstance(vehicle_prediction_obj.x_tran, list):
+    if vehicle_prediction_obj.x_tran is not None:
         ros_msg.x_tran = array.array('f', vehicle_prediction_obj.x_tran)
-    if isinstance(vehicle_prediction_obj.u_a, list):
+    if vehicle_prediction_obj.u_a is not None:
         ros_msg.u_a = array.array('f', vehicle_prediction_obj.u_a)
-    if isinstance(vehicle_prediction_obj.u_steer, list):
+    if vehicle_prediction_obj.u_steer is not None:
         ros_msg.u_steer = array.array('f', vehicle_prediction_obj.u_steer)
 
-    ros_msg.lap_num = vehicle_prediction_obj.lap_num
-
-    if isinstance(vehicle_prediction_obj.sey_cov, np.ndarray):
+    if vehicle_prediction_obj.lap_num is not None:
+        ros_msg.lap_num = int(vehicle_prediction_obj.lap_num)
+    if vehicle_prediction_obj.sey_cov is not None:             
         ros_msg.sey_cov = vehicle_prediction_obj.sey_cov.tolist()
-    if isinstance(vehicle_prediction_obj.xy_cov, np.ndarray):
-        ros_msg.xy_cov = vehicle_prediction_obj.xy_cov.tolist()
+    if vehicle_prediction_obj.xy_cov is not None:            
+        xy_cov_1d = np.array(vehicle_prediction_obj.xy_cov).reshape(-1)        
+        ros_msg.xy_cov = xy_cov_1d
+    
+    return ros_msg  
 
-    return ros_msg
-
-# def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
-#     ros_msg = VehiclePredictionROS()
-
-#     # Assign values from the VehiclePrediction object to the ROS message    
-#     ros_msg.t = vehicle_prediction_obj.t
-#     ros_msg.x = vehicle_prediction_obj.x.tolist()
-#     ros_msg.y = vehicle_prediction_obj.y.tolist()
-#     ros_msg.v_x = vehicle_prediction_obj.v_x.tolist()
-#     ros_msg.v_y = vehicle_prediction_obj.v_y.tolist()
-#     ros_msg.a_x = vehicle_prediction_obj.a_x.tolist()
-#     ros_msg.a_y = vehicle_prediction_obj.a_y.tolist()
-#     ros_msg.psi = vehicle_prediction_obj.psi.tolist()
-#     ros_msg.psidot = vehicle_prediction_obj.psidot.tolist()
-#     ros_msg.v_long = vehicle_prediction_obj.v_long.tolist()
-#     ros_msg.v_tran = vehicle_prediction_obj.v_tran.tolist()
-#     ros_msg.a_long = vehicle_prediction_obj.a_long.tolist()
-#     ros_msg.a_tran = vehicle_prediction_obj.a_tran.tolist()
-#     ros_msg.e_psi = vehicle_prediction_obj.e_psi.tolist()
-#     ros_msg.s = vehicle_prediction_obj.s.tolist()
-#     ros_msg.x_tran = vehicle_prediction_obj.x_tran.tolist()
-#     ros_msg.u_a = vehicle_prediction_obj.u_a.tolist()
-#     ros_msg.u_steer = vehicle_prediction_obj.u_steer.tolist()
-#     ros_msg.lap_num = vehicle_prediction_obj.lap_num
-#     ros_msg.sey_cov = vehicle_prediction_obj.sey_cov.tolist()
-#     ros_msg.xy_cov = vehicle_prediction_obj.xy_cov.tolist()
-
-#     return ros_msg
 
 def rosmsg_to_prediction(ros_msg: VehiclePredictionROS):
     vehicle_prediction_obj = VehiclePrediction()
@@ -596,6 +599,7 @@ def rosmsg_to_prediction(ros_msg: VehiclePredictionROS):
     vehicle_prediction_obj.u_steer = array.array('f', ros_msg.u_steer)
     vehicle_prediction_obj.lap_num = ros_msg.lap_num
     vehicle_prediction_obj.sey_cov = np.array(ros_msg.sey_cov)
-    vehicle_prediction_obj.xy_cov = np.array(ros_msg.xy_cov)
+    
+    vehicle_prediction_obj.xy_cov = np.array(ros_msg.xy_cov).reshape(-1,2,2)
 
     return vehicle_prediction_obj

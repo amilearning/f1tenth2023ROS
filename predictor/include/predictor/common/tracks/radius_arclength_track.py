@@ -350,17 +350,17 @@ class RadiusArclengthTrack():
                 s = self.key_pts[i - 1, 3]
                 e_y = 0
                 e_psi = np.unwrap([psi_s, psi])[1] - psi_s
-                cl_coord = (s, e_y, e_psi)
+                cl_coord = (s, e_y, e_psi)                
                 break
             if la.norm(pos_f - pos_cur) == 0:
                 # At end of segment
                 s = self.key_pts[i, 3]
                 e_y = 0
                 e_psi = np.unwrap([psi_f, psi])[1] - psi_f
-                cl_coord = (s, e_y, e_psi)
+                cl_coord = (s, e_y, e_psi)                
                 break
 
-            if curve_f == 0:
+            if curve_f == 0:                
                 # Check if on straight segment
                 if np.abs(compute_angle(pos_s, pos_cur, pos_f)) <= np.pi / 2 and np.abs(
                         compute_angle(pos_f, pos_cur, pos_s)) <= np.pi / 2:
@@ -369,18 +369,20 @@ class RadiusArclengthTrack():
                     e_y = la.norm(v) * np.sin(ang)
                     # Check if deviation from centerline is within track width plus some slack for current segment
                     # (allows for points outside of track boundaries)
+                  
+                    
                     if np.abs(e_y) <= self.track_width / 2 + self.slack:
                         d = la.norm(v) * np.cos(ang)
                         s = self.key_pts[i - 1, 3] + d
                         e_psi = np.unwrap([psi_s, psi])[1] - psi_s
-                        cl_coord = (s, e_y, e_psi)
+                        cl_coord = (s, e_y, e_psi)                        
                         break
-                    else:
+                    else:                        
                         continue
                 else:
-                    continue
+                    continue                
             else:
-                # Check if on curved segment
+                # Check if on curved segment                                
                 r = 1 / curve_f
                 dir = np.sign(r)
 
@@ -400,11 +402,11 @@ class RadiusArclengthTrack():
                         d = np.abs(cur_ang) * np.abs(r)
                         s = self.key_pts[i - 1, 3] + d
                         e_psi = np.unwrap([psi_s + cur_ang, psi])[1] - (psi_s + cur_ang)
-                        cl_coord = (s, e_y, e_psi)
+                        cl_coord = (s, e_y, e_psi)                        
                         break
-                    else:
+                    else:                        
                         continue
-                else:
+                else:                    
                     continue
 
         if line == 'inside':

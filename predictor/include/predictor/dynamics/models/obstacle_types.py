@@ -171,15 +171,21 @@ def demo_rectangle_obstacle():
     import matplotlib.pyplot as plt
     from matplotlib.patches import Polygon
     
-    r = RectangleObstacle(xc = 5, yc = 10, w = 4, h = 2, psi = 0.4)
+    r = RectangleObstacle(xc = 0, yc = 0, w = 0.5, h = 1.0, psi = 0.0)
     patch = Polygon(r.xy)
     
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     print(r.xy)
-    print(r.A)
-    print(r.l)
-    print(r.u)
+    a = r.xy 
+    print(a.shape[0])
+    print(a[0])
+    b = a[0]
+    
+
+    # print(r.A)
+    # print(r.l)
+    # print(r.u)
     ax.add_patch(patch)
     ax.relim()
     ax.autoscale_view()
@@ -210,7 +216,7 @@ def test_rectangle_obstacle():
 
 def main():
     demo_rectangle_obstacle()
-    #test_rectangle_obstacle()
+    # test_rectangle_obstacle()
     return
 
 if __name__ == '__main__':

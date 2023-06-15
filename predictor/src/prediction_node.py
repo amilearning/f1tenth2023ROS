@@ -44,14 +44,13 @@ from vesc_msgs.msg import VescStateStamped
 from hmcl_msgs.srv import mpcc
 import rospkg
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
-from predictor.utils import pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
-from predictor.utils import prediction_to_marker, fill_global_info
+from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
-from predictor.utils import prediction_to_rosmsg
+from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction
 from hmcl_msgs.msg import VehiclePredictionROS 
 from dynamic_reconfigure.server import Server
 from predictor.cfg import predictorDynConfig
@@ -123,9 +122,9 @@ class Predictor:
         self.tar_pred_pub = rospy.Publisher("/tar_pred", VehiclePredictionROS, queue_size=2)
         # Subscribers
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
-        self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
+        # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
-        self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
+        # self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
         self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
             
@@ -173,9 +172,13 @@ class Predictor:
         if self.ego_odom_ready is False:
             self.ego_odom_ready = True
         self.cur_ego_odom = msg
+        
+        self.cur_ego_pose.header = msg.header 
+        self.cur_ego_pose.pose = msg.pose.pose
 
     def ego_vehicle_status_callback(self,msg):
         self.cur_ego_vehicle_state_msg = msg
+
     
     def ego_pose_callback(self,msg):
         self.cur_ego_pose = msg
@@ -184,23 +187,32 @@ class Predictor:
         if self.tar_odom_ready is False:
             self.tar_odom_ready = True
         self.cur_tar_odom = msg
+
+        self.cur_tar_pose.header = msg.header
+        self.cur_tar_pose.pose = msg.pose.pose
+        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
+        
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
+        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
     
    
 
     def prediction_callback(self,event):
         start_time = time.time()
         if self.ego_odom_ready is False or self.tar_odom_ready is False:
+            
             return
         
         if self.ego_odom_ready and self.tar_odom_ready:
             pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
             odom_to_vehicleState(self.cur_ego_state, self.cur_ego_odom)
             
-            pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
+            
+            pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)            
             odom_to_vehicleState(self.cur_tar_state, self.cur_tar_odom)
+            
             
         else:
             rospy.loginfo("state not ready")
@@ -215,18 +227,23 @@ class Predictor:
                     self.save_buffer()
 
             ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
-       
-            # print(ego_pred.s)            
+            
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
                 
                 self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
+                
                 ## publish prediction 
-                if self.tv_pred is not None:
-                    tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
-                    self.tar_pred_pub.publish(tar_pred_msg)
-                    ##
-                    print("done")
+                if self.tv_pred is not None:            
+
                     fill_global_info(self.track_info.track, self.tv_pred)
+                   
+                    tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
+                    
+                    self.tar_pred_pub.publish(tar_pred_msg)
+                    
+                    # convert covarariance in local coordinate for visualization
+                    # self.tv_pred.convert_local_to_global_cov()
+                    ###
                     tv_pred_markerArray = prediction_to_marker(self.tv_pred)
                     self.tv_pred_marker_pub.publish(tv_pred_markerArray)
                 
