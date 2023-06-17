@@ -27,7 +27,7 @@ N = 10
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')
-width = 0.75
+width = 2.5
 
 # Force rebuild all FORCES code-gen controllers
 rebuild = False
@@ -76,12 +76,13 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     optlevel=2,
 
     
+ 
     N=N,
-    Qc=0.1, # e_cont , countouring error 
+    Qc=5.0, # e_cont , countouring error 
     Ql=500.0, #500.0  # e_lag, lag error 
-    Q_theta= 0.2, # progress speed  v_proj_prev 
+    Q_theta= 5.0, # progress speed  v_proj_prev 
     Q_xref=0.0, #  reference tracking for blocking 
-    R_d=2.0, # u_a, u_a_dot 
+    R_d=0.001, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 
     slack=True,
@@ -93,17 +94,17 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
-    num_std_deviations= 2.0,
+    num_std_deviations= 1.0,
 
-    u_a_max=1.0,
+    u_a_max=2.0,
     vx_max=2.5,
-    u_a_min=-1.0,
+    u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
     u_a_rate_min=-10,
-    u_steer_rate_max=1,
-    u_steer_rate_min=-1
+    u_steer_rate_max=2,
+    u_steer_rate_min=-2
 )
 
 mpcc_ego_params = MPCCApproxFullModelParams(
