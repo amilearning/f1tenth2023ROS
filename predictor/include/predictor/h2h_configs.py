@@ -27,7 +27,7 @@ N = 10
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')
-width = 2.5
+width = 2.2
 
 # Force rebuild all FORCES code-gen controllers
 rebuild = False
@@ -63,9 +63,9 @@ IKD_egoMax = VehicleState(t=0.0, p=ParametricPose(s=offset + 0.3, x_tran=0.8* IK
 
 
 tar_dynamics_config = DynamicBicycleConfig(dt=dt, model_name='dynamic_bicycle_full',
-                                           wheel_dist_front=0.13, wheel_dist_rear=0.13, slip_coefficient=.9)
+                                           wheel_dist_front=0.165, wheel_dist_rear=0.165, slip_coefficient=.9)
 ego_dynamics_config = DynamicBicycleConfig(dt=dt, model_name='dynamic_bicycle_full',
-                                           wheel_dist_front=0.13, wheel_dist_rear=0.13, slip_coefficient=.9)
+                                           wheel_dist_front=0.165, wheel_dist_rear=0.165, slip_coefficient=.9)
 
 # Controller parameters
 gp_mpcc_ego_params = MPCCApproxFullModelParams(
@@ -75,30 +75,31 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     # solver_dir='',
     optlevel=2,
 
-    
- 
+
     N=N,
-    Qc=5.0, # e_cont , countouring error 
+    Qc=50.0, # e_cont , countouring error 
     Ql=500.0, #500.0  # e_lag, lag error 
-    Q_theta= 5.0, # progress speed  v_proj_prev 
+    Q_theta= 200, # progress speed  v_proj_prev 
+
+
     Q_xref=0.0, #  reference tracking for blocking 
-    R_d=0.001, # u_a, u_a_dot 
+    R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 
     slack=True,
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft=2.7, ## reference speed .. only activate if speed exceeds it 
+    vlong_max_soft=2.4, ## reference speed .. only activate if speed exceeds it 
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
-    num_std_deviations= 1.0,
+    num_std_deviations= 0.01,
 
-    u_a_max=2.0,
-    vx_max=2.5,
-    u_a_min=-2.0,
+    u_a_max=1.0,
+    vx_max=2.6,
+    u_a_min=-1.,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,

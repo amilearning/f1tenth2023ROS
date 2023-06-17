@@ -122,9 +122,9 @@ class Predictor:
         self.tar_pred_pub = rospy.Publisher("/tar_pred", VehiclePredictionROS, queue_size=2)
         # Subscribers
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
-        # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
+        self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
-        # self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
+        self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
         self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
             
@@ -173,8 +173,8 @@ class Predictor:
             self.ego_odom_ready = True
         self.cur_ego_odom = msg
         
-        self.cur_ego_pose.header = msg.header 
-        self.cur_ego_pose.pose = msg.pose.pose
+        # self.cur_ego_pose.header = msg.header 
+        # self.cur_ego_pose.pose = msg.pose.pose
 
     def ego_vehicle_status_callback(self,msg):
         self.cur_ego_vehicle_state_msg = msg
@@ -188,9 +188,9 @@ class Predictor:
             self.tar_odom_ready = True
         self.cur_tar_odom = msg
 
-        self.cur_tar_pose.header = msg.header
-        self.cur_tar_pose.pose = msg.pose.pose
-        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
+        # self.cur_tar_pose.header = msg.header
+        # self.cur_tar_pose.pose = msg.pose.pose
+        # shift_in_local_x(self.cur_tar_pose, dist = -0.10)
         
     
     def target_pose_callback(self,msg):
