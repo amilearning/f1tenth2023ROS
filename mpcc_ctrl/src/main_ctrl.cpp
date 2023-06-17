@@ -101,10 +101,10 @@ bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
             double cmd_accel = output.x01[11];
             if (cmd_accel < 0.0){
                 // decel, increase lookahead 
-                cur_cmd.drive.speed = output.x04[0];
+                cur_cmd.drive.speed = output.x05[0]; // x04 working fine
             }else{
               // only compensate the pid delay in vesc 
-              cur_cmd.drive.speed = output.x02[0];
+              cur_cmd.drive.speed = output.x03[0]; //x02 working fine
             }
             
         }else{
