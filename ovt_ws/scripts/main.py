@@ -150,7 +150,7 @@ class OvertakingAgent:
             cur_tv_state = VehicleState(t=0.0,
                                         p=ParametricPose(s=0.0, x_tran=0.0, e_psi=0.0),
                                         v=BodyLinearVelocity(v_long=0.5))
-            print(self.cur_ego_state.p)
+            # print(self.cur_ego_state.p)
             info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=cur_tv_state, tv_pred=None if self.use_predictions_from_module else None)
             pp_cmd = AckermannDriveStamped()        
             pp_cmd.header.stamp = self.cur_pose.header.stamp        

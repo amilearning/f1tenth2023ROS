@@ -293,7 +293,7 @@ class MPCC_H2H_approx(AbstractController):
         current_s = state.p.s
         while current_s < 0: current_s += self.track.track_length
         while current_s >= self.track.track_length: current_s -= self.track.track_length
-        print("len(self.track.key_pts) = "+ str(len(self.track.key_pts)))
+        
         if len(self.track.key_pts) < 5:            
             for i in range(len(self.track.key_pts)):
                 key_pts.append(self.track.key_pts[i])
@@ -301,11 +301,10 @@ class MPCC_H2H_approx(AbstractController):
                 key_pts.append(key_pts[-1])
         else:
             key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1            
-            print("key_pt_idx_s = " + str(key_pt_idx_s))             
+            
             if key_pt_idx_s == -1:
                 key_pt_idx_s = len(self.track.key_pts) - 1
-            # difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
-            # print(difference)
+            # difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))            
             # difference_ = difference
             # while difference > 0:
             #     key_pts.append(self.track.key_pts[difference_ - difference])
@@ -323,9 +322,8 @@ class MPCC_H2H_approx(AbstractController):
                 if tmp[3] <  key_pts[0][3]: 
                     if current_s > self.track.track_length / 2.0:                                       
                         key_pts[i][3] = tmp[3]+self.track.track_length
-                    # if tmp[4] == 0.0: 
-                #     key_pts[i][4] = 0.00  
-            print(key_pts)
+            
+            
                 
             
         for stageidx in range(self.N):
