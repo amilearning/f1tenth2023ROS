@@ -19,7 +19,7 @@ class PathGenerator:
         self.track_bound_in = MarkerArray()
         self.track_bound_out = MarkerArray()
         self.dt = 0.05
-        self.track_width = 1.5
+        self.track_width = 2.5
         self.slack = 0.45
         self.cl_segs = None
         self.track = None 
@@ -45,18 +45,37 @@ class PathGenerator:
     def gen_path(self):
         self.track = RadiusArclengthTrack()
         # [distance, curvature pair]
-        stright = np.array([[4.0, 0.0]])
-        curvy_straith = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0]])
-        curve = np.array([[2.0*np.pi, 2.0]])
-        end_curve = np.array([[2.0*np.pi-0.01, 2.0]])
-        track = np.vstack([stright,curve, stright,end_curve])
-        # track = np.vstack([curve, end_curve])
+        curv = 1.5
+        # 2.5*np.pi/2.0
+        curve1 = np.array([[1.5*np.pi/2, curv]])
+        fcurve = np.array([[1.5*np.pi, curv]])
+        short_straight = np.array([[3.0-0.1, 0.0]])
+        hstraight = np.array([[1.5, 0.0]])
+        hstraight2 = np.array([[3.0, 999.0]])
+        stright = np.array([[3.0, 800.0]])
+        tshort = np.array([[0.2, 0.0]])
+        curve2 = np.array([[1.5*np.pi-0.1, -curv-0.1]])
+
+        stright2 = np.array([[3.0, 0.0]])
+        curve3 = np.array([[1.5*np.pi, curv+0.1]])
+        stright3 = np.array([[5.0, 950.0]])
+        curve4 = np.array([[1.5*np.pi/2, curv+0.2]])
+        stright4 = np.array([[6.0, 990]])
+        curve5 = np.array([[1.5*np.pi/2, curv+0.05]])
+        stright5 = np.array([[6.2, -900.0]])
+        curve6 = np.array([[2.0*np.pi/2+0.2, 2.0]])
+        tiny_straight = np.array([[0.8, -900.0]])
+        eightcircle = np.array([[3.0*np.pi/4.0, 3.0]])
+        track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight ])
+        
         self.cl_segs = track
-        # self.cl_segs = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0]])                                
+        # self.cl_segs = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/30.0, -1.5],[1.5, 0.0],[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi-0.2, 1.5]])                                
+        
+        # ,[5.0, 0.0],[1.5*np.pi, 1.5],[5.0, 0.0],[1.5*np.pi-0.01, 1.5]
         
         # ,[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi, 1.5],[1.5, 0.0],[1.5*np.pi/30.0, -1.5],[1.5, 0.0],[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi-0.2, 1.5]])                                
             # [5.0, 0.0],[1.5*np.pi, 1.5],[5.0, 0.0],[1.5*np.pi-0.01, 1.5]])
-        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.5, -.9, -0.1))
+        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.0, 0.0))
         
         self.track_ready = True
         self.get_track_points()

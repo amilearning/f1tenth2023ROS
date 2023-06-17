@@ -62,14 +62,14 @@ include_directories(
 
 add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 
-add_executable(dynamic_reconfigure_node src/main_ctrl.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
+add_executable(dynamic_reconfigure_node src/utils.cpp src/main_ctrl.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
 add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)
 #target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
 target_link_libraries(dynamic_reconfigure_node ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/gp_mpcc_h2h_ego/lib_target/libgp_mpcc_h2h_ego.so)
 
 SET(CMAKE_CXX_FLAGS "-O2 -g -Wall ${CMAKE_CXX_FLAGS}")
 
-add_executable(mpcc_ctrl src/main_ctrl.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
+add_executable(mpcc_ctrl src/utils.cpp src/main_ctrl.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
 add_dependencies(mpcc_ctrl ${catkin_EXPORTED_TARGETS})
 # target_link_libraries(highspeed_ctrl ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
 target_link_libraries(mpcc_ctrl ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/gp_mpcc_h2h_ego/lib_target/libgp_mpcc_h2h_ego.so)

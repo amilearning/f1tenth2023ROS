@@ -55,6 +55,7 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <ackermann_msgs/AckermannDriveStamped.h>
 
 #include <dynamic_reconfigure/server.h>
@@ -83,7 +84,7 @@ class Ctrl
 {  
 private:
 ros::NodeHandle nh_ctrl_, nh_p;
-ros::Publisher ackmanPub;
+ros::Publisher ackmanPub, ego_pred_marker_pub;
 std::string control_topic;
 bool manual_velocity;
 dynamic_reconfigure::Server<mpcc_ctrl::testConfig> srv;
@@ -109,6 +110,7 @@ int return_val;
 bool service_recieved;
 
 
+void pred_eigen_to_markerArray(const Eigen::MatrixXd& eigen_mtx,  visualization_msgs::MarkerArray & markerArray);
 
 
 public:

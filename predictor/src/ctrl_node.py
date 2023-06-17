@@ -124,11 +124,11 @@ class Predictor:
         self.tv_pred = None
         self.tv_pred_sub = rospy.Subscriber("/tar_pred",VehiclePredictionROS, self.tar_pred_callback)
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
-        # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
+        self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         # self.ego_vehicle_status_sub = rospy.Subscriber(ego_vehicle_status_topic, VescStateStamped, self.ego_vehicle_status_callback)                
         
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
-        # self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
+        self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")
@@ -152,8 +152,8 @@ class Predictor:
         if self.ego_odom_ready is False:
             self.ego_odom_ready = True
         self.cur_ego_odom = msg
-        self.cur_ego_pose.header = msg.header
-        self.cur_ego_pose.pose = msg.pose.pose
+        # self.cur_ego_pose.header = msg.header
+        # self.cur_ego_pose.pose = msg.pose.pose
 
     def ego_vehicle_status_callback(self,msg):
         self.cur_ego_vehicle_state_msg = msg
@@ -165,9 +165,9 @@ class Predictor:
         if self.tar_odom_ready is False:
             self.tar_odom_ready = True
         
-        self.cur_tar_pose.header = msg.header 
-        self.cur_tar_pose.pose = msg.pose.pose
-        shift_in_local_x(self.cur_tar_pose, dist = -0.36)
+        # self.cur_tar_pose.header = msg.header 
+        # self.cur_tar_pose.pose = msg.pose.pose
+        # shift_in_local_x(self.cur_tar_pose, dist = -0.36)
         
 
         self.cur_tar_odom = msg
@@ -224,18 +224,17 @@ class Predictor:
 
 
     def cmd_callback(self,event):
-        if self.ego_odom_ready and self.tar_odom_ready:
+        if self.ego_odom_ready:
             pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
-            odom_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_odom)
+            odom_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_odom)            
+        else:
+            rospy.loginfo("Ego state not ready")
             
+        if self.tar_odom_ready:
             pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
             odom_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_odom)
-            
-        else:
-            rospy.loginfo("state not ready")
-            
-        
-        self.use_predictions_from_module = True
+
+        self.use_predictions_from_module = False
 
         
         # self.cur_ego_state.e.psi = psi_unwrap(self.cur_ego_state.e.psi)
@@ -246,8 +245,12 @@ class Predictor:
         self.tar_debug_pub.publish(tar_debug_msg)
 
         
-
-        problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
+        cur_tv_state = VehicleState(t=self.cur_ego_state.t,
+                                        p=ParametricPose(s=0.0, x_tran=2.2, e_psi=0.0),
+                                        v=BodyLinearVelocity(v_long=0.5))
+        
+        # problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
+        problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=cur_tv_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
         if len(cur_obstacles) > 0:            
             obstacle_marker = obstacles_to_markers(cur_obstacles)
             self.obs_debug_pub.publish(obstacle_marker)

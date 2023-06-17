@@ -57,8 +57,8 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.36  # TODO: change
-        self.widthcar = 0.2  # Ratio of car length to width
+        self.lencar = 0.5  # TODO: change
+        self.widthcar = 0.4  # Ratio of car length to width
 
         # MPCC params
         self.control_params = control_params
@@ -203,7 +203,7 @@ class MPCC_H2H_approx(AbstractController):
             contains_parametric = np.any(tv_pred.s)
             contains_global = np.any(tv_pred.x)
             offs = 0
-            # t_ = tv_pred.t
+            t_ = tv_pred.t
             # while t_ < tv_state.t - 0.5*self.dt:                
             #     offs += 1
             #     t_ += self.dt
@@ -283,13 +283,16 @@ class MPCC_H2H_approx(AbstractController):
             key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1
             if key_pt_idx_s == -1:
                 key_pt_idx_s = len(self.track.key_pts) - 1
-            difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
-            difference_ = difference
-            while difference > 0:
-                key_pts.append(self.track.key_pts[difference_ - difference])
-                difference -= 1
-            for i in range(5 - len(key_pts)):
-                key_pts.append(self.track.key_pts[key_pt_idx_s + i])
+            for i in range(5):
+                idx = key_pt_idx_s + i
+                if idx > len(self.track.key_pts)-1:
+                    idx = idx-len(self.track.key_pts)                                 
+                key_pts.append(self.track.key_pts[idx].copy())     
+            for i in range(len(key_pts)):
+                tmp = key_pts[i]                
+                if tmp[3] <  key_pts[0][3]: 
+                    if current_s > self.track.track_length / 2.0:                                       
+                        key_pts[i][3] = tmp[3]+self.track.track_length
         ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
         self.key_pts = key_pts
         ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
@@ -302,7 +305,7 @@ class MPCC_H2H_approx(AbstractController):
                 obs_deactivate = True
             if obstacle[stageidx].h == 0:
                 obs_deactivate = True
-
+            obs_deactivate = False
             initial_guess.append(self.x_ws[stageidx])  # x
             initial_guess.append(self.u_ws[stageidx])  # u
             initial_guess.append(self.u_ws[stageidx - 1])  # u_prev
