@@ -95,7 +95,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
-    num_std_deviations= 0.01,
+    num_std_deviations= 0.15,
 
     u_a_max=1.0,
     vx_max=2.6,

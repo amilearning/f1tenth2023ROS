@@ -18,9 +18,9 @@ class PathGenerator:
         self.centerline = MarkerArray()
         self.track_bound_in = MarkerArray()
         self.track_bound_out = MarkerArray()
-        self.dt = 0.05
-        self.track_width = 2.5
-        self.slack = 0.45
+        self.dt = 0.1
+        self.track_width = 2.2
+        self.slack = 0.1
         self.cl_segs = None
         self.track = None 
         self.track_ready = False

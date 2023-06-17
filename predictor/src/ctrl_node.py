@@ -234,7 +234,7 @@ class Predictor:
             pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
             odom_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_odom)
 
-        self.use_predictions_from_module = False
+        self.use_predictions_from_module = True
 
         
         # self.cur_ego_state.e.psi = psi_unwrap(self.cur_ego_state.e.psi)
@@ -245,12 +245,12 @@ class Predictor:
         self.tar_debug_pub.publish(tar_debug_msg)
 
         
-        cur_tv_state = VehicleState(t=self.cur_ego_state.t,
-                                        p=ParametricPose(s=0.0, x_tran=2.2, e_psi=0.0),
-                                        v=BodyLinearVelocity(v_long=0.5))
+        # cur_tv_state = VehicleState(t=self.cur_ego_state.t,
+        #                                 p=ParametricPose(s=0.0, x_tran=2.2, e_psi=0.0),
+        #                                 v=BodyLinearVelocity(v_long=0.5))
         
-        # problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
-        problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=cur_tv_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
+        problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
+        # problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=cur_tv_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
         if len(cur_obstacles) > 0:            
             obstacle_marker = obstacles_to_markers(cur_obstacles)
             self.obs_debug_pub.publish(obstacle_marker)
