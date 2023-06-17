@@ -131,14 +131,14 @@ classdef gp_mpcc_h2h_egoBuildable < coder.ExternalDependency
                             'xinit', double(xinit),...
                             'all_parameters', double(all_parameters));
 
-            [output_c, exitflag_c, info_c] = gp_mpcc_h2h_egoBuildable.forcesInitOutputsC();
+            [output_c, exitflag_c, info_c] = gp_mpcc_h2h_egoBuildable.forcesInitOutputsC(); %#ok<ASGLU>
             
             headerName = [solvername '.h'];
             coder.cinclude(headerName);
             coder.cinclude([solvername '_memory.h']);
             coder.cinclude([solvername '_adtool2forces.h']);
             % define memory pointer
-            memptr = coder.opaque([solvername '_mem *'], 'HeaderFile', headerName);
+            memptr = coder.opaque([solvername '_mem *'], 'HeaderFile', headerName); %#ok<NASGU>
             memptr = coder.ceval([solvername '_internal_mem'], uint32(0));
             % define solver input information (params, file and casadi)
             coder.cstructname(params, [solvername '_params'], 'extern', 'HeaderFile', headerName);

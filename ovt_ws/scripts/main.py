@@ -25,7 +25,7 @@ from geometry_msgs.msg import PoseStamped
 from utils import get_local_vel
 
 from hmcl_msgs.srv import mpcc, mpccResponse
-
+###
 class OvertakingAgent:
     def __init__(self):
         print("init")
@@ -62,19 +62,20 @@ class OvertakingAgent:
         self.odom_sub = rospy.Subscriber("/pose_estimate",Odometry,self.odom_callback)
         self.pose_sub = rospy.Subscriber("/tracked_pose",PoseStamped,self.pose_callback)
         
-        self.tar_odom_sub = rospy.Subscriber("/target//pose_estimate",Odometry,self.tar_odom_callback)
+        self.tar_odom_sub = rospy.Subscriber("/target/pose_estimate",Odometry,self.tar_odom_callback)
         self.tar_pose_sub = rospy.Subscriber("/target/tracked_pose",PoseStamped,self.tar_pose_callback)
 
         self.controller_server = rospy.Service('compute_mpcc', mpcc, self.mpcc_srv_hanlder)
 
         self.ackman_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl',AckermannDriveStamped,queue_size = 2)
         
-        # self.timercallback = rospy.Timer(rospy.Duration(0.05), self.timer_callback)  
+        self.timercallback = rospy.Timer(rospy.Duration(0.05), self.timer_callback)  
+        # self.timercallback = rospy.Timer(rospy.Duration(2.0), self.timer_callback)  
         return 
-    
-        rate = rospy.Rate(1)     
-        while not rospy.is_shutdown():                        
-            rate.sleep()
+
+        # rate = rospy.Rate(1)     
+        # while not rospy.is_shutdown():                        
+        #     rate.sleep()
     
     def mpcc_srv_hanlder(self,req):
         print("service recieved")
@@ -99,6 +100,7 @@ class OvertakingAgent:
 
     def odom_callback(self,msg):
         self.cur_odom = msg
+
     def pose_callback(self,msg):
         if self.ego_pose_received is False:
             self.ego_pose_received = True
@@ -144,10 +146,11 @@ class OvertakingAgent:
                 self.pose_to_vehicleState(self.cur_tar_state, self.cur_tar_pose)
 
             
-
+            
             cur_tv_state = VehicleState(t=0.0,
-                                        p=ParametricPose(s=0.0, x_tran=30.0, e_psi=0.0),
-                                        v=BodyLinearVelocity(v_long=0.0))
+                                        p=ParametricPose(s=0.0, x_tran=0.0, e_psi=0.0),
+                                        v=BodyLinearVelocity(v_long=0.5))
+            print(self.cur_ego_state.p)
             info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=cur_tv_state, tv_pred=None if self.use_predictions_from_module else None)
             pp_cmd = AckermannDriveStamped()        
             pp_cmd.header.stamp = self.cur_pose.header.stamp        
@@ -156,13 +159,13 @@ class OvertakingAgent:
                 print(f"EGO infeasible - Exitflag: {exitflag}")                
             else:
                 pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
-                vel_cmd = pred_v_lon[1]
-                vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
+                vel_cmd = pred_v_lon[2]
+                # vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
                 
             pp_cmd.drive.speed = vel_cmd            
             # pp_cmd.drive.speed = 0.0            
-            pp_cmd.drive.steering_angle = -1*self.cur_ego_state.u.u_steer
-            # self.ackman_pub.publish(pp_cmd)
+            pp_cmd.drive.steering_angle = self.cur_ego_state.u.u_steer
+            self.ackman_pub.publish(pp_cmd)
             # print("accel = : {:.5f}".format(self.cur_ego_state.u.u_a))
             print("steer = : {:.5f}".format(self.cur_ego_state.u.u_steer))
 

@@ -58,20 +58,29 @@ bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
         
         exitflag = gp_mpcc_h2h_ego_solve(&mpc_problem, &output, &info, mem, NULL, extfunc_eval);
         
+        
+        // Calculate the total number of columns and rows
+        const int numColumns = 10; 
+        const int numRows = 19;
+        // Create a single vector to store the stacked column vectors
+        std::vector<double> stackedVector(numColumns * numRows);
+        // Iterate over each column
+        for (int column = 0; column < numColumns; ++column) {
+        // Copy the column vector to the stacked vector
+        std::copy(output.x01, output.x01 + numRows, stackedVector.begin() + column * numRows);
+        }
+      
+        
 //         if (exitflag !=1)
 //         {
 //             std::cout<< "/n/nmyMPC did not return optimla solution)" <<std::endl;
 //         } 
-
-
-
-
-  res.exitflag = 0;
-    // Set the values for the output array
-    res.output.resize(10);  // Assuming the output array has a size of 10
-    for (int i = 0; i < 10; ++i) {
-        res.output[i] = 1.23;  // Set a sample value for each element
+    res.exitflag = exitflag;
+    res.output.resize(stackedVector.size());
+    for (size_t i = 0; i < stackedVector.size(); ++i) {
+      res.output[i] = stackedVector[i];
     }
+
 
     return true;
 }

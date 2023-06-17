@@ -63,8 +63,8 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.36  # TODO: change
-        self.widthcar = 0.2  # Ratio of car length to width
+        self.lencar = 0.5 # 0.36  # TODO: change
+        self.widthcar = 0.4 # 0.2  # Ratio of car length to width
 
         # MPCC params
         self.control_params = control_params
@@ -216,9 +216,9 @@ class MPCC_H2H_approx(AbstractController):
             contains_global = np.any(tv_pred.x)
             offs = 0
             t_ = tv_pred.t
-            while t_ < tv_state.t - 0.5*self.dt:
-                offs += 1
-                t_ += self.dt
+            # while t_ < tv_state.t - 0.5*self.dt:
+            #     offs += 1
+            #     t_ += self.dt
 
             if contains_parametric and contains_global:
                 for i, (s, x_tran, x, y, psi) in enumerate(
@@ -254,6 +254,7 @@ class MPCC_H2H_approx(AbstractController):
                                                         std_local_x=self.num_std_deviations * np.sqrt(xy_std[0, 0]),
                                                         std_local_y=self.num_std_deviations * np.sqrt(xy_std[1, 1]))
 
+       
         control, info, exitflag = self.solve(ego_state, ego_state.p.s, x_ref, xref_scale, obstacle, blocking)
 
         ego_state.u.u_a = control.u_a
@@ -277,7 +278,7 @@ class MPCC_H2H_approx(AbstractController):
                 'MPCC controller is not initialized, run MPCC.initialize() before calling MPCC.solve()'))
 
         x, _ = self.dynamics.state2qu(state)
-
+     
         if self.x_ws is None:
             warnings.warn('Initial guess of open loop state sequence not provided, using zeros')
             self.x_ws = np.zeros((self.N, self.n))
@@ -292,23 +293,41 @@ class MPCC_H2H_approx(AbstractController):
         current_s = state.p.s
         while current_s < 0: current_s += self.track.track_length
         while current_s >= self.track.track_length: current_s -= self.track.track_length
-        if len(self.track.key_pts) < 5:
+        print("len(self.track.key_pts) = "+ str(len(self.track.key_pts)))
+        if len(self.track.key_pts) < 5:            
             for i in range(len(self.track.key_pts)):
                 key_pts.append(self.track.key_pts[i])
             while len(key_pts) < 5:
                 key_pts.append(key_pts[-1])
         else:
-            key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1
+            key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1            
+            print("key_pt_idx_s = " + str(key_pt_idx_s))             
             if key_pt_idx_s == -1:
                 key_pt_idx_s = len(self.track.key_pts) - 1
-            difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
-            difference_ = difference
-            while difference > 0:
-                key_pts.append(self.track.key_pts[difference_ - difference])
-                difference -= 1
-            for i in range(5 - len(key_pts)):
-                key_pts.append(self.track.key_pts[key_pt_idx_s + i])
-
+            # difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
+            # print(difference)
+            # difference_ = difference
+            # while difference > 0:
+            #     key_pts.append(self.track.key_pts[difference_ - difference])
+            #     difference -= 1
+            # for i in range(5 - len(key_pts)):
+            for i in range(5):
+                idx = key_pt_idx_s + i
+                if idx > len(self.track.key_pts)-1:
+                    idx = idx-len(self.track.key_pts)                                 
+                key_pts.append(self.track.key_pts[idx].copy())     
+            
+            
+            for i in range(len(key_pts)):
+                tmp = key_pts[i]                
+                if tmp[3] <  key_pts[0][3]: 
+                    if current_s > self.track.track_length / 2.0:                                       
+                        key_pts[i][3] = tmp[3]+self.track.track_length
+                    # if tmp[4] == 0.0: 
+                #     key_pts[i][4] = 0.00  
+            print(key_pts)
+                
+            
         for stageidx in range(self.N):
             # Default to respecting obstacles
             obs_deactivate = False
@@ -317,6 +336,9 @@ class MPCC_H2H_approx(AbstractController):
                 obs_deactivate = True
             if obstacle[stageidx].h == 0:
                 obs_deactivate = True
+            # ################ Force Deactivate obstacle 
+            obs_deactivate = False
+            # ################ Force Deactivate obstacle 
 
             initial_guess.append(self.x_ws[stageidx])  # x
             initial_guess.append(self.u_ws[stageidx])  # u
@@ -626,7 +648,7 @@ class MPCC_H2H_approx(AbstractController):
             # Contouring + Lag + Input - Progress + delta input
             cost = ca.bilin(Qc, e_cont, e_cont) + ca.bilin(Ql, e_lag, e_lag) + \
                    ca.bilin(R_d, u_a, u_a) + ca.bilin(R_delta, u_delta, u_delta) - Q_theta * v_proj_prev * self.dt + \
-                   ca.bilin(R_d, u_a_dot, u_a_dot) + ca.bilin(R_delta, u_delta_dot, u_delta_dot)
+                   ca.bilin(R_d, u_a_dot, u_a_dot) + ca.bilin(R_delta*10, u_delta_dot, u_delta_dot)
 
             # Reference tracking cost todo: replace xtran by e_cont and test
             cost += ca.if_else(xref == -20, 0, ca.bilin(Q_xref, -e_cont - xref, -e_cont - xref))
@@ -679,6 +701,7 @@ class MPCC_H2H_approx(AbstractController):
             return ca.vertcat(integrated, z[self.zvars.index('theta')] + z[self.zvars.index('v_proj')] * self.dt,
                               q[self.zvars.index('s')], u)
 
+        print("build solver init")
         # Forces model
         self.model = forcespro.nlp.SymbolicModel(self.N)
 
@@ -744,10 +767,12 @@ class MPCC_H2H_approx(AbstractController):
         self.options.printlevel = 0
         self.options.optlevel = self.optlevel
         self.options.BuildSimulinkBlock = False
-        self.options.cleanup = True
-        self.options.platform = 'Generic'
+        self.options.cleanup = 0
+        self.options.platform = 'AARCH-Cortex-A72'
         self.options.gnu = True
-        self.options.sse = True
+        # self.options.sse = True ## this is for x86
+        # self.options.floattype = 'double'## this is for Jetson 
+        # self.options.neon = 2 ## this is for Jetson 
         self.options.noVariableElimination = False
         # self.options.parallel = 1
 
@@ -769,6 +794,7 @@ class MPCC_H2H_approx(AbstractController):
         # Copy solver config.
         pickle_write([self.control_params, self.track_name], os.path.join(self.install_dir, 'params.pkl'))
         self.solver = forcespro.nlp.Solver.from_directory(self.install_dir)
+        print("build compleed")
 
     def aggressive_blocking_policy(self, ego_state: VehicleState, tv_state: VehicleState,
                                    tv_prediction: VehiclePrediction = None):

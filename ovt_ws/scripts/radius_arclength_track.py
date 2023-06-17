@@ -36,6 +36,8 @@ class RadiusArclengthTrack():
         self.half_width = self.track_width / 2
         self.n_segs = self.cl_segs.shape[0]
         self.key_pts = self.get_track_key_pts(self.cl_segs, init_pos)
+        
+        
         self.track_length = self.key_pts[-1, 3]
 
         # Get the x-y extents of the track
@@ -184,7 +186,7 @@ class RadiusArclengthTrack():
         track_key_pts = np.zeros((n_segs + 1, 6))
         track_key_pts[0, 0] = init_pos[0]
         track_key_pts[0, 1] = init_pos[1]
-        track_key_pts[0, 2] = init_pos[2]
+        track_key_pts[0, 2] = init_pos[2]              
         for i in range(1, n_segs + 1):
             x_prev = track_key_pts[i - 1, 0]
             y_prev = track_key_pts[i - 1, 1]
@@ -621,6 +623,7 @@ class RadiusArclengthTrack():
 
         # Find key point indicies corresponding to current segment
         # key_pts = [x, y, psi, cumulative length, segment length, signed curvature]
+        
         key_pt_idx_s = np.where(s >= self.key_pts[:, 3])[0][-1]
         key_pt_idx_f = key_pt_idx_s + 1
         seg_idx = key_pt_idx_s
