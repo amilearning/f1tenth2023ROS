@@ -20,7 +20,7 @@ class PathGenerator:
         self.track_bound_in = MarkerArray()
         self.track_bound_out = MarkerArray()
         self.dt = 0.1 # 0.05
-        self.track_width = 2.4
+        self.track_width = 2.2
         self.slack = 0.1
         self.cl_segs = None
         self.track = None 
@@ -76,17 +76,21 @@ class PathGenerator:
         tiny_curve2 = np.array([[1.0, 2.5]])
         eightcircle = np.array([[3.0*np.pi/4.0, 3.0]])
         track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight,tiny_curve,tiny_curve2])
+
         track_for_record = np.vstack([curve1, stright_record, curve2, hstraight2_record, curve3,stright3_record,curve4,stright4,curve5,stright5_record, curve6_record])
+        # track = np.vstack([curve1, hstraight,hstraight2, curve2,curve2_, stright,stright,stright,stright,stright])
+        # track = np.vstack([eightcircle,eightcircle,eightcircle,eightcircle,eightcircle,eightcircle,eightcircle,eightcircle]) 
         
-        record = True
-        ####### for record ###############################        
-        if record:
-            self.cl_segs = track_for_record
-            self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.4, 0.0))        
+        # stright,curve1,short_straight])
+        #track = np.vstack([curve, end_curve])
+        self.cl_segs = track_for_record
+        
+        # self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(-3.0, 6.3, 0.2+np.pi))
+        
+        ####### for record ###############################
+        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.4, 0.0))
         ####### for record  END ###############################
-        else:
-            self.cl_segs = track
-            self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.0, 0.0))        
+
         self.track_ready = True
         self.get_track_points()
         # fig, ax = plt.subplots()

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node pkg="ovt_ws" type="record_main.py" name="ovt_record_node" output="screen">                
+       
+    </node>
+
+
+
+    
+</launch>
