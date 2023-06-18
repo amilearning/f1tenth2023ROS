@@ -44,7 +44,6 @@ class PathGenerator:
         
     def gen_path(self):
         self.track = RadiusArclengthTrack()
-
         curv = 1.5
         # 2.5*np.pi/2.0
         curve1 = np.array([[1.5*np.pi/2, curv]])
@@ -64,11 +63,11 @@ class PathGenerator:
         curve5 = np.array([[1.5*np.pi/2, curv+0.05]])
         stright5 = np.array([[5.8, -900.0]])
         curve6 = np.array([[2.0*np.pi/2-0.8, 2.0]])
-        tiny_straight = np.array([[.1, 999]])
+        tiny_straight = np.array([[.2, 999]])
         tiny_curve = np.array([[0.5, 1.5]])
-        tiny_curve2 = np.array([[1.0, 2.5]])
+        tiny_curve2 = np.array([[0.6, 1.3]])
         eightcircle = np.array([[3.0*np.pi/4.0, 3.0]])
-        track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight,tiny_curve,tiny_curve2])
+        track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight])
                 # track = np.vstack([curve, end_curve])
         self.cl_segs = track
         # self.cl_segs = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0]])                                

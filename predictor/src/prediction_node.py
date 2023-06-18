@@ -231,21 +231,32 @@ class Predictor:
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
                 
                 self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
+                #################### predict only target is close to ego #####################################
+                cur_ego_s = self.cur_ego_state.p.s.copy()
+                cur_tar_s = self.cur_tar_state.p.s.copy()
+                diff_s = abs(cur_ego_s - cur_tar_s)
                 
-                ## publish prediction 
-                if self.tv_pred is not None:            
+                if diff_s > self.track_info.track.track_length-3:                 
+                    diff_s = diff_s - self.track_info.track.track_length
+                
+                if diff_s < 7.0:                 
+                #################### predict only target is close to ego END #####################################
+                    ## publish prediction 
+                    if self.tv_pred is not None:            
 
-                    fill_global_info(self.track_info.track, self.tv_pred)
-                   
-                    tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
+                        fill_global_info(self.track_info.track, self.tv_pred)
                     
-                    self.tar_pred_pub.publish(tar_pred_msg)
-                    
-                    # convert covarariance in local coordinate for visualization
-                    # self.tv_pred.convert_local_to_global_cov()
-                    ###
-                    tv_pred_markerArray = prediction_to_marker(self.tv_pred)
-                    self.tv_pred_marker_pub.publish(tv_pred_markerArray)
+                        tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
+                        
+                        self.tar_pred_pub.publish(tar_pred_msg)
+                        
+                        # convert covarariance in local coordinate for visualization
+                        # self.tv_pred.convert_local_to_global_cov()
+                        ###
+                        tv_pred_markerArray = prediction_to_marker(self.tv_pred)
+                        
+                        
+                        self.tv_pred_marker_pub.publish(tv_pred_markerArray)
                 
         end_time = time.time()
         execution_time = end_time - start_time

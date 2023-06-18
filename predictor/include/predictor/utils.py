@@ -510,6 +510,7 @@ def prediction_to_marker(predictions):
         marker_ref.pose.position.z = 0.0        
         marker_ref.color.r, marker_ref.color.g, marker_ref.color.b = (1.0, i/10.0, 0.0)
         marker_ref.color.a = 0.2     
+        marker_ref.lifetime = rospy.Duration(0.2)
         # marker_ref.scale.x, marker_ref.scale.y, marker_ref.scale.z = (0.6, 0.4, 0.3)
         scale = 2
         x_cov = max(predictions.xy_cov[i][0,0],0.00001)
