@@ -7,13 +7,13 @@ from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.controllers.utils.controllerTypes import *
 from predictor.prediction.trajectory_predictor import BasePredictor
 from predictor.prediction.thetaGP.ThetaGPModel import ThetaGPTrained
+# from predictor.prediction.cont_encoder.
 from predictor.prediction.encoder.policyEncoder import PolicyEncoder 
-from predictor.prediction.cont_encoder.cont_policyEncoder import ContPolicyEncoder
 from predictor.prediction.encoder.encoderdataGen import states_to_encoder_input_torch
 
-class ThetaPolicyPredictor(BasePredictor):
-    def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1,cont_encoder = True):
-        super(ThetaPolicyPredictor, self).__init__(N, track)
+class ContThetaPolicyPredictor(BasePredictor):
+    def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1):
+        super(ContThetaPolicyPredictor, self).__init__(N, track)
         gc.collect()
         torch.cuda.empty_cache()        
         ######### Inverse Kinodynamics prediction based one ConvNeuralNetwork ######### 
@@ -31,13 +31,7 @@ class ThetaPolicyPredictor(BasePredictor):
                             "sequence_length": 5
                             }
         encoder_model = 100
-        
-        if cont_encoder:
-            ## contrasive encoder 
-            self.policy_encoder = ContPolicyEncoder(model_load = True, model_id = encoder_model)
-        else:
-            ## naive encoder 
-            self.policy_encoder = PolicyEncoder(model_load = True, model_id = encoder_model)
+        self.policy_encoder = PolicyEncoder(model_load = True, model_id = encoder_model)
         print("policy extractor loaded")
         ######### Input prediction for Gaussian Processes regression ######### 
         input_predict_model = "thetaGP"

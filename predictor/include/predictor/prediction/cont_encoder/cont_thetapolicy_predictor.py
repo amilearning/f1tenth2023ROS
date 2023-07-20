@@ -1,22 +1,26 @@
-from predictor.common.pytypes import VehicleState, VehiclePrediction
+from barcgp.common.pytypes import VehicleState, VehiclePrediction
+from abc import abstractmethod
+from matplotlib import pyplot as plt
+
 import numpy as np
+import copy
+from typing import List
 import gc
-import torch
+import torch, gpytorch
 
 from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
+from predictor.h2h_configs import nl_mpc_params, N
 from predictor.controllers.utils.controllerTypes import *
 from predictor.prediction.trajectory_predictor import BasePredictor
 from predictor.prediction.thetaGP.ThetaGPModel import ThetaGPTrained
-from predictor.prediction.encoder.policyEncoder import PolicyEncoder 
 from predictor.prediction.cont_encoder.cont_policyEncoder import ContPolicyEncoder
-from predictor.prediction.encoder.encoderdataGen import states_to_encoder_input_torch
+from predictor.prediction.cont_encoder.cont_encoderdataGen import states_to_encoder_input_torch
 
-class ThetaPolicyPredictor(BasePredictor):
-    def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1,cont_encoder = True):
-        super(ThetaPolicyPredictor, self).__init__(N, track)
+class ContThetaPolicyPredictor(BasePredictor):
+    def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1):
+        super(ContThetaPolicyPredictor, self).__init__(N, track)
         gc.collect()
         torch.cuda.empty_cache()        
-        ######### Inverse Kinodynamics prediction based one ConvNeuralNetwork ######### 
         
         ######### Policy extractor based one LSTMAutoencoder ######### 
         self.encoder_args =  {"batch_size": 128,
@@ -30,14 +34,8 @@ class ThetaPolicyPredictor(BasePredictor):
                             "max_iter": 30000,
                             "sequence_length": 5
                             }
-        encoder_model = 100
         
-        if cont_encoder:
-            ## contrasive encoder 
-            self.policy_encoder = ContPolicyEncoder(model_load = True, model_id = encoder_model)
-        else:
-            ## naive encoder 
-            self.policy_encoder = PolicyEncoder(model_load = True, model_id = encoder_model)
+        self.policy_encoder = ContPolicyEncoder(model_load = True)
         print("policy extractor loaded")
         ######### Input prediction for Gaussian Processes regression ######### 
         input_predict_model = "thetaGP"
@@ -89,10 +87,8 @@ class ThetaPolicyPredictor(BasePredictor):
         
         #############
         if is_encoder_input_ready: ## encoder_is_ready = True
-            
             pred = self.theta_predict_gp.get_true_prediction_par(self.policy_encoder,self.encoder_input,  ego_state, target_state, ego_prediction, self.track, self.M)            
         else:
-            
             pred = self.get_constant_vel_prediction_par(target_state) # self.gp.get_true_prediction_par(ego_state, target_state, ego_prediction, self.track, self.M)
 
 
@@ -105,7 +101,6 @@ class ThetaPolicyPredictor(BasePredictor):
         # fill in covariance transformation to x,y
         pred.track_cov_to_local(self.track, self.N, self.cov_factor)
         
-        # pred.convert_local_to_global_cov()
         return pred
 
 

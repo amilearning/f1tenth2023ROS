@@ -47,6 +47,7 @@ from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVel
 from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
+from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
@@ -119,6 +120,9 @@ class Predictor:
 
         # Publishers                
         self.tv_pred_marker_pub = rospy.Publisher('/tv_pred_marker',MarkerArray,queue_size = 2)                             
+        self.tv_cav_pred_marker_pub = rospy.Publisher('/tv_cav_pred_marker',MarkerArray,queue_size = 2)         
+        self.tv_nmpc_pred_marker_pub = rospy.Publisher('/tv_nmpc_pred_marker',MarkerArray,queue_size = 2)         
+        
         self.tar_pred_pub = rospy.Publisher("/tar_pred", VehiclePredictionROS, queue_size=2)
         # Subscribers
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
@@ -127,9 +131,18 @@ class Predictor:
         self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
         self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
+        # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
+        self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .001)            
+        self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
+        self.nmpc_predictor.set_warm_start()
+        
+        # NLMPCPredictor(N, None, cov=.01, v_ref=mpcc_tv_params.vx_max),
+        
             
         # prediction callback   
         self.tv_pred = None
+        self.tv_cav_pred = None
+        self.tv_nmpc_pred = None
         self.prediction_hz = rospy.get_param('~prediction_hz', default=10)
         self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
         ## controller callback        
@@ -234,11 +247,14 @@ class Predictor:
                 if len(self.tar_list) > self.save_buffer_legnth:
                     self.save_buffer()
 
+            ## TODO : receive ego prediction from mpcc ctrl
             ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
             
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
                 
                 self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
+                self.tv_cav_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
+                self.tv_nmpc_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
                 #################### predict only target is close to ego #####################################
                 cur_ego_s = self.cur_ego_state.p.s.copy()
                 cur_tar_s = self.cur_tar_state.p.s.copy()
@@ -249,22 +265,33 @@ class Predictor:
                 
                 if diff_s < 7.0:                 
                 #################### predict only target is close to ego END #####################################
-                    ## publish prediction 
+                    ## publish our proposed method prediction 
                     if self.tv_pred is not None:            
-
-                        fill_global_info(self.track_info.track, self.tv_pred)
-                    
-                        tar_pred_msg = prediction_to_rosmsg(self.tv_pred)
-                        
+                        fill_global_info(self.track_info.track, self.tv_pred)                    
+                        tar_pred_msg = prediction_to_rosmsg(self.tv_pred)                        
                         self.tar_pred_pub.publish(tar_pred_msg)
-                        
                         # convert covarariance in local coordinate for visualization
                         # self.tv_pred.convert_local_to_global_cov()
                         ###
                         tv_pred_markerArray = prediction_to_marker(self.tv_pred)
-                        
-                        
                         self.tv_pred_marker_pub.publish(tv_pred_markerArray)
+                    
+                    if self.tv_cav_pred is not None:            
+                        fill_global_info(self.track_info.track, self.tv_cav_pred)                    
+                        tar_cav_pred_msg = prediction_to_rosmsg(self.tv_cav_pred)                        
+                        # self.tar_cav_pred_pub.publish(tar_cav_pred_msg)                        
+                        ###
+                        tv_cav_pred_markerArray = prediction_to_marker(self.tv_cav_pred)
+                        self.tv_cav_pred_marker_pub.publish(tv_cav_pred_markerArray)
+
+                    if self.tv_nmpc_pred is not None:
+                        fill_global_info(self.track_info.track, self.tv_nmpc_pred)                    
+                        tar_nmpc_pred_msg = prediction_to_rosmsg(self.tv_nmpc_pred)                        
+                        # self.tar_cav_pred_pub.publish(tar_cav_pred_msg)                        
+                        ###
+                        tv_nmpc_pred_markerArray = prediction_to_marker(self.tv_nmpc_pred)
+                        self.tv_nmpc_pred_marker_pub.publish(tv_nmpc_pred_markerArray)
+
                 
         end_time = time.time()
         execution_time = end_time - start_time

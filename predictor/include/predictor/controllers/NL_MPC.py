@@ -10,7 +10,7 @@ import casadi as ca
 
 import sys, os, pathlib
 
-sys.path.append(os.path.join(os.path.expanduser('~'), 'forces_pro_client'))
+sys.path.append(os.path.join(os.path.expanduser('~'), 'forcespro'))
 # sys.path.append("/home/orin1/forcespro")
 import forcespro
 import forcespro.nlp
