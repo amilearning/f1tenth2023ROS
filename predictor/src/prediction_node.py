@@ -160,8 +160,16 @@ class Predictor:
             self.ego_list.clear()
             self.tar_list.clear()
 
+# @dataclass
+# class RealData():
+#     track: RadiusArclengthTrack
+#     N: int
+#     ego_states: List[VehicleState]
+#     tar_states: List[VehicleState]
+
+
     def save_buffer(self):
-        real_data = RealData(self.track_info.track, self.ego_list, self.tar_list)
+        real_data = RealData(self.track_info.track, self.n_nodes, self.ego_list, self.tar_list)
         create_dir(path=real_dir)        
         pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '.pkl'))
         rospy.loginfo("states data saved")
