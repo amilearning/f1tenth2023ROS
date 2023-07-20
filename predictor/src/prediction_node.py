@@ -139,20 +139,24 @@ class Predictor:
         self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
         
+        ### setup ego controller to compute the ego prediction 
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
-        self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")
-        
+        self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
+        gp_policy_name = 'gpberkely'        
+        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2))
         
-
+        ### our method 
         self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
+
+        ## constant angular velocity model 
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .001)            
+
+        ## NMPC based game theoretic approach 
         self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
         self.nmpc_predictor.set_warm_start()
-        gp_policy_name = 'gpberkely'
-        gp_M = 10
-        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, gp_M, cov_factor=np.sqrt(2))
+        
         
         # NLMPCPredictor(N, None, cov=.01, v_ref=mpcc_tv_params.vx_max),
         
@@ -315,9 +319,9 @@ class Predictor:
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
                 
                 self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
-                self.tv_cav_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
-                self.tv_nmpc_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
-                self.tv_gp_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                # self.tv_cav_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
+                # self.tv_nmpc_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                # self.tv_gp_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
                 #################### predict only target is close to ego #####################################
                 cur_ego_s = self.cur_ego_state.p.s.copy()
                 cur_tar_s = self.cur_tar_state.p.s.copy()
