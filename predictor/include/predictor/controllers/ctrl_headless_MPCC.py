@@ -269,31 +269,74 @@ class MPCC_H2H_approx(AbstractController):
 
         # Set up real-time parameters, warm-start, and key_pts declaration
         parameters = []
+        # initial_guess = []
+        # key_pts = []
+        # current_s = state.p.s
+        # while current_s < 0: current_s += self.track.track_length
+        # while current_s >= self.track.track_length: current_s -= self.track.track_length
+        # if len(self.track.key_pts) < 5:
+        #     for i in range(len(self.track.key_pts)):
+        #         key_pts.append(self.track.key_pts[i])
+        #     while len(key_pts) < 5:
+        #         key_pts.append(key_pts[-1])
+        # else:
+        #     key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1
+        #     print(key_pt_idx_s)
+        #     if key_pt_idx_s == -1:
+        #         key_pt_idx_s = len(self.track.key_pts) - 1
+        #     difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
+        #     difference_ = difference
+        #     while difference > 0:
+        #         key_pts.append(self.track.key_pts[difference_ - difference])
+        #         difference -= 1
+        #     for i in range(5 - len(key_pts)):
+        #         key_pts.append(self.track.key_pts[key_pt_idx_s + i])
+
+
+        ##################################
         initial_guess = []
         key_pts = []
         current_s = state.p.s
-        while current_s < 0: current_s += self.track.track_length
-        while current_s >= self.track.track_length: current_s -= self.track.track_length
+
+        while current_s < 0: current_s += self.track_length
+        while current_s >= self.track_length: current_s -= self.track_length
         if len(self.track.key_pts) < 5:
             for i in range(len(self.track.key_pts)):
                 key_pts.append(self.track.key_pts[i])
             while len(key_pts) < 5:
                 key_pts.append(key_pts[-1])
         else:
+            # if current_s > self.track.track_length - 3.0:
+            #     key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] +1
+            # else:
             key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1
+
             if key_pt_idx_s == -1:
                 key_pt_idx_s = len(self.track.key_pts) - 1
+          
             for i in range(5):
                 idx = key_pt_idx_s + i
-                if idx > len(self.track.key_pts)-1:
+               
+                if idx > len(self.track.key_pts)-1:                    
                     idx = idx-len(self.track.key_pts)                                 
-                key_pts.append(self.track.key_pts[idx].copy())     
+                key_pts.append(self.track.key_pts[idx].copy())                         
+
             for i in range(len(key_pts)):
                 tmp = key_pts[i]                
                 if tmp[3] <  key_pts[0][3]: 
-                    if current_s > self.track.track_length / 2.0:                                       
-                        key_pts[i][3] = tmp[3]+self.track.track_length
+                    if current_s > self.track_length / 2.0:                                       
+                        key_pts[i][3] = tmp[3]+self.track_length
         ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
+           
+        
+            # for i in range(idx+1,len(key_pts)):
+            #     print("self.track.track_length")
+            #     print(self.track.track_length)
+            #     key_pts[i][3] +=  self.track.track_length
+
+        
+            # print("post key")
+            # print(key_pts)
         self.key_pts = key_pts
         ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
@@ -324,7 +367,7 @@ class MPCC_H2H_approx(AbstractController):
             stage_p.extend(key_pts[2])
             stage_p.extend(key_pts[3])
             stage_p.extend(key_pts[4])
-            stage_p.extend([self.track.track_length])
+            stage_p.extend([self.track_length])
             stage_p.extend([self.Qc, self.Ql, self.Q_theta, self.Q_xref, self.R_d, self.R_delta, self.half_width])
             stage_p.extend([
                 obstacle[stageidx].xc,

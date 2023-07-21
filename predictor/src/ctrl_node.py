@@ -80,6 +80,7 @@ class Predictor:
         # Generate Racing track info 
         self.track_info = PathGenerator()
         
+        
         while self.track_info.track_ready is False:
              rospy.sleep(0.01)
         ##

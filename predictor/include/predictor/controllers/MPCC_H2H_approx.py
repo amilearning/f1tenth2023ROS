@@ -35,6 +35,7 @@ class MPCC_H2H_approx(AbstractController):
         self.dynamics = dynamics
 
         self.track = track
+        
         self.track_name = track_name
 
         self.dt = control_params.dt
@@ -280,26 +281,30 @@ class MPCC_H2H_approx(AbstractController):
         # Set up real-time parameters, warm-start, and key_pts declaration
         parameters = []
         initial_guess = []
+        track_key_pts = self.track.key_pts
         key_pts = []
         current_s = state.p.s
         while current_s < 0: current_s += self.track.track_length
         while current_s >= self.track.track_length: current_s -= self.track.track_length
+        
         if len(self.track.key_pts) < 5:
             for i in range(len(self.track.key_pts)):
                 key_pts.append(self.track.key_pts[i])
             while len(key_pts) < 5:
                 key_pts.append(key_pts[-1])
         else:
-            key_pt_idx_s = np.where(current_s >= self.track.key_pts[:, 3])[0][-1] - 1
+            if current_s < self.track.track_length -2:
+                track_key_pts = self.end_track
+            key_pt_idx_s = np.where(current_s >= track_key_pts[:, 3])[0][-1] - 1
             if key_pt_idx_s == -1:
-                key_pt_idx_s = len(self.track.key_pts) - 1
-            difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
+                key_pt_idx_s = len(track_key_pts) - 1
+            difference = max(0, (key_pt_idx_s + 4) - (len(track_key_pts) - 1))
             difference_ = difference
             while difference > 0:
-                key_pts.append(self.track.key_pts[difference_ - difference])
+                key_pts.append(track_key_pts[difference_ - difference])
                 difference -= 1
             for i in range(5 - len(key_pts)):
-                key_pts.append(self.track.key_pts[key_pt_idx_s + i])
+                key_pts.append(track_key_pts[key_pt_idx_s + i])
 
         for stageidx in range(self.N):
             # Default to respecting obstacles
