@@ -911,7 +911,7 @@ double PurePursuit::compute_steering_rad()
   
   
   const double steering_angle_rad = atanf(curvature * distance_front_rear_wheel);
-  return -1*steering_angle_rad;
+  return steering_angle_rad;
 }
 ////////////////////////////////////////////////////////////////////////////////
 

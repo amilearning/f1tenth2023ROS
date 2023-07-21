@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
-
-  <node name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen" respawn="true">      
-        <remap from="/vesc/ackermann_cmd" to="/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl2"/>
-
+ <arg name="my_namespace"  default="target" />
+  <node ns="$(arg my_namespace)" name="highspeed_ctrl" pkg="highspeed_ctrl" type="highspeed_ctrl" output="screen" respawn="true">      
+        <remap from="/target/vesc/ackermann_cmd" to="low_level/ackermann_cmd_mux/input/nav_hmcl"/>
+        <remap from="/target/tracked_info" to="/track_info"/>
         
       <param name="waypoint_topic" value="/track_info"/> 
 
@@ -59,8 +59,8 @@
 
 </node>
 
-      <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="log" respawn="true">
+      <!-- <node name="brake_governer" pkg="brake_governer" type="brake_governer.py" output="log" respawn="true">
   	<param name="current" value="-50.0"/>
 	  <param name="tolerance" value="0.3"/> 
-  </node> 
+  </node>  -->
 </launch>

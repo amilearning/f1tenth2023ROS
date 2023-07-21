@@ -53,11 +53,11 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
     
 
 
-  nh_p.param<std::string>("status_topic", status_topic, "/vehicle_status");  
-  nh_p.param<std::string>("control_topic", control_topic, "/vesc/ackermann_cmd");
-  nh_p.param<std::string>("waypoint_topic", waypoint_topic, "/local_traj");
+  nh_p.param<std::string>("status_topic", status_topic, "vehicle_status");  
+  nh_p.param<std::string>("control_topic", control_topic, "vesc/ackermann_cmd");
+  nh_p.param<std::string>("waypoint_topic", waypoint_topic, "local_traj");
   // nh_p.param<std::string>("odom_topic", odom_topic, "/odom");   
-  nh_p.param<std::string>("odom_topic", odom_topic, "/pose_estimate");   
+  nh_p.param<std::string>("odom_topic", odom_topic, "pose_estimate");   
   nh_p.param<int>("path_smoothing_times_", path_smoothing_times_, 1);
   
   nh_p.param<int>("path_filter_moving_ave_num_", path_filter_moving_ave_num_, 35);  
@@ -79,21 +79,21 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   pp_ctrl.readLookuptable(lookuptable);
  
   
-  waypointSub = nh_traj.subscribe(waypoint_topic, 2, &Ctrl::callbackRefPath, this);
+  waypointSub = nh_traj.subscribe("tracked_info", 2, &Ctrl::callbackRefPath, this);
   
 
   odomSub = nh_state_.subscribe(odom_topic, 2, &Ctrl::odomCallback, this);  
-  vesodomSub = nh_state_.subscribe("/vesc/odom", 2, &Ctrl::vescodomCallback, this);  
-  poseSub  = nh_ctrl.subscribe("/tracked_pose", 2, &Ctrl::poseCallback, this);  
+  vesodomSub = nh_state_.subscribe("vesc/odom", 2, &Ctrl::vescodomCallback, this);  
+  poseSub  = nh_ctrl.subscribe("tracked_pose", 2, &Ctrl::poseCallback, this);  
   // imuSub = nh_ctrl.subscribe("/imu/data", 2, &Ctrl::imuCallback, this);  
-  obstacleSub = nh_traj.subscribe("/datmo/box_kf", 2, &Ctrl::obstacleCallback, this);  
+  obstacleSub = nh_traj.subscribe("datmo/box_kf", 2, &Ctrl::obstacleCallback, this);  
   // lidarSub = nh_traj.subscribe("/scan", 2, &Ctrl::lidarCallback, this);  
 
-  fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("/fren_pose",1);
+  fren_pub = nh_ctrl.advertise<geometry_msgs::PoseStamped>("fren_pose",1);
   global_traj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("global_traj", 1);
-  centerlin_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/centerline_info", 1);
+  centerlin_info_pub = nh_traj.advertise<visualization_msgs::Marker>("centerline_info", 1);
   
-  closest_obj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("/closest_obj", 1);
+  closest_obj_marker_pub = nh_traj.advertise<visualization_msgs::Marker>("closest_obj", 1);
 
   // keypts_info_pub = nh_traj.advertise<visualization_msgs::Marker>("/keypts_info", 1);
   target_pointmarker_pub = nh_traj.advertise<visualization_msgs::Marker>("target_point", 1);
@@ -102,7 +102,7 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_traj,ros::NodeHandle& n
   pred_traj_marker_pub = nh_traj.advertise<visualization_msgs::MarkerArray>("predicted_traj", 1);
   ackmanPub = nh_ctrl.advertise<ackermann_msgs::AckermannDriveStamped>(control_topic, 2);    
 
-  est_odom_pub = nh_ctrl.advertise<nav_msgs::Odometry>("/est_odom", 2);    
+  est_odom_pub = nh_ctrl.advertise<nav_msgs::Odometry>("est_odom", 2);    
 
 
   boost::thread ControlLoopHandler(&Ctrl::ControlLoop,this);   
@@ -548,6 +548,7 @@ void Ctrl::ControlLoop()
         if(pp_cmd.drive.speed > 0.0 && pp_cmd.drive.speed <= 0.5){
           pp_cmd.drive.speed = 0.5;
         }
+        
           ackmanPub.publish(pp_cmd);
           final_cmd = pp_cmd;
           cur_state.delta = pp_cmd.drive.steering_angle;          
