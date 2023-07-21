@@ -104,6 +104,8 @@ class Predictor:
         
         self.ego_odom_ready = False
         self.tar_odom_ready = False
+
+        self.target_policy_name = "aggressive_blocking"
         
         # Service client 
         # self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
@@ -220,7 +222,7 @@ class Predictor:
         
         self.use_predictions_from_module = True
         
-        info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
+        info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
         pp_cmd = AckermannDriveStamped()
         pp_cmd.header.stamp = self.cur_ego_pose.header.stamp   
         vel_cmd = 0.0            

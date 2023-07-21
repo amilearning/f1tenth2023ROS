@@ -43,7 +43,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     Qc=5.0, # e_cont , countouring error 
     Ql=500.0, #500.0  # e_lag, lag error 
     Q_theta= 5.0, # progress speed  v_proj_prev 
-    Q_xref=0.0, #  reference tracking for blocking 
+    Q_xref=5000.0, #  reference tracking for blocking 
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 

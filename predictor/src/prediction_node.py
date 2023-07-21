@@ -137,8 +137,11 @@ class Predictor:
         self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
         self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
-        # predictor type = 0 : ThetaGP, 1 : CAV, 2: NMPC, 3 : GP
-        self.predictor_type = 3
+        # predictor type = 0 : ThetaGP
+        #                   1 : CAV
+        #                   2: NMPC
+        #                   3 : GP
+        self.predictor_type = 2
         ### setup ego controller to compute the ego prediction 
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
@@ -172,7 +175,7 @@ class Predictor:
         self.ego_list = []
         self.tar_list = []
         self.data_save = False
-        self.save_buffer_legnth = 100
+        self.save_buffer_legnth = 20
         
         
         
@@ -305,10 +308,11 @@ class Predictor:
         if self.predictor and self.cur_ego_state is not None:    
             
             if self.data_save:
-                self.ego_list.append(self.cur_ego_state)
-                self.tar_list.append(self.cur_tar_state)
-                if len(self.tar_list) > self.save_buffer_legnth:
-                    self.save_buffer()
+                if self.cur_ego_state.p.s is not None:
+                    self.ego_list.append(self.cur_ego_state)
+                    self.tar_list.append(self.cur_tar_state)
+                    if len(self.tar_list) > self.save_buffer_legnth:
+                        self.save_buffer()
 
             ## TODO : receive ego prediction from mpcc ctrl, instead computing one more time            
             self.use_predictions_from_module = True
