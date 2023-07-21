@@ -42,8 +42,8 @@ class OvertakingAgent:
              rospy.sleep(0.01)
         
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
-        # self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")
-        # self.gp_mpcc_ego_controller.initialize()
+        self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")
+        self.gp_mpcc_ego_controller.initialize()
         
         # self.warm_start()
 

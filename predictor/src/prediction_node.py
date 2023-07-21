@@ -137,8 +137,8 @@ class Predictor:
         self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
         self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
-        
-        
+        # predictor type = 0 : ThetaGP, 1 : CAV, 2: NMPC, 3 : GP
+        self.predictor_type = 3
         ### setup ego controller to compute the ego prediction 
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
@@ -151,7 +151,7 @@ class Predictor:
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
         ## constant angular velocity model 
-        self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .001)            
+        self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
 
         ## NMPC based game theoretic approach 
         self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
@@ -284,9 +284,9 @@ class Predictor:
    
 
     def prediction_callback(self,event):
+        
         start_time = time.time()
-        if self.ego_odom_ready is False or self.tar_odom_ready is False:
-            
+        if self.ego_odom_ready is False or self.tar_odom_ready is False:            
             return
         
         if self.ego_odom_ready and self.tar_odom_ready:
@@ -317,11 +317,17 @@ class Predictor:
             # ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
             
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
-                
-                self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
-                # self.tv_cav_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
-                # self.tv_nmpc_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
-                # self.tv_gp_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                if self.predictor_type == 0:
+                    self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
+                elif self.predictor_type == 1:
+                    self.tv_cav_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
+                elif self.predictor_type == 2:
+                    self.tv_nmpc_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                elif self.predictor_type == 3:
+                    self.tv_gp_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                else: 
+                    print("select predictor")
+
                 #################### predict only target is close to ego #####################################
                 cur_ego_s = self.cur_ego_state.p.s.copy()
                 cur_tar_s = self.cur_tar_state.p.s.copy()
@@ -330,48 +336,47 @@ class Predictor:
                 if diff_s > self.track_info.track.track_length-3:                 
                     diff_s = diff_s - self.track_info.track.track_length
                 
-                if diff_s < 7.0:                 
+                if abs(diff_s) > -7.0:                 
                 #################### predict only target is close to ego END #####################################
                     ## publish our proposed method prediction 
-                    if self.tv_pred is not None:            
+                    if self.tv_pred is not None and self.predictor_type == 0:            
                         fill_global_info(self.track_info.track, self.tv_pred)                    
                         tar_pred_msg = prediction_to_rosmsg(self.tv_pred)                        
-                        self.tar_pred_pub.publish(tar_pred_msg)
-                        # convert covarariance in local coordinate for visualization
-                        # self.tv_pred.convert_local_to_global_cov()
-                        ###
+                        
                         tv_pred_markerArray = prediction_to_marker(self.tv_pred)
-                        self.tv_pred_marker_pub.publish(tv_pred_markerArray)
+                        # convert covarariance in local coordinate for visualization
+                        # self.tv_pred.convert_local_to_global_cov()                        ###
+                        
+                        
                     
-                    if self.tv_cav_pred is not None:            
+                    if self.tv_cav_pred is not None and self.predictor_type == 1:            
                         fill_global_info(self.track_info.track, self.tv_cav_pred)                    
-                        tar_cav_pred_msg = prediction_to_rosmsg(self.tv_cav_pred)                        
-                        # self.tar_cav_pred_pub.publish(tar_cav_pred_msg)                        
-                        ###
-                        tv_cav_pred_markerArray = prediction_to_marker(self.tv_cav_pred)
-                        self.tv_cav_pred_marker_pub.publish(tv_cav_pred_markerArray)
+                        tar_pred_msg = prediction_to_rosmsg(self.tv_cav_pred)                        
+                        tv_pred_markerArray = prediction_to_marker(self.tv_cav_pred)
+                        
 
-                    if self.tv_nmpc_pred is not None:
+                    if self.tv_nmpc_pred is not None and self.predictor_type == 2:
                         fill_global_info(self.track_info.track, self.tv_nmpc_pred)                    
-                        tar_nmpc_pred_msg = prediction_to_rosmsg(self.tv_nmpc_pred)                        
-                        # self.tar_cav_pred_pub.publish(tar_cav_pred_msg)                        
-                        ###
-                        tv_nmpc_pred_markerArray = prediction_to_marker(self.tv_nmpc_pred)
-                        self.tv_nmpc_pred_marker_pub.publish(tv_nmpc_pred_markerArray)
+                        tar_pred_msg = prediction_to_rosmsg(self.tv_nmpc_pred)                        
+                        tv_pred_markerArray = prediction_to_marker(self.tv_nmpc_pred)                        
+                        
 
-                    if self.tv_gp_pred is not None:
+                    if self.tv_gp_pred is not None and self.predictor_type == 3:
                         fill_global_info(self.track_info.track, self.tv_gp_pred)                    
-                        tar_gp_pred_msg = prediction_to_rosmsg(self.tv_nmpc_pred)                        
-                        # self.tar_cav_pred_pub.publish(tar_cav_pred_msg)                        
-                        ###
-                        tv_gp_pred_markerArray = prediction_to_marker(self.tv_gp_pred)
-                        self.tv_gp_pred_marker_pub.publish(tv_gp_pred_markerArray)
+                        tar_pred_msg = prediction_to_rosmsg(self.tv_gp_pred)                        
+                        tv_pred_markerArray = prediction_to_marker(self.tv_gp_pred)
+                    
+                    self.tar_pred_pub.publish(tar_pred_msg)          
+                    self.tv_pred_marker_pub.publish(tv_pred_markerArray)              
+
+                    # self.tv_gp_pred_marker_pub.publish(tv_gp_pred_markerArray)
 
 
                 
         end_time = time.time()
         execution_time = end_time - start_time
-        print(f"Prediction execution time: {execution_time} seconds")
+        if execution_time > 0.1:
+            print(f"Prediction execution time: {execution_time} seconds")
 
     
 ###################################################################################

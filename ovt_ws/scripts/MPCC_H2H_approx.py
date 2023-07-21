@@ -10,7 +10,7 @@ import casadi as ca
 import sys, os, pathlib
 
 current_path = os.getcwd()
-sys.path.append(os.path.join(os.path.expanduser('~'), '/home/hjpc/forcespro'))
+sys.path.append(os.path.join(os.path.expanduser('~'), '/home/racepc/forcespro'))
 import forcespro
 import forcespro.nlp
 

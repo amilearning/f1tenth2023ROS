@@ -34,6 +34,7 @@ class MPCC_H2H_approx(AbstractController):
         self.all_tracks = control_params.all_tracks
         self.dynamics = dynamics
 
+        self.key_pts = None
         self.track = track
         self.track_name = track_name
 
@@ -212,9 +213,9 @@ class MPCC_H2H_approx(AbstractController):
             contains_global = np.any(tv_pred.x)
             offs = 0
             t_ = tv_pred.t
-            # while t_ < tv_state.t - 0.5*self.dt:
-            #     offs += 1
-            #     t_ += self.dt
+            while t_ < tv_state.t - 0.5*self.dt:
+                offs += 1
+                t_ += self.dt
 
             if contains_parametric and contains_global:
                 for i, (s, x_tran, x, y, psi) in enumerate(
@@ -303,14 +304,8 @@ class MPCC_H2H_approx(AbstractController):
                 if tmp[3] <  key_pts[0][3]: 
                     if current_s > self.track.track_length / 2.0:                                       
                         key_pts[i][3] = tmp[3]+self.track.track_length
-            # difference = max(0, (key_pt_idx_s + 4) - (len(self.track.key_pts) - 1))
-            # difference_ = difference
-            # while difference > 0:
-            #     key_pts.append(self.track.key_pts[difference_ - difference])
-            #     difference -= 1
-            # for i in range(5 - len(key_pts)):
-            #     key_pts.append(self.track.key_pts[key_pt_idx_s + i])
 
+            
         for stageidx in range(self.N):
             # Default to respecting obstacles
             obs_deactivate = False

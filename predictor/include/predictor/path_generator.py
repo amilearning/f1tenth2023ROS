@@ -45,36 +45,45 @@ class PathGenerator:
     def gen_path(self):
         self.track = RadiusArclengthTrack()
         curv = 1.5
+        s1 = np.array([[1.2, 950.0]])
         # 2.5*np.pi/2.0
-        curve1 = np.array([[1.5*np.pi/2, curv]])
-        fcurve = np.array([[1.5*np.pi, curv]])
-        short_straight = np.array([[3.0-0.1, 0.0]])
-        hstraight = np.array([[1.5, 0.0]])
-        hstraight2 = np.array([[3.0, 999.0]])
-        stright = np.array([[3.0, 800.0]])
-        tshort = np.array([[0.2, 0.0]])
-        curve2 = np.array([[1.5*np.pi-0.1, -curv-0.1]])
+        curve1 = np.array([[1.5*np.pi, curv]])
+        s2 = np.array([[2.0, 950.0]])
+        curv_2 = -1.5
+        c2 = np.array([[abs(curv_2)*np.pi/2.0, curv_2]])
+        s3 = np.array([[3.5, 950.0]])
+        curv_3 = -1.5
+        c3 = np.array([[abs(curv_3)*np.pi/3.0, curv_3]])
+        s4 = np.array([[1.0, 950.0]])
+        curv_4 = 1.5
+        c4 = np.array([[abs(curv_4)*np.pi, curv_4]])
+        s5 = np.array([[3.5, 999.0]])
+        curv_5 = 2.0
+        c5 = np.array([[abs(curv_5)*np.pi/2-0.6, curv_5]])
+        s6 = np.array([[5.5, 999.0]])
+        curv_6 = 10.0
+        c6 = np.array([[2.1, curv_6]])
+        curv_7 = 2.0
+        c7 = np.array([[curv_7*np.pi/3.0+0.15, curv_7]])
+        s7 = np.array([[1.5, 999.0]])
+        
+        s8 = np.array([[2.0, 950.0]])
+        s9 = np.array([[0.4, 999.0]])
+        
+        
 
-        stright2 = np.array([[3.0, 0.0]])
-        curve3 = np.array([[1.5*np.pi, curv+0.1]])
-        stright3 = np.array([[5.0, 950.0]])
-        curve4 = np.array([[1.5*np.pi/2, curv+0.2]])
-        stright4 = np.array([[6.0, 990]])
-        curve5 = np.array([[1.5*np.pi/2, curv+0.05]])
-        stright5 = np.array([[5.8, -900.0]])
-        curve6 = np.array([[2.0*np.pi/2-0.8, 2.0]])
-        tiny_straight = np.array([[.2, 999]])
-        tiny_curve = np.array([[0.5, 1.5]])
-        tiny_curve2 = np.array([[0.6, 1.3]])
-        eightcircle = np.array([[3.0*np.pi/4.0, 3.0]])
-        track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight])
+        # track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight])
+        # track = np.vstack([s1,curve1,s2,c2,s3,c3,s4,c4,s5,c5,s6,c6,c7,s7,s1,curve1,s2,c2,s3,c3,s4,c4,s5,c5,s6,c6,c7,s7]) 
+        track = np.vstack([s1,curve1,s2,c2,s3,c3,s4,c4,s5,c5,s6,c6,c7,s7,s8,curve1]) 
+        
+
                 # track = np.vstack([curve, end_curve])
         self.cl_segs = track
         # self.cl_segs = np.array([[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0],[1.5*np.pi/15.0, 1.5],[0.5, 0.0],[1.5*np.pi/15.0, -1.5],[0.5, 0.0]])                                
         
         # ,[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi, 1.5],[1.5, 0.0],[1.5*np.pi/30.0, -1.5],[1.5, 0.0],[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi-0.2, 1.5]])                                
             # [5.0, 0.0],[1.5*np.pi, 1.5],[5.0, 0.0],[1.5*np.pi-0.01, 1.5]])
-        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.0, 0.0))
+        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.0, -20*np.pi/180.0))
         
         self.track_ready = True
         self.get_track_points()
