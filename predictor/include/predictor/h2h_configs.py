@@ -23,11 +23,11 @@ class Controllers(Enum):
 # Time discretization
 dt = 0.1
 # Horizon length
-N = 10
+N = 15
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')
-width = 2.2
+width = 1.7
 
 # Force rebuild all FORCES code-gen controllers
 rebuild = False
@@ -82,7 +82,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     Q_theta= 200, # progress speed  v_proj_prev 
 
 
-    Q_xref=500.0, #  reference tracking for blocking 
+    Q_xref=0.0, #  reference tracking for blocking 
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 
@@ -90,16 +90,16 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft=1.8, ## reference speed .. only activate if speed exceeds it 
+    vlong_max_soft=3.0, ## reference speed .. only activate if speed exceeds it 
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
     num_std_deviations= 0.01,
 
-    u_a_max=1.0,
-    vx_max=2.0,
-    u_a_min=-1.0,
+    u_a_max=1.5,
+    vx_max=3.2,
+    u_a_min=-1.5,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
@@ -146,7 +146,7 @@ mpcc_ego_params = MPCCApproxFullModelParams(
 mpcc_tv_params = MPCCApproxFullModelParams(
     dt=dt,
     all_tracks=all_tracks,
-    solver_dir='' if rebuild else '~/.mpclab_controllers/mpcc_h2h_tv',
+    solver_dir='' if rebuild else '~/.mpclab_controllers/mpcc_tv_params',
     # solver_dir='',
     optlevel=2,
 
@@ -156,7 +156,7 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     Q_theta= 200, # progress speed  v_proj_prev 
 
 
-    Q_xref=0.0, #  reference tracking for blocking 
+    Q_xref=500.0, #  reference tracking for blocking 
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 

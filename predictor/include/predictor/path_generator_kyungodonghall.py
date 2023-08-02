@@ -19,7 +19,7 @@ class PathGenerator:
         self.track_bound_in = MarkerArray()
         self.track_bound_out = MarkerArray()
         self.dt = 0.1
-        self.track_width = 1.7 ## 2.2 
+        self.track_width = 2.8 ## 2.2 
         self.slack = 0.1
         self.cl_segs = None
         self.track = None 
@@ -44,24 +44,37 @@ class PathGenerator:
         
     def gen_path(self):
         self.track = RadiusArclengthTrack()
-        
-        
+        curv = 1.5
+        s1 = np.array([[1.2, 950.0]])
         # 2.5*np.pi/2.0
-        curv = 1.0
-        curve1 = np.array([[curv*np.pi, curv]])
-        curve2 = np.array([[0.5*curv*np.pi, -1*curv]])
-        curve3 = np.array([[curv*np.pi, curv]])
-        curve4 = np.array([[0.5*curv*np.pi, curv]])
-
-
+        curve1 = np.array([[1.5*np.pi, curv]])
+        s2 = np.array([[2.0, 950.0]])
+        curv_2 = -1.5
+        c2 = np.array([[abs(curv_2)*np.pi/2.0, curv_2]])
+        s3 = np.array([[3.5, 950.0]])
+        curv_3 = -1.5
+        c3 = np.array([[abs(curv_3)*np.pi/3.0, curv_3]])
+        s4 = np.array([[1.0, 950.0]])
+        curv_4 = 1.5
+        c4 = np.array([[abs(curv_4)*np.pi, curv_4]])
+        s5 = np.array([[3.5, 999.0]])
+        curv_5 = 2.0
+        c5 = np.array([[abs(curv_5)*np.pi/2-0.6, curv_5]])
+        s6 = np.array([[5.5, 999.0]])
+        curv_6 = 10.0
+        c6 = np.array([[2.1, curv_6]])
+        curv_7 = 2.0
+        c7 = np.array([[curv_7*np.pi/3.0+0.15, curv_7]])
+        s7 = np.array([[1.5, 999.0]])
         
+        s8 = np.array([[2.0, 950.0]])
+        s9 = np.array([[0.4, 999.0]])
+        
+        
+
         # track = np.vstack([curve1, stright, curve2, hstraight2, curve3,stright3,curve4,stright4,curve5,stright5, curve6,tiny_straight])
         # track = np.vstack([s1,curve1,s2,c2,s3,c3,s4,c4,s5,c5,s6,c6,c7,s7,s1,curve1,s2,c2,s3,c3,s4,c4,s5,c5,s6,c6,c7,s7]) 
-
-        s1 = np.array([[2.3, 999.0]])
-        s2 = np.array([[2.0, 999.0]])
-        s3 = np.array([[2.0, 999.0]])
-        track = np.vstack([s1,curve1,s1,curve2,curve3,s2,curve4,s3,s1,curve1,s1,curve2,curve3,s2,curve4,s3]) 
+        track = np.vstack([s1,curve1,s2,c2,s3,c3,s4,c4,s5,c5,s6,c6,c7,s7,s8,curve1]) 
         
 
                 # track = np.vstack([curve, end_curve])
@@ -70,7 +83,7 @@ class PathGenerator:
         
         # ,[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi, 1.5],[1.5, 0.0],[1.5*np.pi/30.0, -1.5],[1.5, 0.0],[1.5*np.pi/30.0, 1.5],[1.5, 0.0],[1.5*np.pi-0.2, 1.5]])                                
             # [5.0, 0.0],[1.5*np.pi, 1.5],[5.0, 0.0],[1.5*np.pi-0.01, 1.5]])
-        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.0, 0.0))
+        self.track.initialize(self.track_width,self.slack, self.cl_segs, init_pos=(0.0, 0.0, -20*np.pi/180.0))
         
         self.track_ready = True
         self.get_track_points()

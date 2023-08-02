@@ -108,7 +108,9 @@ class ContPolicyEncoder:
             if torch.is_tensor(z) is False and np is False:                
                 z = torch.tensor(z)
             elif torch.is_tensor(z) and np:        
-                z = z.cpu().numpy()            
+                z = z.cpu().numpy()       
+            
+           
             return z
 
 

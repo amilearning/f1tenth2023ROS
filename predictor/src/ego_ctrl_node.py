@@ -52,7 +52,7 @@ from collections import deque
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehiclePrediction, VehicleActuation
 from predictor.controllers.utils.controllerTypes import PIDParams
-from predictor.utils import pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
+from predictor.utils import shift_in_local_x, pose_to_vehicleState, state_to_debugmsg, odom_to_vehicleState, prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
@@ -65,6 +65,7 @@ from hmcl_msgs.msg import VehiclePredictionROS
 from dynamic_reconfigure.server import Server
 from predictor.cfg import predictorDynConfig
 
+from predictor.utils import obstacles_to_markers
 rospack = rospkg.RosPack()
 pkg_dir = rospack.get_path('predictor')
 
@@ -94,12 +95,12 @@ class Predictor:
                                       u=VehicleActuation(t=0.0, u_a=0.0, u_steer = 0.0))
         self.cur_tar_state = VehicleState()
             
-        ego_odom_topic = "/target/pose_estimate"
-        ego_pose_topic = "/target/tracked_pose"
-        ego_vehicle_status_topic = "/target/sensors/core"
+        ego_odom_topic = "/pose_estimate" 
+        ego_pose_topic = "/tracked_pose"
+        ego_vehicle_status_topic = "/vesc/sensor/core"
 
-        target_odom_topic = "/pose_estimate"
-        target_pose_topic = "/tracked_pose"
+        target_odom_topic = "/target/pose_estimate"
+        target_pose_topic = "/target/tracked_pose"
         
         
         self.ego_odom_ready = False
@@ -111,15 +112,19 @@ class Predictor:
         # self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
 
         # Publishers                
-        self.ackman_pub = rospy.Publisher('/target/low_level/ackermann_cmd_mux/input/nav_hmcl',AckermannDriveStamped,queue_size = 2)
-        self.tar_pred_marker_pub = rospy.Publisher("/tar_pred_marker", MarkerArray, queue_size=2)  
+        self.ackman_pub = rospy.Publisher('/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl',AckermannDriveStamped,queue_size = 2)
         # self.ego_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         # self.target_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         # self.target_predict_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
+        self.ego_debug_pub = rospy.Publisher("/ego_debug", PoseStamped, queue_size=2)  
+        self.tar_debug_pub = rospy.Publisher("/tar_debug", PoseStamped, queue_size=2)  
+        self.obs_debug_pub = rospy.Publisher("/obs_debug_marker", MarkerArray, queue_size=2)  
+        self.ego_pred_marker_pub = rospy.Publisher("/ego_pred_marker", MarkerArray, queue_size=2)  
+        
         
         # Subscribers
         self.tv_pred = None
-        self.tv_pred_sub = rospy.Subscriber("/target/tar_pred",VehiclePredictionROS, self.tar_pred_callback)
+        self.tv_pred_sub = rospy.Subscriber("/tar_pred",VehiclePredictionROS, self.tar_pred_callback)
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
         self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         # self.ego_vehicle_status_sub = rospy.Subscriber(ego_vehicle_status_topic, VescStateStamped, self.ego_vehicle_status_callback)                
@@ -128,7 +133,7 @@ class Predictor:
         self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
         
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
-        self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = mpcc_tv_params, name="mpcc_tv_params", track_name="test_track")
+        self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")
         self.gp_mpcc_ego_controller.initialize()
         self.warm_start()
         
@@ -145,7 +150,7 @@ class Predictor:
 
     def tar_pred_callback(self,tar_pred_msg):        
         self.tv_pred = rosmsg_to_prediction(tar_pred_msg)
-        print(self.tv_pred)
+        
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:
@@ -165,6 +170,7 @@ class Predictor:
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
+        shift_in_local_x(self.cur_tar_pose, dist = -0.18)
     
     def warm_start(self):
         cur_state_copy = self.cur_ego_state.copy()
@@ -223,13 +229,23 @@ class Predictor:
         
         self.use_predictions_from_module = True
         
-        info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
-        tar_state_pred = self.gp_mpcc_ego_controller.get_prediction()
-        if tar_state_pred is not None and tar_state_pred.x is not None:
-            if len(tar_state_pred.x) > 0:
-                tar_marker_color = [1.0, 0.0, 0.0]
-                tar_state_pred_marker = prediction_to_marker(tar_state_pred,tar_marker_color)
-                self.tar_pred_marker_pub.publish(tar_state_pred_marker)
+        # info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
+        info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
+        
+        ego_state_pred = self.gp_mpcc_ego_controller.get_prediction()
+        if ego_state_pred is not None and ego_state_pred.x is not None:
+            if len(ego_state_pred.x) > 0:
+                ego_marker_color = [0.0, 1.0, 0.0]
+                ego_state_pred_marker = prediction_to_marker(ego_state_pred,ego_marker_color)
+                self.ego_pred_marker_pub.publish(ego_state_pred_marker)
+        
+        # if len(cur_obstacles) > 0:            
+        #     obstacle_marker = obstacles_to_markers(cur_obstacles)
+        #     self.obs_debug_pub.publish(obstacle_marker)
+        # else:
+        #     print("cur_obstacles length less than 1")
+
+
 
         pp_cmd = AckermannDriveStamped()
         pp_cmd.header.stamp = self.cur_ego_pose.header.stamp   
@@ -245,28 +261,12 @@ class Predictor:
                 vel_cmd = pred_v_lon[4]            
             # vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
             
-        pp_cmd.drive.speed = vel_cmd            
-        # pp_cmd.drive.speed = 0.0            
+        pp_cmd.drive.speed = vel_cmd        
         pp_cmd.drive.steering_angle = self.cur_ego_state.u.u_steer
         self.ackman_pub.publish(pp_cmd)
     
     
-        # try:
-        #     srv_res = self.mpcc_srv(problem["xinit"], problem["all_parameters"], problem["x0"])  
-                      
-        #     cur_control = self.gp_mpcc_ego_controller.extract_sol(srv_res.output,srv_res.exitflag)
-            
-        #     pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
-        #     vel_cmd = pred_v_lon[1]
-        #     vel_cmd = np.clip(vel_cmd, 0.0, 1.5)
-            
-        #     # pp_cmd.drive.speed = vel_cmd            
-        #     pp_cmd.drive.speed = 0.0            
-        #     pp_cmd.drive.steering_angle = -1*cur_control.u_steer
-            
-        # except rospy.ServiceException as e:
-        #     pp_cmd.drive.speed = 0.0           
-        #     print("Service call failed: %s"%e)
+   
         
         
 
@@ -274,7 +274,7 @@ class Predictor:
 ###################################################################################
 
 def main():
-    rospy.init_node("targetcontroller")    
+    rospy.init_node("egocontroller")    
     Predictor()
 
 if __name__ == "__main__":

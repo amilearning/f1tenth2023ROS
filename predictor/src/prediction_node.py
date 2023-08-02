@@ -39,7 +39,7 @@ from std_msgs.msg import Bool
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import MarkerArray
-
+import threading
 from vesc_msgs.msg import VescStateStamped
 from hmcl_msgs.srv import mpcc
 import rospkg
@@ -67,9 +67,9 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
-        self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
-        self.n_nodes = rospy.get_param('~n_nodes', default=10)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
+      
+        self.n_nodes = rospy.get_param('~n_nodes', default=15)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.5)                   
         self.torch_device = "cuda:0"   ## Specify the name of GPU 
         # self.torch_dtype  = torch.double
         self.dt = self.t_horizon / self.n_nodes*1.0        
@@ -95,7 +95,7 @@ class Predictor:
         ##
         gp_model_name = "aggressive_blocking"
         use_GPU = True
-        M = 10
+        M = 25
         
 
         self.cur_ego_odom = Odometry()        
@@ -120,6 +120,20 @@ class Predictor:
         
         self.ego_odom_ready = False
         self.tar_odom_ready = False
+
+        # prediction callback   
+        self.tv_pred = None
+        self.tv_cav_pred = None
+        self.tv_nmpc_pred = None
+        self.tv_gp_pred = None
+        
+        ## controller callback        
+        self.ego_list = []
+        self.tar_list = []
+        self.data_save = False
+        self.prev_data_save = False
+        self.save_buffer_length = 200
+
         
         # Service client 
         self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
@@ -141,16 +155,16 @@ class Predictor:
         #                   1 : CAV
         #                   2: NMPC
         #                   3 : GP
-        self.predictor_type = 2
+        self.predictor_type = 0
         ### setup ego controller to compute the ego prediction 
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
         gp_policy_name = 'gpberkely'        
-        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2))
+        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(0.1))
         
         ### our method 
-        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2))            
+        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
         ## constant angular velocity model 
@@ -162,20 +176,10 @@ class Predictor:
         
         
         # NLMPCPredictor(N, None, cov=.01, v_ref=mpcc_tv_params.vx_max),
-        
-            
-        # prediction callback   
-        self.tv_pred = None
-        self.tv_cav_pred = None
-        self.tv_nmpc_pred = None
-        self.tv_gp_pred = None
+        self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
         self.prediction_hz = rospy.get_param('~prediction_hz', default=10)
         self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
-        ## controller callback        
-        self.ego_list = []
-        self.tar_list = []
-        self.data_save = False
-        self.save_buffer_legnth = 20
+  
         
         
         
@@ -228,8 +232,15 @@ class Predictor:
         print("warm start done")
  
 
-    def dyn_callback(self,config,level):
+    def dyn_callback(self,config,level):        
+        if config.clear_buffer:
+            self.clear_buffer()
+        self.predictor_type = config.predictor_type
         self.data_save = config.logging_vehicle_states
+        if self.prev_data_save is True and self.data_save is False and config.clear_buffer is not True:
+            self.save_buffer_in_thread()
+            print("save data by turnning off the switch")
+        self.prev_data_save = config.logging_vehicle_states
         print("dyn reconfigured")
         
         return config
@@ -238,6 +249,11 @@ class Predictor:
         if len(self.ego_list) > 0:
             self.ego_list.clear()
             self.tar_list.clear()
+    
+    def save_buffer_in_thread(self):
+        # Create a new thread to run the save_buffer function
+        t = threading.Thread(target=self.save_buffer)
+        t.start()
 
 # @dataclass
 # class RealData():
@@ -248,9 +264,9 @@ class Predictor:
 
 
     def save_buffer(self):
-        real_data = RealData(self.track_info.track, self.n_nodes, self.ego_list, self.tar_list)
+        real_data = RealData(self.track_info.track, len(self.tar_list), self.ego_list, self.tar_list)
         create_dir(path=real_dir)        
-        pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '.pkl'))
+        pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '_'+ str(len(self.tar_list))+'.pkl'))
         rospy.loginfo("states data saved")
         self.clear_buffer()
         rospy.loginfo("states buffer has been cleaned")
@@ -282,7 +298,7 @@ class Predictor:
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
-        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
+        shift_in_local_x(self.cur_tar_pose, dist = -0.18)
     
    
 
@@ -308,19 +324,23 @@ class Predictor:
         if self.predictor and self.cur_ego_state is not None:    
             
             if self.data_save:
-                if self.cur_ego_state.p.s is not None:
-                    self.ego_list.append(self.cur_ego_state)
-                    self.tar_list.append(self.cur_tar_state)
-                    if len(self.tar_list) > self.save_buffer_legnth:
-                        self.save_buffer()
+                if self.cur_ego_state.p.s is not None and self.cur_tar_state.p.s is not None and abs(self.cur_tar_state.p.x_tran) < 2.5 and abs(self.cur_ego_state.p.x_tran) < 2.5:
+                    self.ego_list.append(self.cur_ego_state.copy())
+                    self.tar_list.append(self.cur_tar_state.copy())                    
+                    if len(self.tar_list) > self.save_buffer_length:
+                        self.save_buffer_in_thread()
+                elif len(self.tar_list) > 0 and len(self.ego_list) > 0: ## if suddent crash or divergence in local, save data and do not continue from the next iteration
+                    self.save_buffer_in_thread()   
+                    
 
             ## TODO : receive ego prediction from mpcc ctrl, instead computing one more time            
             self.use_predictions_from_module = True
             _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
             ego_pred = self.gp_mpcc_ego_controller.get_prediction()
+            
             # ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
             
-            if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None:            
+            if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None and ego_pred.x is not None:            
                 if self.predictor_type == 0:
                     self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
                 elif self.predictor_type == 1:
@@ -340,7 +360,8 @@ class Predictor:
                 if diff_s > self.track_info.track.track_length-3:                 
                     diff_s = diff_s - self.track_info.track.track_length
                 
-                if abs(diff_s) > -7.0:                 
+                if abs(diff_s) > -3.0:                 
+                    tar_pred_msg = None
                 #################### predict only target is close to ego END #####################################
                     ## publish our proposed method prediction 
                     if self.tv_pred is not None and self.predictor_type == 0:            
@@ -370,8 +391,9 @@ class Predictor:
                         tar_pred_msg = prediction_to_rosmsg(self.tv_gp_pred)                        
                         tv_pred_markerArray = prediction_to_marker(self.tv_gp_pred)
                     
-                    self.tar_pred_pub.publish(tar_pred_msg)          
-                    self.tv_pred_marker_pub.publish(tv_pred_markerArray)              
+                    if tar_pred_msg is not None:
+                        self.tar_pred_pub.publish(tar_pred_msg)          
+                        self.tv_pred_marker_pub.publish(tv_pred_markerArray)              
 
                     # self.tv_gp_pred_marker_pub.publish(tv_gp_pred_markerArray)
 

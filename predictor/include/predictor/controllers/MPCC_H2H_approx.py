@@ -775,7 +775,7 @@ class MPCC_H2H_approx(AbstractController):
         if tv_state is not None and tv_state.p.s < ego_state.p.s:
             blocking = True
             xt = tv_state.p.x_tran
-            x_ref = -1*np.sign(xt) * min(self.track.half_width, abs(float(xt)))
+            x_ref = np.sign(xt) * min(self.track.half_width, abs(float(xt)))
         else:
             # non-blocking mode
             x_ref = -20
