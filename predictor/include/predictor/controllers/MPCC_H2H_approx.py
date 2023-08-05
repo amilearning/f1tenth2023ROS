@@ -365,13 +365,13 @@ class MPCC_H2H_approx(AbstractController):
 
         output, exitflag, solve_info = self.solver.solve(problem)
 
-        if exitflag == 1:
-            if exitflag == 0:
-                info = {"success": False, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
-                        "info": solve_info}
-            else:
-                info = {"success": True, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
-                        "info": solve_info}
+        if exitflag == 1 or exitflag == 0:
+            # if exitflag == 0:
+            #     info = {"success": False, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
+            #             "info": solve_info}
+            # else:
+            info = {"success": True, "return_status": "Successfully Solved", "solve_time": solve_info.solvetime,
+                    "info": solve_info}
 
             for k in range(self.N):
                 sol = output["x%02d" % (k + 1)]

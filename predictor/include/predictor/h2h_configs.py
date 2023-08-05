@@ -23,7 +23,7 @@ class Controllers(Enum):
 # Time discretization
 dt = 0.1
 # Horizon length
-N = 15
+N = 10
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')
@@ -77,7 +77,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
 
 
     N=N,
-    Qc=50.0, # e_cont , countouring error 
+    Qc=5.0, # e_cont , countouring error 
     Ql=500.0, #500.0  # e_lag, lag error 
     Q_theta= 200, # progress speed  v_proj_prev 
 
@@ -90,7 +90,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft=3.0, ## reference speed .. only activate if speed exceeds it 
+    vlong_max_soft=3.2, ## reference speed .. only activate if speed exceeds it 
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
@@ -98,8 +98,8 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     num_std_deviations= 0.01,
 
     u_a_max=1.5,
-    vx_max=3.2,
-    u_a_min=-1.5,
+    vx_max=3.4,
+    u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
@@ -151,12 +151,12 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     optlevel=2,
 
     N=N,
-    Qc=50.0, # e_cont , countouring error 
+    Qc=300.0, # e_cont , countouring error 
     Ql=500.0, #500.0  # e_lag, lag error 
     Q_theta= 200, # progress speed  v_proj_prev 
 
 
-    Q_xref=500.0, #  reference tracking for blocking 
+    Q_xref=0.0, #  reference tracking for blocking 
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 
@@ -164,16 +164,16 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft=2.2, ## reference speed .. only activate if speed exceeds it 
+    vlong_max_soft=1.95, ## reference speed .. only activate if speed exceeds it 
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
     num_std_deviations= 0.01,
 
-    u_a_max=1.0,
-    vx_max=2.5,
-    u_a_min=-1.0,
+    u_a_max=1.5,
+    vx_max=2.0,
+    u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,

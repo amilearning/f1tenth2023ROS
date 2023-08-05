@@ -91,8 +91,24 @@ def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose 
     state.p.x_tran = cl_coord[1]
     state.p.e_psi = cl_coord[2]
     
-def odom_to_vehicleState(state:VehicleState, odom: Odometry):
-    
+def odom_to_vehicleState(track: RadiusArclengthTrack, state:VehicleState, odom: Odometry):
+    # state.x.x = odom.pose.pose.position.x
+    # state.x.y = odom.pose.pose.position.y
+    # orientation_q = odom.pose.pose.orientation    
+    # quat = [orientation_q.w, orientation_q.x, orientation_q.y, orientation_q.z]
+    # (cur_roll, cur_pitch, cur_yaw) = quaternion_to_euler (quat)
+    # state.e.psi = cur_yaw
+    # xy_coord = (state.x.x, state.x.y, state.e.psi)
+    # cl_coord = track.global_to_local(xy_coord)
+    # if cl_coord is None:
+    #     print('cl_coord is none')
+    #     return
+    # state.t = odom.header.stamp.to_sec()
+    # state.p.s = cl_coord[0]
+    # state.p.x_tran = cl_coord[1]
+    # state.p.e_psi = cl_coord[2]
+
+    #### 
     local_vel = get_local_vel(odom, is_odom_local_frame = False)
     if local_vel is None: 
         return 
@@ -526,7 +542,7 @@ def prediction_to_marker(predictions):
         
     return pred_path_marker_array
 
-def prediction_to_marker(predictions,color):
+def state_prediction_to_marker(predictions,color):
     
     pred_path_marker_array = MarkerArray()
     if predictions is None or predictions.x is None:

@@ -52,7 +52,7 @@ from collections import deque
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehiclePrediction, VehicleActuation
 from predictor.controllers.utils.controllerTypes import PIDParams
-from predictor.utils import shift_in_local_x, pose_to_vehicleState, state_to_debugmsg, odom_to_vehicleState, prediction_to_marker, fill_global_info
+from predictor.utils import shift_in_local_x, pose_to_vehicleState, state_to_debugmsg, odom_to_vehicleState, state_prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
@@ -71,8 +71,8 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
-        self.n_nodes = rospy.get_param('~n_nodes', default=15)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.5)                           
+        self.n_nodes = rospy.get_param('~n_nodes', default=10)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        
         ## 
         # Generate Racing track info 
@@ -218,10 +218,10 @@ class Predictor:
     def cmd_callback(self,event):
         if self.ego_odom_ready and self.tar_odom_ready:
             pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
-            odom_to_vehicleState(self.cur_ego_state, self.cur_ego_odom)
+            odom_to_vehicleState(self.track_info.track,self.cur_ego_state, self.cur_ego_odom)
             
             pose_to_vehicleState(self.track_info.track, self.cur_tar_state, self.cur_tar_pose)
-            odom_to_vehicleState(self.cur_tar_state, self.cur_tar_odom)
+            odom_to_vehicleState(self.track_info.track,self.cur_tar_state, self.cur_tar_odom)
             
         else:
             rospy.loginfo("state not ready")
@@ -236,7 +236,7 @@ class Predictor:
         if ego_state_pred is not None and ego_state_pred.x is not None:
             if len(ego_state_pred.x) > 0:
                 ego_marker_color = [0.0, 1.0, 0.0]
-                ego_state_pred_marker = prediction_to_marker(ego_state_pred,ego_marker_color)
+                ego_state_pred_marker = state_prediction_to_marker(ego_state_pred,ego_marker_color)
                 self.ego_pred_marker_pub.publish(ego_state_pred_marker)
         
         # if len(cur_obstacles) > 0:            
@@ -256,9 +256,9 @@ class Predictor:
             pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
             cmd_accel = self.gp_mpcc_ego_controller.x_pred[1,9]             
             if cmd_accel < 0.0:                
-                vel_cmd = pred_v_lon[10]
+                vel_cmd = pred_v_lon[6]
             else:            
-                vel_cmd = pred_v_lon[4]            
+                vel_cmd = pred_v_lon[4]             ## 4 working
             # vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
             
         pp_cmd.drive.speed = vel_cmd        
