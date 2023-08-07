@@ -61,7 +61,7 @@ class MPCC_H2H_approx(AbstractController):
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
         self.lencar = 0.5  # TODO: change
-        self.widthcar = 0.4  # Ratio of car length to width
+        self.widthcar = 0.5  # Ratio of car length to width
 
         # MPCC params
         self.control_params = control_params
@@ -772,7 +772,12 @@ class MPCC_H2H_approx(AbstractController):
         """
         Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
         """
-        if tv_state is not None and tv_state.p.s < ego_state.p.s:
+        dist = tv_state.p.s - ego_state.p.s        
+        if abs(dist) > self.track.track_length/4.0:
+            dist -=self.track.track_length/2.0
+        
+        # tv_state.p.s < ego_state.p.s 
+        if tv_state is not None and abs(dist) <4.0 and tv_state.p.s < ego_state.p.s :            
             blocking = True
             xt = tv_state.p.x_tran
             x_ref = np.sign(xt) * min(self.track.half_width, abs(float(xt)))

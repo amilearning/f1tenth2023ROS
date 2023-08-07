@@ -148,6 +148,62 @@ with torch.no_grad() and torch.cuda.amp.autocast():
            
             return vehicle_full_dyn, next_curs
 
+        def residual_state_update(self,x,v,delta_xv): 
+            # x: s(0), ey(1), epsi(2), 
+            # v: vx(0), vy(1), wz(2)
+            # delta_x: del_ey(1), del_epsi(2), del_vx
+            
+            if not torch.is_tensor(x):
+                x = torch.tensor(x).to(device=self.torch_device)    
+            if not torch.is_tensor(v):
+                v = torch.tensor(v).to(device=self.torch_device)    
+            x[:,2] = wrap_to_pi_torch(x[:,2])
+            nx = torch.clone(x).to(device=self.torch_device)  
+            nv = torch.clone(v).to(device=self.torch_device)  
+            
+            # roll = torch.zeros(len(x[:,2])).to(device=self.torch_device)           # roll = 0
+            # pitch = torch.zeros(len(x[:,2])).to(device=self.torch_device)          # pitch = 0
+            # x: s(0), ey(1), epsi(2), vx(3), vy(4), wz(5)        
+            
+            curs = get_curvature_from_keypts_torch(x[:,0].clone().detach(),self.track)
+            # curs = curs*0.01
+            
+            # torch_get_cuvature(x[:,0],self.centerline_frenet)
+            
+            s = x[:,0]
+            ey = x[:,1]        
+            epsi = x[:,2]         
+            vx = v[:,0]
+            vy = v[:,1]
+            wz = v[:,2]      
+            delta_ey = delta_xv[:,0]
+            delta_epsi = delta_xv[:,1]
+            delta_vx = delta_xv[:,2]
+            # delta_vy = delta_x[:,3]
+            
+            nx[:,0] = s + self.dt * ( (vx * torch.cos(epsi) - vy * torch.sin(epsi)) / (1 - curs * ey) )
+            nx[:,1] = ey + delta_ey 
+            nx[:,2] = epsi + delta_epsi
+            
+            nv[:,0] = vx+delta_vx
+            # nv[:,1] = vx+delta_vy
+
+            next_curs = get_curvature_from_keypts_torch(nx[:,0].clone().detach(),self.track)
+            
+            # next_curs = []  
+            # for i in range(int(3)):
+            #     tmp = get_curvature_from_keypts_torch(nx[:,0].clone().detach()+0.5*i,self.track)
+            #     next_curs.append(tmp)
+            
+          
+            
+            vehicle_full_dyn = torch.hstack([nx,nv]).to(device=self.torch_device)    
+          
+            
+           
+            return vehicle_full_dyn, next_curs
+
+
 
         
 

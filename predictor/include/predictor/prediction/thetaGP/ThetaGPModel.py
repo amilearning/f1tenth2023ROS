@@ -225,7 +225,7 @@ class ThetaGPApproximate(GPController):
 
 
 class ThetaGPTrained(GPController):
-    def __init__(self, name, enable_GPU, model=None):
+    def __init__(self, name, enable_GPU, model=None, tiny = False):        
         if model is not None:
             self.load_model_from_object(model)
         else:
@@ -247,9 +247,12 @@ class ThetaGPTrained(GPController):
             self.stds_y = self.stds_y.cpu()
         
         self.dyn_model = DynamicsModelForPredictor() 
-############ has to match dim from sampleGeneratorInputGP
-        self.input_dim = 12 +4
+
+        self.input_dim = 5 +2 ## for state propogation
+        
         self.output_dim = 3   
+        self.model.covar_module.base_kernel.lengthscale = self.model.covar_module.base_kernel.lengthscale * 1.0
+        self.model.covar_module.outputscale = self.model.covar_module.outputscale * 7
        
     
        
@@ -261,6 +264,8 @@ class ThetaGPTrained(GPController):
         # Set GP model to eval-mode
         self.set_evaluation_mode()
         # draw M samples
+        
+        
         
         preds = self.sample_traj_gp_par(theta_encoder, encoder_input, ego_state, target_state, ego_prediction, track, M)
         
@@ -276,6 +281,7 @@ class ThetaGPTrained(GPController):
 
         return pred
 
+    
 
     def sample_traj_gp_par(self,theta_encoder, encoder_input,  ego_state: VehicleState, target_state: VehicleState,
                            ego_prediction: VehiclePrediction, track: RadiusArclengthTrack, M):
@@ -335,32 +341,56 @@ class ThetaGPTrained(GPController):
             # encoder_end_time = time.time()
             # encoder_elapsed_time = encoder_end_time - encoder_start_time
             # print(f"Encoder Elapsed time: {encoder_elapsed_time} seconds")    
-        ####################
-            # batched_theta[:] =0                  
+        
+        ####################################################################################################
+        ####################################################################################################
+            # batched_theta[:] =0                  ###################################    HARD CODING 
+        ####################################################################################################
         ################################## Theta prediction END ###########################     
 
         ################################## Target input prediction ##############################          
             # gp_start_time = time.time()
             tmp_state_for_input_prediction = torch.zeros(roll_state.shape[0],self.input_dim).to(device="cuda")
-            tmp_state_for_input_prediction[:,0] = roll_state[:,0]-roll_state[:,6]
-            tmp_state_for_input_prediction[:,1:6] = roll_state[:,1:6] # target dynamics (ey, epsi, vx, vy, wz)
-            tmp_state_for_input_prediction[:,6:9] = roll_state[:,7:10] # ego dynamics (ey, epsi, vx)            
-            tmp_state_for_input_prediction[:,9:12] = roll_state[:,12:15] # curvatures (tar_curvs(3))
-            tmp_state_for_input_prediction[:,12:] = batched_theta
+            ############## 
+            # roll_state  = [] 
+            # tmp_state_for_input_prediction[:,0] = roll_state[:,0]-roll_state[:,6]
+            # tmp_state_for_input_prediction[:,1:6] = roll_state[:,1:6] # target dynamics (ey, epsi, vx, vy, wz)
+            # tmp_state_for_input_prediction[:,6:9] = roll_state[:,7:10] # ego dynamics (ey, epsi, vx)            
+            # tmp_state_for_input_prediction[:,9:12] = roll_state[:,12:15] # curvatures (tar_curvs(3))
+            # tmp_state_for_input_prediction[:,12:] = batched_theta
             
+            # gp_input = ey, epsi vx, cur0, cur2, theta 
+            
+
+            tmp_state_for_input_prediction[:,0:3] = roll_state[:,1:4]
+            tmp_state_for_input_prediction[:,3] = roll_state[:,12] 
+            tmp_state_for_input_prediction[:,4] = roll_state[:,13] 
+            if len(batched_theta.shape) >1:
+                tmp_state_for_input_prediction[:,5:] = batched_theta.expand(len(batched_theta),-1)
+            else:   
+                tmp_state_for_input_prediction[:,5] = batched_theta
+            #########################################
+            #########################################
+            # tmp_state_for_input_prediction[:,6] = torch.zeros(tmp_state_for_input_prediction[:,6].shape).to(device="cuda")
+            #########################################
+            #########################################
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                               
+                
                 prediction = self.model(self.standardize(tmp_state_for_input_prediction))
-              
+                # gp_output = torch.tensor([next_tar_st.p.x_tran-tar_st.p.x_tran, next_tar_st.p.e_psi-tar_st.p.e_psi, next_tar_st.v.v_long-tar_st.v.v_long])
                 mx = prediction.mean
                 std = prediction.stddev
                 
-                noise = torch.randn_like(std).to(device="cuda")
+                # noise = torch.randn_like(std).to(device="cuda")
+                ## faster approach 
+                
+                noise = torch.cuda.FloatTensor(std.shape[0], std.shape[1]).normal_().to(device="cuda")
                 tmp_target_pred = mx + noise * std  
                  
-                predicted_target_vel_delta = self.outputToReal(tmp_target_pred)
+                target_output_residual = self.outputToReal(tmp_target_pred)
               
-                predicted_target_vel = roll_state[:,3:6] + predicted_target_vel_delta
+                predicted_target_vel = roll_state[:,3:6] 
+                
                 
             
             if ego_prediction.u_a is None:
@@ -397,12 +427,16 @@ class ThetaGPTrained(GPController):
                 stacked_roll_state_for_dynamics_ego = self.roll_state_to_stack_tensor(roll_state)            
                 stacked_ego_tar_roll_state = torch.vstack([roll_state[:,0:3], roll_state[:,6:9]])
                 stacked_ego_tar_vel = torch.vstack([predicted_target_vel, roll_state[:,9:12]])
-                next_x_tar_ego, next_cur_tar_ego=  vehicle_simulator.kinematic_update(stacked_ego_tar_roll_state,stacked_ego_tar_vel)
-               
-                next_x_tar = next_x_tar_ego[:roll_state.shape[0],:]
-                next_x_ego = next_x_tar_ego[roll_state.shape[0]:,:]                
-                next_cur_tar = next_cur_tar_ego[0,:roll_state.shape[0]]
-                next_cur_ego = next_cur_tar_ego[0,roll_state.shape[0]:]
+                next_x_ego, next_cur_ego=  vehicle_simulator.kinematic_update(roll_state[:,6:9],roll_state[:,9:12])               
+                next_x_tar, next_cur_tar=  vehicle_simulator.residual_state_update(roll_state[:,0:3],roll_state[:,3:6] , target_output_residual)
+                ########################
+                # next_x_tar_ego, next_cur_tar_ego=  vehicle_simulator.kinematic_update(stacked_ego_tar_roll_state,stacked_ego_tar_vel)               
+                # next_x_tar = next_x_tar_ego[:roll_state.shape[0],:]
+                # next_x_ego = next_x_tar_ego[roll_state.shape[0]:,:]                
+                # next_cur_tar = next_cur_tar_ego[0,:roll_state.shape[0]]
+                # next_cur_ego = next_cur_tar_ego[0,roll_state.shape[0]:]
+                ########################
+
                 # next_x_tar, next_cur_tar=  vehicle_simulator.kinematic_update(roll_state[:,0:3],predicted_target_vel)               
                 # next_x_ego, next_cur_ego = vehicle_simulator.dynamics_update(stacked_roll_state_for_dynamics_ego,tmp_ego_input.repeat(M,1).to(device="cuda"))
               

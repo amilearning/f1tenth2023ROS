@@ -47,6 +47,53 @@ from predictor.common.pytypes import VehicleState, VehiclePrediction
 from typing import List
 from hmcl_msgs.msg import VehiclePredictionROS
 
+from geometry_msgs.msg import PoseStamped, Vector3
+from tf.transformations import euler_from_quaternion
+
+def compute_local_velocity(pose1:PoseStamped, pose2:PoseStamped):
+    time_diff = (pose2.header.stamp - pose1.header.stamp).to_sec()
+    # Extract positions and orientations from PoseStamped messages
+    pos1 = pose1.pose.position
+    pos2 = pose2.pose.position
+    quat1 = (pose1.pose.orientation.x, pose1.pose.orientation.y,
+             pose1.pose.orientation.z, pose1.pose.orientation.w)
+    quat2 = (pose2.pose.orientation.x, pose2.pose.orientation.y,
+             pose2.pose.orientation.z, pose2.pose.orientation.w)
+
+    # Convert orientations to Euler angles
+    _, _, yaw1 = euler_from_quaternion(quat1)
+    _, _, yaw2 = euler_from_quaternion(quat2)
+
+    # Calculate local velocities
+    delta_x = pos2.x - pos1.x
+    delta_y = pos2.y - pos1.y
+    delta_yaw = yaw2 - yaw1
+
+    # Calculate local velocity components
+
+    
+    vx = delta_x / time_diff
+    vy = delta_y / time_diff
+    omega = delta_yaw / time_diff
+
+    local_velocity = Vector3(vx, vy, omega)
+    rotated_velocity = rotate_vector_by_yaw(local_velocity, yaw1)  # Rotating by yaw1
+    # print("pos2.x = " + str(pos2.x))
+    # print("pos1.x = " + str(pos1.x))
+    # print("vx = " + str(rotated_velocity.x))
+    # print("dt = " + str(time_diff))
+
+    return rotated_velocity
+
+def rotate_vector_by_yaw(vector, yaw):
+    # Rotate a 2D vector by an angle in radians (yaw)
+    rotated_x = vector.x * math.cos(yaw) - vector.y * math.sin(yaw)
+    rotated_y = vector.x * math.sin(yaw) + vector.y * math.cos(yaw)
+    rotated_z = vector.z  # Angular velocity remains unchanged
+
+    return Vector3(rotated_x, rotated_y, rotated_z)
+
+
 def shift_in_local_x(pose_msg: PoseStamped, dist = -0.13):
         # Convert orientation to a rotation matrix
     position = pose_msg.pose.position
@@ -88,8 +135,14 @@ def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose 
         return
     state.t = pose.header.stamp.to_sec()
     state.p.s = cl_coord[0]
+    ##################
+    ## WHen track is doubled... wrap with half track length
+    if state.p.s > track.track_length/2.0:
+        state.p.s -= track.track_length/2.0
+    ###################
     state.p.x_tran = cl_coord[1]
     state.p.e_psi = cl_coord[2]
+    track.update_curvature(state)
     
 def odom_to_vehicleState(track: RadiusArclengthTrack, state:VehicleState, odom: Odometry):
     # state.x.x = odom.pose.pose.position.x
@@ -105,8 +158,14 @@ def odom_to_vehicleState(track: RadiusArclengthTrack, state:VehicleState, odom: 
     #     return
     # state.t = odom.header.stamp.to_sec()
     # state.p.s = cl_coord[0]
+        ##################
+    ## WHen track is doubled... wrap with half track length
+    # if state.p.s > track.track_length/2.0:
+        # state.p.s -= track.track_length/2.0
+    ###################
     # state.p.x_tran = cl_coord[1]
     # state.p.e_psi = cl_coord[2]
+    # track.update_curvature(state)
 
     #### 
     local_vel = get_local_vel(odom, is_odom_local_frame = False)
@@ -114,10 +173,10 @@ def odom_to_vehicleState(track: RadiusArclengthTrack, state:VehicleState, odom: 
         return 
     
     # local_vel[0] = max(0.2,local_vel[0]) ## limit the minimum velocity 
-    if abs(local_vel[0]) > 0.0:
-        local_vel[0] = max(0.05,local_vel[0]) ## limit the minimum velocity 
-    else:
-        local_vel[0] = min(-0.05,local_vel[0]) ## limit the minimum velocity 
+    # if abs(local_vel[0]) > 0.0:
+    #     local_vel[0] = max(0.05,local_vel[0]) ## limit the minimum velocity 
+    # else:
+    #     local_vel[0] = min(-0.05,local_vel[0]) ## limit the minimum velocity 
     state.v.v_long = local_vel[0]
     state.v.v_tran = local_vel[1]
     state.w.w_psi = odom.twist.twist.angular.z
@@ -735,3 +794,20 @@ def obstacles_to_markers(obstacles):
         obs_markers.markers.append(obs_marker)
         
     return obs_markers
+
+
+def interp_state(state1, state2, t):
+    state = state1.copy()    
+    dt0 = t - state1.t
+    dt = state2.t - state1.t    
+    state.t = state1.t+dt
+    if abs(state2.p.s - state1.p.s) < 3.0:
+        state.p.s = (state2.p.s - state1.p.s) / dt * dt0 + state1.p.s
+    state.p.x_tran = (state2.p.x_tran - state1.p.x_tran) / dt * dt0 + state1.p.x_tran
+    state.x.x = (state2.x.x - state1.x.x) / dt * dt0 + state1.x.x
+    state.x.y = (state2.x.y - state1.x.y) / dt * dt0 + state1.x.y
+    state.e.psi = (state2.e.psi - state1.e.psi) / dt * dt0 + state1.e.psi
+    state.v.v_long  = (state2.v.v_long - state1.v.v_long) / dt * dt0 + state1.v.v_long
+    state.v.v_tran = (state2.v.v_tran - state1.v.v_tran) / dt * dt0 + state1.v.v_tran
+    state.w.w_psi  = (state2.w.w_psi - state1.w.w_psi) / dt * dt0 + state1.w.w_psi
+    return state

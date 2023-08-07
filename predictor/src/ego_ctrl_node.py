@@ -170,7 +170,7 @@ class Predictor:
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
-        shift_in_local_x(self.cur_tar_pose, dist = -0.18)
+        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
     
     def warm_start(self):
         cur_state_copy = self.cur_ego_state.copy()

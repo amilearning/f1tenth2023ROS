@@ -25,7 +25,7 @@ class RadiusArclengthTrack():
         self.phase_out = False
         self.circuit = True  # Flag for whether the track is a circuit
 
-    def initialize(self, track_width=None, slack=None, cl_segs=None, init_pos=(0, 0, 0)):
+    def initialize(self,  track_width=None, slack=None, cl_segs=None, init_pos=(0, 0, 0)):
         if track_width is not None:
             self.track_width = track_width
         if slack is not None:
@@ -36,6 +36,8 @@ class RadiusArclengthTrack():
         self.half_width = self.track_width / 2
         self.n_segs = self.cl_segs.shape[0]
         self.key_pts = self.get_track_key_pts(self.cl_segs, init_pos)
+
+         
         self.track_length = self.key_pts[-1, 3]
 
         # Get the x-y extents of the track
@@ -50,6 +52,8 @@ class RadiusArclengthTrack():
             y_grid.append(ym)
         self.track_extents = dict(x_min=np.amin(x_grid), x_max=np.amax(x_grid), y_min=np.amin(y_grid),
                                   y_max=np.amax(y_grid))
+        
+        ######################## track is doubled ##########################
         return
 
     def global_to_local_typed(self, data):  # data is vehicleState

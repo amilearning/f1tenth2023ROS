@@ -235,7 +235,7 @@ class ParametricVelocity(PythonMsg):
 
 
 @dataclass
-class VehicleState(PythonMsg):
+class VehicleState(PythonMsg): 
     '''
     Complete vehicle state (local, global, and input)
     '''

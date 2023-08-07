@@ -41,7 +41,7 @@ class ThetaPolicyPredictor(BasePredictor):
         print("policy extractor loaded")
         ######### Input prediction for Gaussian Processes regression ######### 
         input_predict_model = "thetaGP"
-        self.theta_predict_gp = ThetaGPTrained(input_predict_model, use_GPU)
+        self.theta_predict_gp = ThetaGPTrained(input_predict_model, use_GPU, tiny = True)
         print("input predict_gp loaded")
     
         self.M = M  # number of samples

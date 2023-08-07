@@ -21,7 +21,7 @@ class SampleGeneartorThetaGP(SampleGenerator):
         self.encoder_time_horizon = self.encoder_model.seq_len
         self.encoder_output_dim = self.encoder_model.output_dim
 
-        self.input_dim = self.encoder_output_dim + 12
+        self.input_dim = self.encoder_output_dim + 6
         self.output_dim = 3
         
         self.encoder_model.model_load()
@@ -69,21 +69,15 @@ class SampleGeneartorThetaGP(SampleGenerator):
         #                 tar_ey, tar_epsi, tar_vlong, tar_vlat, tar_wz,             
     #                       ego_ey, ego_epsi, ego_vlong,
         #                    tar_cur(0,1,2),]   
-                            state_input = torch.tensor([tar_st.p.s - ego_st.p.s,
-                                                            tar_st.p.x_tran,
+                            state_input = torch.tensor([   tar_st.p.x_tran,
                                                             tar_st.p.e_psi,                                                            
-                                                            tar_st.v.v_long,
-                                                            tar_st.v.v_tran,
-                                                            tar_st.w.w_psi,                                                                                                                        
-                                                            ego_st.p.x_tran,
-                                                            ego_st.p.e_psi,
-                                                            ego_st.v.v_long,                                                           
-                                                            tar_st.lookahead.curvature[0],
-                                                            tar_st.lookahead.curvature[1],
+                                                            tar_st.v.v_long,                                          
+                                                            tar_st.lookahead.curvature[0],                                                            
                                                             tar_st.lookahead.curvature[2]]).to(torch.device("cuda"))  
                             gp_input = torch.hstack([state_input, theta])  # 12 + theta_dim(5)   
                             # gp_input = state_input 
-                            gp_output = torch.tensor([next_tar_st.v.v_long-tar_st.v.v_long, next_tar_st.v.v_tran-tar_st.v.v_tran, next_tar_st.w.w_psi-tar_st.w.w_psi])
+                            # gp_output = torch.tensor([next_tar_st.v.v_long-tar_st.v.v_long, next_tar_st.v.v_tran-tar_st.v.v_tran, next_tar_st.w.w_psi-tar_st.w.w_psi])
+                            gp_output = torch.tensor([next_tar_st.p.x_tran-tar_st.p.x_tran, next_tar_st.p.e_psi-tar_st.p.e_psi, next_tar_st.v.v_long-tar_st.v.v_long])
                             self.samples.append(gp_input)  
                             self.output_data.append(gp_output)    
                             

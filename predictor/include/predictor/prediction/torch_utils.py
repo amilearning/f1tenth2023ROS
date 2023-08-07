@@ -87,7 +87,8 @@ def get_curvature_from_keypts_torch(s,track):
     track_key_pts = torch.tensor(track.key_pts).clone().detach().to(device="cuda")    
     diff, idx  = (s[:,None] > key_pts[None,:]).min(dim=1)
     # idx = idx-1
-    return torch.tensor(track_key_pts[idx,5]).view(1,-1).clone().detach().to(device="cuda")    
+    # return torch.tensor(track_key_pts[idx,5]).view(1,-1).to(device="cuda").clone().detach()    
+    return track_key_pts[idx, 5].view(1, -1).to(device="cuda").clone().detach()
 
 def statehistory2xy(ego_pred_states_history,tar_pred_states_history):
     n_step = len(ego_pred_states_history)

@@ -145,7 +145,7 @@ class Predictor:
 
     def tar_pred_callback(self,tar_pred_msg):        
         self.tv_pred = rosmsg_to_prediction(tar_pred_msg)
-        print(self.tv_pred)
+        
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:

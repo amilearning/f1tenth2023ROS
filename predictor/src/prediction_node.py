@@ -44,14 +44,15 @@ from vesc_msgs.msg import VescStateStamped
 from hmcl_msgs.srv import mpcc
 import rospkg
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
-from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
+from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info, compute_local_velocity
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
+from predictor.prediction.gp_thetapolicy_predictor import GPThetaPolicyPredictor
 from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
-from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction
+from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction, interp_state
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
 from hmcl_msgs.msg import VehiclePredictionROS 
@@ -61,6 +62,7 @@ from predictor.controllers.utils.controllerTypes import PIDParams
 from predictor.controllers.PID import PIDLaneFollower
 from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from collections import deque
+from message_filters import ApproximateTimeSynchronizer, Subscriber
 
 rospack = rospkg.RosPack()
 pkg_dir = rospack.get_path('predictor')
@@ -148,9 +150,24 @@ class Predictor:
         self.tar_pred_pub = rospy.Publisher("/tar_pred", VehiclePredictionROS, queue_size=2)
         # Subscribers
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
-        self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
+        # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
-        self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)                           
+        # self.target_pose_sub = rospy.Subscriber(target_pose_topic, PoseStamped, self.target_pose_callback)     
+
+        self.ego_prev_pose = None
+        self.tar_prev_pose = None
+        self.ego_local_vel = None
+        self.tar_local_vel = None
+        self.debug_pub = rospy.Publisher("/prediction_debug", PoseStamped,queue_size = 2)         
+
+        self.ego_pose_sub = Subscriber(ego_pose_topic, PoseStamped)        
+        self.target_pose_sub = Subscriber(target_pose_topic, PoseStamped)
+        
+        self.ats = ApproximateTimeSynchronizer([self.ego_pose_sub,  self.target_pose_sub], queue_size=10, slop=0.05)
+        self.sync_prev_time = rospy.Time.now().to_sec()
+        self.ats.registerCallback(self.sync_callback)
+
+
         # predictor type = 0 : ThetaGP
         #                   1 : CAV
         #                   2: NMPC
@@ -164,7 +181,7 @@ class Predictor:
         self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(0.1))
         
         ### our method 
-        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
+        self.predictor = GPThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
         ## constant angular velocity model 
@@ -179,6 +196,10 @@ class Predictor:
         self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
         self.prediction_hz = rospy.get_param('~prediction_hz', default=10)
         self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
+        self.data_logging_hz = rospy.get_param('~data_logging_hz', default=10)
+        self.prev_dl_time = rospy.Time.now().to_sec()
+        self.prediction_timer = rospy.Timer(rospy.Duration(1/self.data_logging_hz), self.datalogging_callback)         
+        
   
         
         
@@ -252,6 +273,8 @@ class Predictor:
     
     def save_buffer_in_thread(self):
         # Create a new thread to run the save_buffer function
+        
+            
         t = threading.Thread(target=self.save_buffer)
         t.start()
 
@@ -262,14 +285,47 @@ class Predictor:
 #     ego_states: List[VehicleState]
 #     tar_states: List[VehicleState]
 
-
-    def save_buffer(self):
+    def save_buffer(self):        
         real_data = RealData(self.track_info.track, len(self.tar_list), self.ego_list, self.tar_list)
         create_dir(path=real_dir)        
         pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '_'+ str(len(self.tar_list))+'.pkl'))
         rospy.loginfo("states data saved")
         self.clear_buffer()
         rospy.loginfo("states buffer has been cleaned")
+
+    def sync_callback(self,  ego_pose_topic,  target_pose_topic):
+                        # self.ego_odom_sub, self.ego_pose_sub, self.target_odom_sub, self.target_pose_sub
+        
+        sync_cur_time = rospy.Time.now().to_sec()
+        diff_sync_time = sync_cur_time - self.sync_prev_time         
+        if abs(diff_sync_time) > 0.05:
+            rospy.logwarn("sync diff time " + str(diff_sync_time))
+        self.sync_prev_time = sync_cur_time
+        
+        # if self.ego_prev_pose is not None and self.tar_prev_pose is not None:
+        #     if abs(self.ego_prev_pose.header.stamp.to_sec()- ego_pose_topic.header.stamp.to_sec()) > 0.5:
+        #         self.ego_local_vel = compute_local_velocity(self.ego_prev_pose, ego_pose_topic)
+        #         self.tar_local_vel = compute_local_velocity(self.tar_prev_pose, target_pose_topic)
+        #         self.ego_prev_pose = ego_pose_topic
+        #         self.tar_prev_pose = target_pose_topic
+        #     if self.ego_local_vel is not None:
+        #         tmp_debug_msg = PoseStamped()
+        #         tmp_debug_msg.header = target_pose_topic.header
+        #         tmp_debug_msg.pose.position.x = self.tar_local_vel.x
+        #         tmp_debug_msg.pose.position.y = self.tar_local_vel.y
+        #         tmp_debug_msg.pose.position.z = self.tar_local_vel.z
+        #         self.debug_pub.publish(tmp_debug_msg)
+
+        # else:
+        #     self.ego_prev_pose = ego_pose_topic
+        #     self.tar_prev_pose = target_pose_topic
+
+        # self.ego_odom_callback(ego_odom_topic)
+        self.ego_pose_callback(ego_pose_topic)
+        # self.target_odom_callback(target_odom_topic)
+        self.target_pose_callback(target_pose_topic)
+
+        
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:
@@ -298,9 +354,72 @@ class Predictor:
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
-        shift_in_local_x(self.cur_tar_pose, dist = -0.05)
+        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
     
+                    
+    def state_interpolation(self,vehicle_states, interval = 0.1):
+        # Regular time interval for interpolation        
+        init_vehicle_states = vehicle_states.copy()
+        re_state = []
+        if len(vehicle_states) < 1:
+            return
+        real_time = [state.t for state in vehicle_states]
+        regular_t = np.arange(vehicle_states[0].t, vehicle_states[-1].t, interval)
+        
+        new_vehicle_state = vehicle_states[:len(regular_t)]
+
+
+    
+        # Perform linear interpolation for each attribute
+        current_state=  vehicle_states[0]
+        for attr_name in dir(vehicle_states[0]):
+            if not attr_name.startswith("__"): 
+                attr_current = getattr(current_state, attr_name)                
+                if isinstance(attr_current, (float, int)):
+                    x_tmp = [getattr(state, attr_name) for state in vehicle_states]
+                    interpolated_values = np.interp(regular_t, real_time, x_tmp)
+                    for i in range(len(new_vehicle_state)):                        
+                        setattr(new_vehicle_state[i], attr_name, interpolated_values[i])
+                else:                       
+                    inner_attr = getattr(current_state, attr_name)                
+                    for innter_attr_name in dir(inner_attr):
+                        if not innter_attr_name.startswith("__"):
+                            attr_tmp = getattr(inner_attr, innter_attr_name)                
+                            if isinstance(attr_tmp, (float, int)):
+                                x_tmp = [getattr(getattr(state, attr_name),innter_attr_name) for state in vehicle_states]
+                                interpolated_values = np.interp(regular_t, real_time, x_tmp)
+                                for i in range(len(new_vehicle_state)):                                
+                                    setattr(getattr(new_vehicle_state[i],attr_name), innter_attr_name, interpolated_values[i])
+        
+        return new_vehicle_state
+        #     # Update the time attribute of the current state to match the last interpolated time
+        #     # current_state.t = regular_t[-1]
+        #     re_state.append(current_state)
+        # return [state.t for state in vehicle_states]
+
+      
    
+                        
+    def datalogging_callback(self,event):
+      
+        if self.data_save:
+                if isinstance(self.cur_ego_state.t,float) and isinstance(self.cur_tar_state.t,float) and self.cur_ego_state.p.s is not None and self.cur_tar_state.p.s is not None and abs(self.cur_tar_state.p.x_tran) < self.track_info.track.track_width and abs(self.cur_ego_state.p.x_tran) < self.track_info.track.track_width:
+                    
+                    self.ego_list.append(self.cur_ego_state.copy())
+                    self.tar_list.append(self.cur_tar_state.copy())                     
+                    callback_time = self.ego_list[-1].t        
+                    delta_time = self.prev_dl_time - callback_time
+                    self.prev_dl_time = callback_time                    
+                    
+                    if len(self.tar_list) > self.save_buffer_length:
+                        self.save_buffer_in_thread()
+                elif len(self.tar_list) > 0 and len(self.ego_list) > 0: ## if suddent crash or divergence in local, save data and do not continue from the next iteration
+                    self.save_buffer_in_thread()   
+        
+            
+            
+
+
 
     def prediction_callback(self,event):
         
@@ -321,16 +440,8 @@ class Predictor:
             rospy.loginfo("state not ready")
             return 
 
-        if self.predictor and self.cur_ego_state is not None:    
+        if self.predictor and self.cur_ego_state is not None:                
             
-            if self.data_save:
-                if self.cur_ego_state.p.s is not None and self.cur_tar_state.p.s is not None and abs(self.cur_tar_state.p.x_tran) < 2.5 and abs(self.cur_ego_state.p.x_tran) < 2.5:
-                    self.ego_list.append(self.cur_ego_state.copy())
-                    self.tar_list.append(self.cur_tar_state.copy())                    
-                    if len(self.tar_list) > self.save_buffer_length:
-                        self.save_buffer_in_thread()
-                elif len(self.tar_list) > 0 and len(self.ego_list) > 0: ## if suddent crash or divergence in local, save data and do not continue from the next iteration
-                    self.save_buffer_in_thread()   
                     
 
             ## TODO : receive ego prediction from mpcc ctrl, instead computing one more time            
