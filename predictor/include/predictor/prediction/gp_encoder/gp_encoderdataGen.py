@@ -53,6 +53,8 @@ class SampleGeneartorGPContEncoder(SampleGenerator):
         self.samples = []
         self.output_data = []
         self.info = []
+        self.means_y = None
+        self.stds_y = None
         
         
         for ab_p in self.abs_path:
@@ -122,7 +124,11 @@ class SampleGeneartorGPContEncoder(SampleGenerator):
                                                                 tar_st.lookahead.curvature[0],                                                            
                                                                 tar_st.lookahead.curvature[2]]).to(torch.device("cuda"))  
                                 
-                                gp_output = torch.tensor([next_tar_st.p.x_tran-tar_st.p.x_tran, next_tar_st.p.e_psi-tar_st.p.e_psi, next_tar_st.v.v_long-tar_st.v.v_long])
+                                # gp_output = torch.tensor([next_tar_st.p.x_tran-tar_st.p.x_tran, next_tar_st.p.e_psi-tar_st.p.e_psi, next_tar_st.v.v_long-tar_st.v.v_long])
+
+                                del_state = self.get_residual_pose_using_kinematicmodel(tar_st,next_tar_st,dt=0.1)                                
+                                gp_output = torch.tensor(del_state)
+                                
                                 self.samples.append(dat)  
                                 self.output_data.append(gp_output)    
                             
@@ -135,7 +141,21 @@ class SampleGeneartorGPContEncoder(SampleGenerator):
         # if randomize:
         #     random.shuffle(self.samples)
         
-     
+    def get_residual_pose_using_kinematicmodel(self,state,nstate, dt = 0.1):
+        kinmatic_nstate = state.copy()
+        vx =state.v.v_long
+        vy =state.v.v_tran
+        curs = state.lookahead.curvature[0]
+        ey = state.p.x_tran
+        epsi = state.p.e_psi
+        wz = state.w.w_psi
+        kinmatic_nstate.p.s = state.p.s + dt * ( (vx * np.cos(epsi) - vy * np.sin(epsi)) / (1 - curs * ey) )
+        kinmatic_nstate.p.x_tran = state.p.x_tran + dt * (vx * np.sin(epsi) + vy * np.cos(epsi))
+        kinmatic_nstate.p.e_psi = state.p.e_psi + dt * ( wz - (vx * np.cos(epsi) - vy * np.sin(epsi)) / (1 - curs * ey) * curs )
+        delta_state = [kinmatic_nstate.p.x_tran - nstate.p.x_tran, kinmatic_nstate.p.e_psi - nstate.p.e_psi, nstate.v.v_long - state.v.v_long]
+        return delta_state
+        
+
     def data_validation(self,ego_st: VehicleState,tar_st: VehicleState,ntar_st: VehicleState,track : RadiusArclengthTrack):
         valid_data = True
         if ego_st.p.s > track.track_length/2.0+0.5 or tar_st.p.s > track.track_length/2.0+0.5:
@@ -174,6 +194,9 @@ class SampleGeneartorGPContEncoder(SampleGenerator):
         # else:
         inputs= torch.stack(self.samples).to(torch.device("cuda"))  
         labels = torch.stack(self.output_data).to(torch.device("cuda"))
+        self.means_y = labels.mean(dim=0, keepdim=True)
+        self.stds_y = labels.std(dim=0, keepdim=True)
+        labels = (labels - self.means_y) / self.stds_y
         perm = torch.randperm(len(inputs))
         inputs = inputs[perm]
         labels = labels[perm]
@@ -184,7 +207,7 @@ class SampleGeneartorGPContEncoder(SampleGenerator):
         test_size = samp_len - train_size - val_size
         train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
         
-        return train_dataset, val_dataset, test_dataset
+        return train_dataset, val_dataset, test_dataset, self.means_y, self.stds_y
 
 
 
