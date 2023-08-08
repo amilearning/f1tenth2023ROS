@@ -401,7 +401,10 @@ class GPContPolicyEncoder:
                 
             ################################## Target input prediction ##############################          
                 # gp_start_time = time.time()
+                # if i < 5:                    
                 prediction = self.get_gp_output(roll_encoder_input)
+                # else:
+                #     prediction = torch.zeros([roll_state[:,3:6].shape[0], roll_state[:,3:6].shape[1]]).to(device="cuda")
                 # target_output_residual = self.outputToReal(tmp_target_pred)
                 target_output_residual = prediction
                 

@@ -692,6 +692,14 @@ def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
     
     return ros_msg  
 
+def prediction_to_std_trace(pred: VehiclePrediction):
+    
+    xy_cov_trace = 0    
+    if pred.xy_cov is not None:            
+        xy_cov_1d = np.array(pred.xy_cov).reshape(-1)        
+        xy_cov_trace = sum(xy_cov_1d)
+    return xy_cov_trace
+
 
 def rosmsg_to_prediction(ros_msg: VehiclePredictionROS):
     vehicle_prediction_obj = VehiclePrediction()
