@@ -52,7 +52,7 @@ from collections import deque
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehiclePrediction, VehicleActuation
 from predictor.controllers.utils.controllerTypes import PIDParams
-from predictor.utils import shift_in_local_x, pose_to_vehicleState, state_to_debugmsg, odom_to_vehicleState, state_prediction_to_marker, fill_global_info
+from predictor.utils import LaptimeRecorder, shift_in_local_x, pose_to_vehicleState, state_to_debugmsg, odom_to_vehicleState, state_prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
@@ -137,9 +137,14 @@ class Predictor:
         self.gp_mpcc_ego_controller.initialize()
         self.warm_start()
         
+        #### Laptime recorder
+        self.laprecorder = LaptimeRecorder(track = self.track_info.track, vehicle_name = 'ego')
+
         ## controller callback
         self.cmd_hz = 20
         self.cmd_timer = rospy.Timer(rospy.Duration(1/self.cmd_hz), self.cmd_callback)         
+        
+        
         
         rate = rospy.Rate(1)     
         while not rospy.is_shutdown():            
@@ -216,6 +221,9 @@ class Predictor:
 
 
     def cmd_callback(self,event):
+
+        
+
         if self.ego_odom_ready and self.tar_odom_ready:
             pose_to_vehicleState(self.track_info.track, self.cur_ego_state, self.cur_ego_pose)
             odom_to_vehicleState(self.track_info.track,self.cur_ego_state, self.cur_ego_odom)
@@ -228,6 +236,17 @@ class Predictor:
             return 
         
         self.use_predictions_from_module = True
+
+        max_lap_reached = self.laprecorder.update_state(self.cur_ego_state.copy())
+        if max_lap_reached:
+            pp_cmd = AckermannDriveStamped()
+            pp_cmd.header.stamp = self.cur_ego_pose.header.stamp               
+            pp_cmd.drive.speed = 0.0                    
+            self.ackman_pub.publish(pp_cmd)
+            print("Reach the max lap")
+            return 
+
+
         
         # info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
         info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)

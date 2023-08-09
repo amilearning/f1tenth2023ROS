@@ -46,7 +46,7 @@ from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.common.pytypes import VehicleState, VehiclePrediction
 from typing import List
 from hmcl_msgs.msg import VehiclePredictionROS
-
+from predictor.common.utils.file_utils import *
 from geometry_msgs.msg import PoseStamped, Vector3
 from tf.transformations import euler_from_quaternion
 
@@ -819,3 +819,81 @@ def interp_state(state1, state2, t):
     state.v.v_tran = (state2.v.v_tran - state1.v.v_tran) / dt * dt0 + state1.v.v_tran
     state.w.w_psi  = (state2.w.w_psi - state1.w.w_psi) / dt * dt0 + state1.w.w_psi
     return state
+
+
+
+
+class LaptimeRecorder():
+    def __init__(self, track : RadiusArclengthTrack,vehicle_name = 'ego'):
+        
+        self.n_lap = 0
+        self.init_s = 0
+        self.track_length = track.track_length/2.0
+        self.num_max_lap = 5  # 5 for experiment
+        print("track length is set as = " + str(self.track_length))        
+        self.laptimes = []
+        self.cumulative_laptime = 0.0
+        self.init_laptime = None
+        self.prev_state = None
+        self.last_laptime = None
+        self.file_name_prefix = vehicle_name+ '_race_state'
+    
+    def update_state(self, cur_state: VehicleState):
+        reached_max_lap = False
+        if self.prev_state is None:
+            self.prev_state = cur_state        
+            self.last_laptime = cur_state.t    
+            return reached_max_lap
+        
+        if cur_state.p.s-self.prev_state.p.s < -2:
+            
+            self.laptimes.append(cur_state.t - self.last_laptime)            
+            self.last_laptime = cur_state.t
+            if len(self.laptimes) ==1:
+                self.init_laptime = cur_state.t
+            if len(self.laptimes) > 5:                                
+                file_name = self.file_name_prefix + str(len(self.laptimes)) + '_' + str(rospy.Time.now().to_sec()) + '.pkl'
+                self.save(file_name)
+            if self.init_laptime is not None:                
+                self.n_lap+=1
+        
+        self.prev_state = cur_state     
+        if self.n_lap >= self.num_max_lap:
+            reached_max_lap = True
+        return reached_max_lap  
+                
+
+    def get_statistic(self):
+        laptime_array = self.get_laptimes()
+        avg_laptime = self.get_avg_laptime()
+        cum_laptime = self.get_cum_laptime()
+        return laptime_array, avg_laptime, cum_laptime
+
+    def get_avg_laptime(self):
+        if len(self.laptimes) > 1:
+            laptimes = np.array(self.laptimes[1:])
+            return np.mean(laptimes)
+        else:
+            return 0.0
+    def get_laptimes(self):
+        if len(self.laptimes) > 0:
+            return np.array(self.laptimes)
+        else:
+            return 0.0
+
+    def get_cum_laptime(self):
+        if self.last_laptime is not None and self.init_laptime is not None:
+            return self.last_laptime - self.init_laptime
+        else:
+            return 0.0
+    
+    def save(self,file_name = 'race_statics.pkl'):
+        if dir_exists(static_dir) is False:
+            create_dir(static_dir,verbose=True)
+
+        laptime_array, avg_laptime, cum_laptime = self.get_statistic()
+        stats = dict()
+        stats["laptime_array"] = laptime_array
+        stats["avg_laptime"] = avg_laptime
+        stats["cum_laptime"] = cum_laptime
+        pickle_write (stats,os.path.join(static_dir, file_name))

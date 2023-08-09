@@ -60,7 +60,7 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.36  # TODO: change
+        self.lencar = 0.36  # TODO: change        
         self.widthcar = 0.5  # Ratio of car length to width
 
         # MPCC params
@@ -218,7 +218,7 @@ class MPCC_H2H_approx(AbstractController):
                 t_ += self.dt
                 
             if offs > self.N:
-                print("Too much delay before recieving prediction result = " + str(offs*self.dt))
+                # print("Too much delay before recieving prediction result = " + str(offs*self.dt))
                 offs = 0
             
             
