@@ -60,7 +60,7 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.5  # TODO: change
+        self.lencar = 0.36  # TODO: change
         self.widthcar = 0.5  # Ratio of car length to width
 
         # MPCC params
@@ -216,18 +216,30 @@ class MPCC_H2H_approx(AbstractController):
             while t_ < tv_state.t - 0.5*self.dt:
                 offs += 1
                 t_ += self.dt
-
+                
+            if offs > self.N:
+                print("Too much delay before recieving prediction result = " + str(offs*self.dt))
+                offs = 0
+            
+            
             if contains_parametric and contains_global:
+                tv_pred_length = self.N
+                if self.N > len(tv_pred.x):
+                    tv_pred_length = np.min([self.N,len(tv_pred.x)])                
+                    
+
                 for i, (s, x_tran, x, y, psi) in enumerate(
-                        zip(tv_pred.s[offs:self.N], tv_pred.x_tran[offs:self.N], tv_pred.x[offs:self.N],
-                            tv_pred.y[offs:self.N], tv_pred.psi[offs:self.N])):
+                        zip(tv_pred.s[offs:tv_pred_length], tv_pred.x_tran[offs:tv_pred_length], tv_pred.x[offs:tv_pred_length],
+                            tv_pred.y[offs:tv_pred_length], tv_pred.psi[offs:tv_pred_length])):
                     if i > self.N:
                         break
-                    xy_std = tv_pred.xy_cov[offs:][i] if tv_pred.xy_cov is not None else np.zeros((2, 2))
+                    xy_std = tv_pred.xy_cov[offs:][i] if tv_pred.xy_cov is not None else np.zeros((2, 2))                    
                     obstacle[i] = RectangleObstacle(xc=x, yc=y, psi=psi, s=s, x_tran=x_tran,
                                                         h=self.lencar, w=self.widthcar,
                                                         std_local_x=self.num_std_deviations * np.sqrt(xy_std[0, 0]),
                                                         std_local_y=self.num_std_deviations * np.sqrt(xy_std[1, 1]))
+                
+
             elif contains_parametric:
                 for i, (s, x_tran, e_psi) in enumerate(zip(tv_pred.s[offs:self.N], tv_pred.x_tran[offs:self.N],
                                                            tv_pred.e_psi[offs:self.N])):
@@ -250,7 +262,7 @@ class MPCC_H2H_approx(AbstractController):
                     obstacle[i] = RectangleObstacle(xc=x, yc=y, psi=psi, h=self.lencar, w=self.widthcar,
                                                         std_local_x=self.num_std_deviations * np.sqrt(xy_std[0, 0]),
                                                         std_local_y=self.num_std_deviations * np.sqrt(xy_std[1, 1]))
-
+            
         control, info, exitflag = self.solve(ego_state, ego_state.p.s, x_ref, xref_scale, obstacle, blocking)
 
         ego_state.u.u_a = control.u_a

@@ -89,20 +89,16 @@ class GPLSTMAutomodel(gpytorch.Module):
         )
 
         self.fc_l2l = nn.Linear(self.latent_size, self.latent_size*self.seq_len)
-
-        self.fc21 = nn.Linear(self.hidden_size,self.hidden_size)                        
-
+        self.fc21 = nn.Linear(self.hidden_size,self.hidden_size)             
         self.relu = nn.ReLU()
-        self.fc22 = nn.Linear(self.hidden_size, self.latent_size)                        
+        self.fc22 = nn.Linear(self.hidden_size, self.latent_size)
+        self.bn1 = nn.BatchNorm1d(num_features=self.latent_size)           
         
         
         self.gp_layer = IndependentMultitaskGPModelApproximate(inducing_points_num=200,
                                                                 input_dim=self.gp_input_size,
                                                                 num_tasks=self.output_size)  # Independent
         
-
-
-
 
     def get_latent_z(self,x):
         if len(x.shape) < 3:
@@ -131,8 +127,9 @@ class GPLSTMAutomodel(gpytorch.Module):
         enc_hidden = self.lstm_enc(x)
         enc_h = enc_hidden[0][-1,:,:].view(batch_size, self.hidden_size).to(self.device)
         # extract latent variable z(hidden space to latent space)
-        z = self.fc22(self.relu(self.fc21(enc_h)))       
+        z = self.fc22(self.relu(self.fc21(enc_h)))
         ############# theta is latent varaible
+        z = self.bn1(z)
         theta = z.clone()
         # features = theta.transpose(-1, -2).unsqueeze(-1)
         # last step [tar_ey, tar_epsi, tar_vlong, cur_0, cur_2]
@@ -223,9 +220,9 @@ class GPLSTMAutomodel(gpytorch.Module):
         
         recons_loss = F.mse_loss(recons, input)                
 
-        cont_loss_weight_multiplier = 1.0
+        cont_loss_weight_multiplier = 1e-5
         cont_loss_weighted = cont_loss*cont_loss_weight_multiplier
-        recons_loss_weight = 1.0
+        recons_loss_weight = 1e-10
         recons_loss_weighted = recons_loss*recons_loss_weight
         loss = recons_loss_weighted + cont_loss_weighted
         return {

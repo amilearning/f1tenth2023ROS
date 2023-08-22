@@ -371,3 +371,4 @@ class VehiclePrediction(PythonMsg):
                     [[np.fabs(np.cos(angle)**2 * sey_cov[0, 0] + np.sin(angle)**2 * sey_cov[1, 1]), 0],[0,np.fabs(np.sin(angle)**2 * sey_cov[0, 0] + np.cos(angle)**2 * sey_cov[1, 1])]])
                 self.xy_cov[i] *= cov_factor
                 
+

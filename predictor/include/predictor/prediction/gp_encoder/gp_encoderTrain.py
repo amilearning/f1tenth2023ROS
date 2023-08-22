@@ -19,7 +19,7 @@ def gp_encoder_train(dirs):
         raise RuntimeError(
             f"Directory: {dirs[0]} does not exist, need to train using `gen_training_data` first")
 
-    train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
+    train_dataset, val_dataset, test_dataset, means_y, stds_y  = sampGen.get_datasets()
     args_ =  {
                 "batch_size": 512,
                 "device": torch.device("cuda")
@@ -42,7 +42,7 @@ def gp_encoder_train(dirs):
 
 
     
-    policy_encoder = GPContPolicyEncoder(train_loader_ = train_loader, test_loader_ = test_loader, args= args_)    
+    policy_encoder = GPContPolicyEncoder(means_y, stds_y, train_loader_ = train_loader, test_loader_ = test_loader, args= args_)    
     
 
     

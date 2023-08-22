@@ -37,15 +37,19 @@ class MyDataset:
 
 
 class GPContPolicyEncoder:
-        def __init__(self,train_loader_ = None, test_loader_ = None, args = None, model_load = False, model_id = 100):
-            
+        def __init__(self,means_y = None, stds_y = None, train_loader_= None, test_loader_ = None, args = None, model_load = False, model_id = 100):
             
             self.train_loader = train_loader_
-            
-
             self.test_loader = test_loader_
-           
-            
+
+            if means_y is not None:
+                self.means_y = means_y
+            else:
+                self.means_y = 0.0
+            if stds_y is not None:                
+                self.stds_y  = stds_y
+            else:
+                self.stds_y = 1.0
             self.model_id = model_id    
             self.n_epochs = 1000
 
@@ -58,8 +62,8 @@ class GPContPolicyEncoder:
                 "input_size": 9,
                 "output_size": 3,
                 "hidden_size": 8,
-                "latent_size": 2,
-                "gp_input_size": 7, ## 5 + latent_size 
+                "latent_size": 3,
+                "gp_input_size": 8, ## 5 + latent_size 
                 "seq_len": 5                
                 }
             else: 
@@ -73,13 +77,30 @@ class GPContPolicyEncoder:
             self.model = GPLSTMAutomodel(self.train_args).to(device='cuda')                
             lr = 0.1
             self.optimizer = SGD([
-            {'params': self.model.parameters(), 'weight_decay': 1e-4}
+                {'params' :self.model.lstm_enc.parameters(), 'weight_decay': 1e-4},
+                {'params' :self.model.lstm_dec.parameters(), 'weight_decay': 1e-4},
+                {'params' :self.model.fc_l2l.parameters(), 'weight_decay': 1e-4},
+                {'params' :self.model.fc21.parameters(), 'weight_decay': 1e-4},
+                {'params' :self.model.relu.parameters(), 'weight_decay': 1e-4},
+                {'params' :self.model.fc22.parameters(), 'weight_decay': 1e-4},
+                {'params' :self.model.bn1.parameters(), 'weight_decay': 1e-4},
+                {'params': self.model.gp_layer.hyperparameters(), 'lr': lr * 0.01},
+                {'params': self.model.gp_layer.variational_parameters()},
+                {'params': self.likelihood.parameters()},
             ], lr=lr, momentum=0.9, nesterov=True, weight_decay=0)
             
 
             if model_load:
                 self.model_load()
-                     
+
+        def outputToReal(self, output, normalized = False):
+            if normalized:
+                return output
+            if self.means_y is not None:
+                return output * self.stds_y + self.means_y
+            else:
+                return output
+
         def reset_args(self,args):
             self.train_args = args
             self.input_dim = args["input_size"]
@@ -97,7 +118,9 @@ class GPContPolicyEncoder:
             torch.save({
             'model_state_dict': self.model.state_dict(),
             'train_args': self.train_args,
-            "liklihood" : self.likelihood
+            "liklihood" : self.likelihood,
+            "means_y": self.means_y,
+            "stds_y": self.stds_y,
                 }, save_dir)
                 
             # torch.save(self.model.state_dict(), save_dir )
@@ -116,6 +139,8 @@ class GPContPolicyEncoder:
             self.model.to(torch.device("cuda"))
             self.model.load_state_dict(model_state_dict)
             self.likelihood = saved_data['liklihood']
+            self.means_y = saved_data['means_y']
+            self.stds_y = saved_data['stds_y']
             self.model.eval()            
             self.likelihood.eval()
 
@@ -148,9 +173,8 @@ class GPContPolicyEncoder:
                 std = prediction.stddev
                 noise = torch.cuda.FloatTensor(std.shape[0], std.shape[1]).normal_().to(device="cuda")
                 tmp_target_pred = mx + noise * std  
-            return tmp_target_pred
-            
-
+                result = self.outputToReal(tmp_target_pred)
+            return result
 
         def train(self,epoch , args = None):
             if self.train_loader is None:
@@ -181,8 +205,8 @@ class GPContPolicyEncoder:
                         
                     self.optimizer.zero_grad()
                     mloss, recon_x, cont_loss, recon_loss, output = self.model(data)
-                    loss = -self.mll(output, target) 
-                    loss += mloss*1e-1
+                    liklihood_loss = -self.mll(output, target) 
+                    loss =liklihood_loss+ mloss*1.0
                     loss.backward()
                     self.optimizer.step()
                     
@@ -192,6 +216,7 @@ class GPContPolicyEncoder:
                     writer.add_scalar("cont_loss", float(cont_loss), epoch)        
                     writer.add_scalar("recon_loss", float(recon_loss), epoch)   
                     writer.add_scalar("loss_total", float(loss), epoch)   
+                    writer.add_scalar("liklihood_loss", float(liklihood_loss), epoch)   
 
 
         def test(self,epoch):
@@ -376,7 +401,10 @@ class GPContPolicyEncoder:
                 
             ################################## Target input prediction ##############################          
                 # gp_start_time = time.time()
+                # if i < 5:                    
                 prediction = self.get_gp_output(roll_encoder_input)
+                # else:
+                #     prediction = torch.zeros([roll_state[:,3:6].shape[0], roll_state[:,3:6].shape[1]]).to(device="cuda")
                 # target_output_residual = self.outputToReal(tmp_target_pred)
                 target_output_residual = prediction
                 

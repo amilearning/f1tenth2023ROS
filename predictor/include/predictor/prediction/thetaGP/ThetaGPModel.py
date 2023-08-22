@@ -248,11 +248,11 @@ class ThetaGPTrained(GPController):
         
         self.dyn_model = DynamicsModelForPredictor() 
 
-        self.input_dim = 5 +2 ## for state propogation
+        self.input_dim = 5 +4 ## 2 ## for state propogation
         
         self.output_dim = 3   
         self.model.covar_module.base_kernel.lengthscale = self.model.covar_module.base_kernel.lengthscale * 1.0
-        self.model.covar_module.outputscale = self.model.covar_module.outputscale * 7
+        self.model.covar_module.outputscale = self.model.covar_module.outputscale * 1.0
        
     
        
@@ -344,7 +344,7 @@ class ThetaGPTrained(GPController):
         
         ####################################################################################################
         ####################################################################################################
-            # batched_theta[:] =0                  ###################################    HARD CODING 
+            # batched_theta[:] =1e6                  ###################################    HARD CODING 
         ####################################################################################################
         ################################## Theta prediction END ###########################     
 

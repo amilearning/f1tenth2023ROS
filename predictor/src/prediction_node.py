@@ -52,7 +52,7 @@ from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPre
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
-from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction, interp_state
+from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction, interp_state, prediction_to_std_trace
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
 from hmcl_msgs.msg import VehiclePredictionROS 
@@ -128,7 +128,8 @@ class Predictor:
         self.tv_cav_pred = None
         self.tv_nmpc_pred = None
         self.tv_gp_pred = None
-        
+        self.xy_cov_trace = None 
+
         ## controller callback        
         self.ego_list = []
         self.tar_list = []
@@ -142,12 +143,12 @@ class Predictor:
 
         # Publishers                
         self.tv_pred_marker_pub = rospy.Publisher('/tv_pred_marker',MarkerArray,queue_size = 2)                             
-        self.tv_cav_pred_marker_pub = rospy.Publisher('/tv_cav_pred_marker',MarkerArray,queue_size = 2)         
-        self.tv_nmpc_pred_marker_pub = rospy.Publisher('/tv_nmpc_pred_marker',MarkerArray,queue_size = 2)         
-        self.tv_gp_pred_marker_pub = rospy.Publisher('/tv_gp_pred_marker',MarkerArray,queue_size = 2)         
         
+        self.cov_trace_pub = rospy.Publisher('/pred_cov_trace',PoseStamped,queue_size = 2)                             
         
         self.tar_pred_pub = rospy.Publisher("/tar_pred", VehiclePredictionROS, queue_size=2)
+
+
         # Subscribers
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
         # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
@@ -181,7 +182,9 @@ class Predictor:
         self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(0.1))
         
         ### our method 
-        self.predictor = GPThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
+        # self.predictor = GPThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
+        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
+        
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
         ## constant angular velocity model 
@@ -455,11 +458,11 @@ class Predictor:
                 if self.predictor_type == 0:
                     self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
                 elif self.predictor_type == 1:
-                    self.tv_cav_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
+                    self.tv_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
                 elif self.predictor_type == 2:
-                    self.tv_nmpc_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                    self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
                 elif self.predictor_type == 3:
-                    self.tv_gp_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                    self.tv_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
                 else: 
                     print("select predictor")
 
@@ -475,36 +478,30 @@ class Predictor:
                     tar_pred_msg = None
                 #################### predict only target is close to ego END #####################################
                     ## publish our proposed method prediction 
-                    if self.tv_pred is not None and self.predictor_type == 0:            
+                    if self.tv_pred is not None:            
                         fill_global_info(self.track_info.track, self.tv_pred)                    
-                        tar_pred_msg = prediction_to_rosmsg(self.tv_pred)                        
-                        
+                        tar_pred_msg = prediction_to_rosmsg(self.tv_pred)   
                         tv_pred_markerArray = prediction_to_marker(self.tv_pred)
                         # convert covarariance in local coordinate for visualization
                         # self.tv_pred.convert_local_to_global_cov()                        ###
                         
-                        
-                    
-                    if self.tv_cav_pred is not None and self.predictor_type == 1:            
-                        fill_global_info(self.track_info.track, self.tv_cav_pred)                    
-                        tar_pred_msg = prediction_to_rosmsg(self.tv_cav_pred)                        
-                        tv_pred_markerArray = prediction_to_marker(self.tv_cav_pred)
-                        
-
-                    if self.tv_nmpc_pred is not None and self.predictor_type == 2:
-                        fill_global_info(self.track_info.track, self.tv_nmpc_pred)                    
-                        tar_pred_msg = prediction_to_rosmsg(self.tv_nmpc_pred)                        
-                        tv_pred_markerArray = prediction_to_marker(self.tv_nmpc_pred)                        
-                        
-
-                    if self.tv_gp_pred is not None and self.predictor_type == 3:
-                        fill_global_info(self.track_info.track, self.tv_gp_pred)                    
-                        tar_pred_msg = prediction_to_rosmsg(self.tv_gp_pred)                        
-                        tv_pred_markerArray = prediction_to_marker(self.tv_gp_pred)
-                    
                     if tar_pred_msg is not None:
                         self.tar_pred_pub.publish(tar_pred_msg)          
-                        self.tv_pred_marker_pub.publish(tv_pred_markerArray)              
+                        self.tv_pred_marker_pub.publish(tv_pred_markerArray)    
+                        
+                        
+                        
+                        alpha = 0.5
+                        cur_xy_cov_trace = prediction_to_std_trace(self.tv_pred)     
+                        if self.xy_cov_trace is not None:
+                            self.xy_cov_trace = alpha*cur_xy_cov_trace + (1-alpha)*self.xy_cov_trace
+                        else:
+                            self.xy_cov_trace = cur_xy_cov_trace
+
+                        cov_msg = PoseStamped()
+                        cov_msg.header.stamp = rospy.Time.now()
+                        cov_msg.pose.position.x = self.xy_cov_trace                                            
+                        self.cov_trace_pub.publish(cov_msg)
 
                     # self.tv_gp_pred_marker_pub.publish(tv_gp_pred_markerArray)
 
