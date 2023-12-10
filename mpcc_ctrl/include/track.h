@@ -26,6 +26,8 @@ public:
     void getKeyPts();
     FrenPose globalToLocal(const Pose& pos_cur);
     Pose localToGlobal(const FrenPose& cl_coord);
+    double get_curvature(const double& s);
+    torch::Tensor torch_wrap_s_single(const torch::Tensor& s_, double track_length);
     
 };
 

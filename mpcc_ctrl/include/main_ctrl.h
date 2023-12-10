@@ -141,6 +141,7 @@ public:
 Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_p_);
 ~Ctrl();
 void ControlLoop();
+void PredictionLoop();
 bool mpccService(hmcl_msgs::mpcc::Request  &req,hmcl_msgs::mpcc::Response &res);
 
 void dyn_callback(mpcc_ctrl::testConfig& config, uint32_t level);

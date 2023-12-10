@@ -38,6 +38,14 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
+#include <tf/tf.h>
+#include <geometry_msgs/Quaternion.h>
+
+
+
+
+tf::Vector3 quaternionToEuler(const geometry_msgs::Quaternion& quat);
+
 
 
 torch::Tensor listToTensor(const nlohmann::json& list);

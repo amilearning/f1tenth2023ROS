@@ -38,6 +38,8 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl,ros::NodeHandle& nh_p_):
    
   
   boost::thread ControlLoopHandler(&Ctrl::ControlLoop,this);   
+  boost::thread PredictionLoopHandler(&Ctrl::PredictionLoop,this); 
+
   f = boost::bind(&Ctrl::dyn_callback,this, _1, _2);
 	srv.setCallback(f);
 }
@@ -143,6 +145,19 @@ bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
     return true;
 }
 
+
+void Ctrl::PredictionLoop()
+{ 
+    double hz = 10;    
+    ros::Rate loop_rate(hz); // rate  
+
+    while (ros::ok()){         
+      if(ego_odom_ready && tar_odom_ready){
+          //////// 
+      }
+     loop_rate.sleep();   
+    }
+}
 
 
 void Ctrl::ControlLoop()

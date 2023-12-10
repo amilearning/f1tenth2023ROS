@@ -16,6 +16,16 @@
 
 #include "utils.h"
 
+tf::Vector3 quaternionToEuler(const geometry_msgs::Quaternion& quat) {
+    tf::Quaternion tfQuat;
+    tf::quaternionMsgToTF(quat, tfQuat);
+
+    double roll, pitch, yaw;
+    tf::Matrix3x3(tfQuat).getRPY(roll, pitch, yaw);
+
+    return tf::Vector3(roll, pitch, yaw);
+}
+
 
 torch::Tensor listToTensor(const nlohmann::json& list) {
     int rows = list.size();

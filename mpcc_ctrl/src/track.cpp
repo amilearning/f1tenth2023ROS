@@ -22,6 +22,7 @@ Track::Track(double initial_x, double initial_y, double initial_psi, double trac
                       << ", Segment Length: " << kp.segment_length 
                       << ", Curvature: " << kp.curvature << std::endl;
         }
+        test_local_and_global(); 
         
     }
 
@@ -34,6 +35,8 @@ void Track::test_local_and_global() {
         double psi = -0.39; 
         Pose globalPose = {x,y,psi}; // Example global pose
         auto [s, ey, epsi] = globalToLocal(globalPose);
+        double curv = get_curvature(s);
+        std::cout << "curv = " << curv <<  std::endl;  
         FrenPose f = {s, ey, epsi};
         auto [nx, ny, npsi] = localToGlobal(f);
         // Define a tolerance for floating-point comparison
@@ -94,7 +97,19 @@ void Track::getKeyPts() {
         std::cout << "Key Points Generated" << std::endl;
     }
 
-
+double Track::get_curvature(const double& s){
+    double s_tmp = s;
+    size_t seg_idx = 0;
+    while (s_tmp < 0) s_tmp += track_length;
+    while (s_tmp >= track_length) s_tmp -= track_length;
+    for (; seg_idx < key_pts.size() && s >= key_pts[seg_idx].cum_length; ++seg_idx);
+    if (seg_idx > 0) --seg_idx;    
+    size_t key_pt_idx_s = seg_idx;
+    size_t key_pt_idx_f = std::min(seg_idx + 1, key_pts.size() - 1);
+    const auto& kpt_end = key_pts[key_pt_idx_f];
+    double curv = kpt_end.curvature;    
+    return curv;
+}
 
 FrenPose Track::globalToLocal(const Pose& pos_cur) {
         if (key_pts.empty()) {
@@ -213,7 +228,7 @@ Pose Track::localToGlobal(const FrenPose& cl_coord) {
         size_t seg_idx = 0;
         for (; seg_idx < key_pts.size() && s >= key_pts[seg_idx].cum_length; ++seg_idx);
         if (seg_idx > 0) --seg_idx;
-        std::cout << "seg_idx =  " << seg_idx <<  std::endl;   
+        
         size_t key_pt_idx_s = seg_idx;
         size_t key_pt_idx_f = std::min(seg_idx + 1, key_pts.size() - 1);
         
@@ -224,7 +239,7 @@ Pose Track::localToGlobal(const FrenPose& cl_coord) {
         double x, y, psi;
         double d = s - kpt_start.cum_length;  // Distance along current segment
         
-        if (kpt_start.curvature == 0) {
+        if (kpt_end.curvature == 0) {
             // Segment is a straight line
             std::cout << "straight " << seg_idx <<  std::endl;
             x = kpt_start.x + (kpt_end.x - kpt_start.x) * d / kpt_end.segment_length + e_y * std::cos(kpt_end.psi + M_PI / 2);
@@ -258,6 +273,51 @@ Pose Track::localToGlobal(const FrenPose& cl_coord) {
         return Pose{x, y, psi};
     }
 
+
+torch::Tensor Track::torch_wrap_s_single(const torch::Tensor& s_, double track_length) {
+    auto s = s_.clone(); // Clone to avoid modifying the original tensor
+
+    // Adjust values in the tensor
+    s = s.where(s >= 0, s + track_length * (torch::floor(-s / track_length) + 1));
+    s = s.where(s < track_length, s - track_length * torch::floor(s / track_length));
+
+    return s;
+}
+
+
+
+// torch::Tensor torch_get_curvature(const torch::Tensor& s_) {
+
+//     auto s = s_.to(device);
+//     auto center = center_frenet.to(device);
+
+//     // Handle range
+//     torch::Tensor ref;
+//     if (approx_range.second > 0) {
+//         ref = center.slice(0, approx_range.first, approx_range.second).select(1, 0);
+//     } else {
+//         ref = center.select(1, 0);
+//     }
+
+//     // Wrap s values - assuming torch_wrap_s is implemented
+//     auto wrapped_s = torch_wrap_s(s, center[-1][0]);
+
+//     torch::Tensor s_s, ref_s;
+//     if (wrapped_s.dim() > 1) {
+//         s_s = wrapped_s.repeat({1, ref.size(0)}).view(-1, wrapped_s.size(0)).to(torch::kFloat);
+//         ref_s = ref.repeat({wrapped_s.size(0), 1}).view(-1, ref.size(0)).to(torch::kFloat);
+//     } else {
+//         s_s = torch::transpose(wrapped_s.repeat({1, ref.size(0)}).view(-1, 2), 0, 1).reshape(-1, 1).to(torch::kFloat).squeeze();
+//         ref_s = ref.repeat({1, wrapped_s.size(0)}).to(torch::kFloat);
+//     }
+
+//     auto norm_vecs = torch::norm(s_s - ref_s, 2, 0);
+//     auto row_norm_vecs = norm_vecs.view({-1, ref.size(0)});
+//     auto min_index = std::get<1>(row_norm_vecs.min(1));
+
+//     auto curvatures = center.index_select(0, min_index).select(1, 2);
+//     return curvatures;
+// }
 
 
 

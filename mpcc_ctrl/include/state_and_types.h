@@ -6,13 +6,15 @@
 #include <utility> // For std::pair
 #include <vector>
 #include <geometry_msgs/PoseStamped.h>  // Assuming you have this dependency
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Pose.h>
 #include <torch/torch.h>
 #include <torch/script.h>
-
+#include <tf/tf.h>
 // Define a Point as a pair of doubles (x, y coordinates)
 typedef std::pair<double, double> Point;
 
-
+class Track;
 
 struct ModelConfig {
     int batch_size;
@@ -73,14 +75,28 @@ struct VehicleState {
     double vy;                 // Velocity in local y direction
     double wz;                 // Angular velocity in local z direction
     double accel;              // Acceleration
-    double delta;              // Steering angle
-    double s;                  // Progress along the track in Frenet coordinates
-    double ey;                 // Lateral deviation from the centerline
-    double epsi;               // Orientation deviation from the centerline
+    double delta;              // Steering angle    
     double curv;                  // Curvature at the closest point on the centerline
     double lookahead_curv;                  // Curvature at the closest point on the centerline
+        
+    void fromOdometry(const nav_msgs::Odometry& odom) {
+        this->t = odom.header.stamp.toSec();
+        this->header = odom.header;
+        this->pose = odom.pose.pose;        
+        // tf::Vector3 euler_angles = quaternionToEuler(odom.pose.pose.orientation);
+        // this->yaw = euler_angles.z();  // Calculate or extract the yaw angle from the pose
+        // double vx_local = odom.twist.twist.linear.x * cos(euler_angles.z()) + odom.twist.twist.linear.y * sin(euler_angles.z());
+        // double vy_local = -odom.twist.twist.linear.x * sin(euler_angles.z()) + odom.twist.twist.linear.y * cos(euler_angles.z());
+        // this->vx = vx_local;
+        // this->vy = vy_local;
+        // this->wz = 0.0;       
+    }
 
-    
+    // void updateFrenet(const Track& track){
+    //     Pose tmp_pose = {this->pose.position.x, this->pose.position.y, this->pose.position.z};
+    //     FrenPose fren_pose = track.globalToLocal(tmp_pose);
+    //     this->p = fren_pose;
+    // }    
 };
 
 #endif
