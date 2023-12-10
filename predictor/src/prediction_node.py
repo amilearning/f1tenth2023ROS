@@ -305,10 +305,11 @@ class Predictor:
         if self.predictor and self.cur_ego_state is not None:    
             
             if self.data_save:
-                self.ego_list.append(self.cur_ego_state)
-                self.tar_list.append(self.cur_tar_state)
-                if len(self.tar_list) > self.save_buffer_legnth:
-                    self.save_buffer()
+                if self.cur_ego_state.p.s is not None:
+                    self.ego_list.append(self.cur_ego_state.copy())
+                    self.tar_list.append(self.cur_tar_state.copy())
+                    if len(self.tar_list) > self.save_buffer_legnth:
+                        self.save_buffer()
 
             ## TODO : receive ego prediction from mpcc ctrl, instead computing one more time            
             self.use_predictions_from_module = True

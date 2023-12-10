@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="mpcc_ctrl" pkg="mpcc_ctrl" type="mpcc_ctrl" output="screen" respawn="true">      
+      <remap from="/vesc/ackermann_cmd" to="/vesc/low_level/ackermann_cmd_mux/input/nav_hmcl"/>
+
+</node>
+
+     
+</launch>
