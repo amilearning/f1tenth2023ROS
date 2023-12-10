@@ -99,40 +99,38 @@ class CNNModel(nn.Module):
         
         self.seq_conv = nn.Sequential(
         nn.utils.spectral_norm(nn.Conv1d(in_channels=self.input_dim, out_channels=8, kernel_size=3)),        
-        nn.ReLU(),        
+        nn.LeakyReLU(),        
         nn.utils.spectral_norm(nn.Conv1d(in_channels=8, out_channels=8, kernel_size=3)),        
-        nn.ReLU(),        
-        nn.utils.spectral_norm(nn.Conv1d(in_channels=8, out_channels=1, kernel_size=3)),        
-        nn.ReLU(),        
+        nn.LeakyReLU(),        
+        nn.utils.spectral_norm(nn.Conv1d(in_channels=8, out_channels=1, kernel_size=3))     
         ) 
         
         self.auc_conv_out_size = self._get_conv_out_size(self.seq_conv,self.input_dim,self.n_time_step)        
         
         self.encoder_fc = nn.Sequential(
                 nn.utils.spectral_norm(nn.Linear(self.auc_conv_out_size, 12)),        
-                nn.ReLU(),                                    
+                nn.LeakyReLU(),                                    
                 nn.utils.spectral_norm(nn.Linear(12, 8)),        
-                nn.ReLU(),                                    
+                nn.LeakyReLU(),                                    
                 nn.utils.spectral_norm(nn.Linear(8, self.output_dim))                               
         )
 
         self.decoder_fc = nn.Sequential(
                 nn.utils.spectral_norm(nn.Linear(self.output_dim, 12)),        
-                nn.ReLU(),                                    
+                nn.LeakyReLU(),                                    
                 nn.utils.spectral_norm(nn.Linear(12, 8)),        
-                nn.ReLU(),                                    
+                nn.LeakyReLU(),                                    
                 nn.utils.spectral_norm(nn.Linear(8, self.auc_conv_out_size))                               
         )
 
         self.seq_deconv = nn.Sequential(
             nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels=1, out_channels=8, kernel_size=3)),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels=8, out_channels=8, kernel_size=3)),
-            nn.ReLU(),
-            nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels=8, out_channels=self.input_dim, kernel_size=3)),
-            nn.ReLU()
-        )
-     
+            nn.LeakyReLU(),
+            nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels=8, out_channels=self.input_dim, kernel_size=3))
+        )      
+       
 
     def _get_conv_out_size(self, model, input_dim, seq_dim):
         # dummy_input = torch.randn(1, input_dim, seq_dim, requires_grad=False).to(self.gpu_id).float()         

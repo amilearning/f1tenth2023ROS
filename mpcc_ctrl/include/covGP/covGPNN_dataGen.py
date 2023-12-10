@@ -61,7 +61,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.info = []
         self.means_y = None
         self.stds_y = None
-        
+        pre_load_data_name = "preload_data"
         # if not dest_path.exists()        
         if pre_load_data_name is not None:        
             pre_data_dir =os.path.join(os.path.dirname(abs_path[0]),pre_load_data_name+'.pkl')
@@ -81,7 +81,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                         if policy_name == 'wall':
                             policy_gen = True
                             # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                    
-                            tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
+                            # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
+                            tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                                        
                         ###################################################################
                         if N > self.time_horizon+5:
                             for t in range(N-1-self.time_horizon):                            
@@ -102,6 +103,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
                                     if policy_gen:
                                         scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
+                                        ntar_orin = scenario_data.tar_states[i+1]
                                     # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
                                     #                 tar_ey, tar_epsi, tar_cur]                                 
                                     dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)

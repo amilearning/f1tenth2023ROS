@@ -4,8 +4,14 @@ project(mpcc_ctrl)
 find_package(Eigen3 REQUIRED)
 
 # set(GSL_ROOT_DIR /home/ros2nx/gsl)
+set(Torch_DIR "/home/hjpc/Downloads/libtorch_folder/libtorch")
+list(APPEND CMAKE_PREFIX_PATH "/home/hjpc/Downloads/libtorch_folder/libtorch")
 
 # find_package(GSL REQUIRED)
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+
 
 if(NOT EIGEN3_FOUND)
   # Fallback to cmake_modules
@@ -17,6 +23,9 @@ if(NOT EIGEN3_FOUND)
 else()
   set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
 endif()
+
+find_package(UUID REQUIRED)
+
 
 find_package(catkin REQUIRED COMPONENTS  
   nav_msgs  
@@ -46,7 +55,7 @@ catkin_package(
 
 include_directories(
   include  
-  ${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake
+  #${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   include/control_pkg
@@ -58,22 +67,24 @@ include_directories(
   # ${GSL_INCLUDE_DIRS}
 )
 
+
 # link_directories(${GSL_LIBRARY_DIRS})
 
+
+#target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
 add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_NONE)
 
-add_executable(dynamic_reconfigure_node src/main_ctrl.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
-add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)
-#target_link_libraries(dynamic_reconfigure_node ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
-target_link_libraries(dynamic_reconfigure_node ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/gp_mpcc_h2h_ego/lib/libgp_mpcc_h2h_ego.so)
+# add_executable(dynamic_reconfigure_node src/main_ctrl.cpp src/predictor.cpp src/track.cpp src/utils.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
+# add_dependencies(dynamic_reconfigure_node ${PROJECT_NAME}_gencfg)
+# target_link_libraries(dynamic_reconfigure_node ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/gp_mpcc_h2h_ego/lib/libgp_mpcc_h2h_ego.so "${TORCH_LIBRARIES}")
+
 
 SET(CMAKE_CXX_FLAGS "-O2 -g -Wall ${CMAKE_CXX_FLAGS}")
 
-add_executable(mpcc_ctrl src/main_ctrl.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
-add_dependencies(mpcc_ctrl ${catkin_EXPORTED_TARGETS})
+add_executable(mpcc_ctrl src/main_ctrl.cpp src/predictor.cpp src/track.cpp src/utils.cpp include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_interface.c include/gp_mpcc_h2h_ego/gp_mpcc_h2h_ego_model.c)
+add_dependencies(mpcc_ctrl ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 # target_link_libraries(highspeed_ctrl ${GSL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/FORCESNLPsolver/lib/libFORCESNLPsolver.so)
-target_link_libraries(mpcc_ctrl ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${catkin_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/gp_mpcc_h2h_ego/lib/libgp_mpcc_h2h_ego.so)
-
+target_link_libraries(mpcc_ctrl  ${catkin_LIBRARIES} ${Boost_LIBRARIES} -ldl -lm ${CMAKE_CURRENT_SOURCE_DIR}/include/gp_mpcc_h2h_ego/lib/libgp_mpcc_h2h_ego.so "${TORCH_LIBRARIES}")
 
 
 # install(

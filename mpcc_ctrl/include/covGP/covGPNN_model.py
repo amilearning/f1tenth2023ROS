@@ -18,6 +18,8 @@ from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from barcgp.prediction.torch_utils import get_curvature_from_keypts_torch
 import time
+import torch.optim.lr_scheduler as lr_scheduler
+
 
 class COVGPNN(GPController):
     def __init__(self, args, sample_generator: SampleGeneartorCOVGP, model_class: Type[gpytorch.models.GP],
@@ -92,14 +94,20 @@ class COVGPNN(GPController):
         self.likelihood.train()
 
         # Use the Adam optimizer
-        reconloss_weight = 0.01
-        covloss_weight = 0.01
-        lr = 0.01            
-        optimizer = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.01},
+
+                  
+
+
+
+        optimizer = torch.optim.Adam([{'params': self.model.covnn.parameters()}],lr = 0.05)
+        lr_gp = 0.005
+        optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.01},
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
-                                    ], lr=lr)
+                                    ], lr=lr_gp)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
+        # scheduler_gp = lr_scheduler.StepLR(optimizer_gp, step_size=10, gamma=0.5)
 
         # GP marginal log likelihood
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
@@ -113,6 +121,7 @@ class COVGPNN(GPController):
         best_model = None
         best_likeli = None
         sys.setrecursionlimit(100000)
+        train_nn = False
         while not done:
         # for _ in range(epochs):
             train_dataloader = tqdm(train_dataloader)
@@ -120,22 +129,57 @@ class COVGPNN(GPController):
             train_loss = 0
             valid_loss = 0
             c_loss = 0
-            for step, (train_x, train_y) in enumerate(train_dataloader):               
-                optimizer.zero_grad()
-                output, recons, input_covs, output_covs = self.model(train_x,train=True)
-                covloss = mseloss(input_covs, output_covs)* covloss_weight
-                reconloss = mseloss(recons,train_x)* reconloss_weight
-                variational_loss = -mll(output, train_y)
-                ######## prediction + reconstruction + covariance losses ###########
-                loss = variational_loss + reconloss  + covloss
-                ####################################################################
-                train_loss += loss.item()
-                # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
-                self.writer.add_scalar('Loss/recon_loss', reconloss.item(), epoch * len(train_dataloader) + step)
-                self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
-                self.writer.add_scalar('Loss/cov_loss', covloss.item(), epoch * len(train_dataloader) + step)
-                loss.backward()
-                optimizer.step()
+            for step, (train_x, train_y) in enumerate(train_dataloader):    
+                if train_nn:           
+                    optimizer.zero_grad()
+                    optimizer_gp.zero_grad()
+                    output, recons, input_covs, output_covs = self.model(train_x,train=True)
+                    reconloss_weight = 1.0
+                    covloss_weight = 0.1
+                    # varational_weight = 0.001
+                    covloss = mseloss(input_covs, output_covs)* covloss_weight
+                    reconloss = mseloss(recons,train_x)* reconloss_weight
+                    # variational_loss = -mll(output, train_y)*varational_weight
+                    ######## prediction + reconstruction + covariance losses ###########
+                    loss = reconloss  + covloss
+                    ####################################################################
+                    train_loss += loss.item()
+                    # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
+                    self.writer.add_scalar('Loss/recon_loss', reconloss.item(), epoch * len(train_dataloader) + step)
+                    # self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Loss/cov_loss', covloss.item(), epoch * len(train_dataloader) + step)
+                    for name, param in self.model.covnn.named_parameters():
+                        self.writer.add_histogram(f'Weights/{name}', param.data.cpu().numpy(), epoch)
+                        if param.grad is not None:
+                            self.writer.add_histogram(f'Gradients/{name}', param.grad.data.cpu().numpy(), epoch)
+
+                    loss.backward()
+                    optimizer.step()
+                else:
+                    optimizer_gp.zero_grad()
+                    optimizer.zero_grad()
+                    output, recons, input_covs, output_covs = self.model(train_x,train=True)
+                    # reconloss_weight = 0.0001
+                    # covloss_weight = 0.0001
+                    varational_weight = 1.0
+                    # covloss = mseloss(input_covs, output_covs)* covloss_weight
+                    # reconloss = mseloss(recons,train_x)* reconloss_weight
+                    variational_loss = -mll(output, train_y)*varational_weight
+                    ######## prediction + reconstruction + covariance losses ###########
+                    loss = variational_loss 
+                    ####################################################################
+                    train_loss += loss.item()
+                    # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
+                    # self.writer.add_scalar('Loss/recon_loss', reconloss.item(), epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
+                    # self.writer.add_scalar('Loss/cov_loss', covloss.item(), epoch * len(train_dataloader) + step)
+                    loss.backward()
+                    optimizer_gp.step()
+            
+            # train_nn = not train_nn
+            scheduler.step()
+            # scheduler_gp.step()
+            
             self.writer.add_scalar('Loss/total_train_loss', train_loss, epoch)
             for step, (train_x, train_y) in enumerate(valid_dataloader):
                 optimizer.zero_grad()

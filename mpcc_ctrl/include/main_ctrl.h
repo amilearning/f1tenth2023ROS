@@ -14,6 +14,11 @@
 
 //   Authour : Hojin Lee, hojinlee@unist.ac.kr
 
+#ifndef MAINCTRL
+#define MAINCTRL
+
+
+
 
 #include <iostream>
 #include <fstream>
@@ -64,6 +69,8 @@
 
 #include <hmcl_msgs/obstacle.h>
 #include <hmcl_msgs/TrackArray.h>
+
+
 #include <hmcl_msgs/Track.h>
 
 
@@ -74,13 +81,13 @@
 
 #include "gp_mpcc_h2h_ego.h"
 #include "gp_mpcc_h2h_ego_memory.h"
+#include "track.h"
+#include "predictor.h"
 
 
 #define PI 3.14159265358979323846264338
 /* AD tool to FORCESPRO interface */
 
-#include "utils.h"
-#include "track.h"
 
 class Ctrl 
 {  
@@ -95,6 +102,16 @@ dynamic_reconfigure::Server<mpcc_ctrl::testConfig>::CallbackType f;
 ros::ServiceServer mpcc_srv;
 Track track;
 
+
+// Subscribers for odometry
+ros::Subscriber ego_odom_sub;
+ros::Subscriber tar_odom_sub;
+bool ego_odom_ready; 
+bool tar_odom_ready; 
+
+// Callbacks for the odometry subscribers
+void egoOdomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+void tarOdomCallback(const nav_msgs::Odometry::ConstPtr& msg);
 
 // gp_mpcc_h2h_ego_mem * mem_handle;
 ackermann_msgs::AckermannDriveStamped cur_cmd, prev_cmd;
@@ -114,9 +131,11 @@ int exitflag;
 int return_val;
 bool service_recieved;
 
+CovGPPredictor predictor;
+
 
 void pred_eigen_to_markerArray(const Eigen::MatrixXd& eigen_mtx,  visualization_msgs::MarkerArray & markerArray);
-
+void initalizeParam();
 
 public:
 Ctrl(ros::NodeHandle& nh_ctrl, ros::NodeHandle& nh_p_);
@@ -127,5 +146,6 @@ bool mpccService(hmcl_msgs::mpcc::Request  &req,hmcl_msgs::mpcc::Response &res);
 void dyn_callback(mpcc_ctrl::testConfig& config, uint32_t level);
 };
 
+#endif
 
 

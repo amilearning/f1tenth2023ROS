@@ -14,32 +14,30 @@
 
 //   Authour : Hojin Lee, hojinlee@unist.ac.kr
 
-
 #include "main_ctrl.h"
 
 
-using namespace std;
-
 Ctrl::Ctrl(ros::NodeHandle& nh_ctrl,ros::NodeHandle& nh_p_):
   nh_p(nh_p_),
-  nh_ctrl_(nh_ctrl)
+  nh_ctrl_(nh_ctrl),
+  predictor(track)
 {
-  
-
+  initalizeParam();
   mem = gp_mpcc_h2h_ego_internal_mem(0);
   exitflag = 0;
   return_val = 0;
-  service_recieved = false;
-  nh_p.param<std::string>("control_topic", control_topic, "/vesc/ackermann_cmd");
-  // nh_p.param<double>("odom_pose_diff_threshold", odom_pose_diff_threshold, 1.0);
-   mpcc_srv = nh_ctrl_.advertiseService("compute_mpcc", &Ctrl::mpccService, this);
-
-   ackmanPub = nh_ctrl.advertise<ackermann_msgs::AckermannDriveStamped>(control_topic,2);    
-   ego_pred_marker_pub = nh_ctrl.advertise<visualization_msgs::MarkerArray>("ego_pred_marker",2);    
-   
-  boost::thread ControlLoopHandler(&Ctrl::ControlLoop,this);   
   
+  nh_p.param<std::string>("control_topic", control_topic, "/vesc/ackermann_cmd");  
+  mpcc_srv = nh_ctrl_.advertiseService("compute_mpcc", &Ctrl::mpccService, this);
+  
+  ego_odom_sub = nh_ctrl.subscribe("/ego_odom", 10, &Ctrl::egoOdomCallback, this);
+  tar_odom_sub = nh_ctrl.subscribe("/opp_odom", 10, &Ctrl::tarOdomCallback, this);
 
+  ackmanPub = nh_ctrl.advertise<ackermann_msgs::AckermannDriveStamped>(control_topic,2);    
+  ego_pred_marker_pub = nh_ctrl.advertise<visualization_msgs::MarkerArray>("ego_pred_marker",2);    
+   
+  
+  boost::thread ControlLoopHandler(&Ctrl::ControlLoop,this);   
   f = boost::bind(&Ctrl::dyn_callback,this, _1, _2);
 	srv.setCallback(f);
 }
@@ -48,6 +46,24 @@ Ctrl::Ctrl(ros::NodeHandle& nh_ctrl,ros::NodeHandle& nh_p_):
 
 Ctrl::~Ctrl()
 {}
+
+void Ctrl::initalizeParam(){
+  tar_odom_ready = false;
+  ego_odom_ready = false;
+  service_recieved = false;
+
+}
+
+void Ctrl::egoOdomCallback(const nav_msgs::Odometry::ConstPtr& msg){
+  if (!ego_odom_ready) ego_odom_ready =true;
+}
+
+void Ctrl::tarOdomCallback(const nav_msgs::Odometry::ConstPtr& msg){
+  if (!tar_odom_ready) tar_odom_ready =true;
+
+}
+
+
 
 bool Ctrl::mpccService(hmcl_msgs::mpcc::Request  &req,
          hmcl_msgs::mpcc::Response &res)
