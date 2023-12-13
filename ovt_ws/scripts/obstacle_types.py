@@ -104,10 +104,11 @@ class RectangleObstacle(BaseConvexObstacle):
         
     def R(self):
         return np.array([[np.cos(self.psi), np.sin(self.psi)],[-np.sin(self.psi), np.cos(self.psi)]]) 
+        # np.array([[np.cos(psi), np.sin(psi)],[-np.sin(psi), np.cos(psi)]])
     
     def __calc_V__(self):
         xy = np.array([[- self.w/2,- self.h/2], [- self.w/2,+ self.h/2], [+ self.w/2,+ self.h/2], [+ self.w/2,- self.h/2], [- self.w/2,- self.h/2]]) @ self.R() + np.array([[self.xc, self.yc]])
-        
+        # xy = np.array([[- w/2,- h/2], [- w/2,+ h/2], [+ w/2,+ h/2], [+ w/2,- h/2], [- w/2,- h/2]]) @ R + np.array([[xc, yc]])        
         V = xy[:-1,:]
                            
         object.__setattr__(self,'xy',xy)

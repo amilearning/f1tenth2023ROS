@@ -58,11 +58,16 @@ void Ctrl::initalizeParam(){
 
 void Ctrl::egoOdomCallback(const nav_msgs::Odometry::ConstPtr& msg){
   if (!ego_odom_ready) ego_odom_ready =true;
+
+  egoState.fromOdometry(*msg);
+  egoState.updateFrenet(track);
+
 }
 
 void Ctrl::tarOdomCallback(const nav_msgs::Odometry::ConstPtr& msg){
   if (!tar_odom_ready) tar_odom_ready =true;
-
+  tarState.fromOdometry(*msg);
+  tarState.updateFrenet(track);
 }
 
 
@@ -154,6 +159,7 @@ void Ctrl::PredictionLoop()
     while (ros::ok()){         
       if(ego_odom_ready && tar_odom_ready){
           //////// 
+          predictor.append_vehicleState(egoState, tarState);
       }
      loop_rate.sleep();   
     }

@@ -24,7 +24,7 @@ public:
     void test_local_and_global();
     std::tuple<double, double, double> nextPositionOrientation(double x, double y, double psi, double curvature, double segment_length);
     void getKeyPts();
-    FrenPose globalToLocal(const Pose& pos_cur);
+    FrenPose globalToLocal(const Pose& pos_cur) const;
     Pose localToGlobal(const FrenPose& cl_coord);
     double get_curvature(const double& s);
     torch::Tensor torch_wrap_s_single(const torch::Tensor& s_, double track_length);

@@ -1,69 +1,37 @@
-#ifndef STATESTYPES
-#define STATESTYPES
 
+#ifndef VEHICLESTATE_H
+#define VEHICLESTATE_H
 
-
-#include <utility> // For std::pair
-#include <vector>
-#include <geometry_msgs/PoseStamped.h>  // Assuming you have this dependency
-#include <nav_msgs/Odometry.h>
+#include <std_msgs/Header.h>
 #include <geometry_msgs/Pose.h>
-#include <torch/torch.h>
-#include <torch/script.h>
-#include <tf/tf.h>
-// Define a Point as a pair of doubles (x, y coordinates)
-typedef std::pair<double, double> Point;
+#include <nav_msgs/Odometry.h>
+#include <cmath>
+// #include "state_and_types.h"
+// #include "utils.h"
+#include "track.h"
+// Include other necessary headers...
 
-class Track;
 
-struct ModelConfig {
-    int batch_size;
-    torch::Device device;
-    int input_dim;
-    int n_time_step;
-    int latent_dim;
-    int gp_output_dim;
-    int inducing_points;
-    double dt;
+struct VehicleState {
+    double t;
+    std_msgs::Header header;
+    geometry_msgs::Pose pose;  // Pose information (position and orientation)
+    FrenPose p; 
+    double yaw;                // Yaw angle
+    double vx;                 // Velocity in local x direction
+    double vy;                 // Velocity in local y direction
+    double wz;                 // Angular velocity in local z direction
+    double accel;              // Acceleration
+    double delta;              // Steering angle    
+    double curv;               // Curvature at the closest point on the centerline
+    double lookahead_curv;     // Curvature at the lookahead point
 
-    ModelConfig() 
-        : batch_size(100), // Assuming last 'batch_size' value from Python code
-          device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
-          input_dim(9),
-          n_time_step(10),
-          latent_dim(4),
-          gp_output_dim(4),
-          inducing_points(300),
-          dt(0.1)
-    {
-        // Constructor body, if needed
-        
-    }
+    void fromOdometry(const nav_msgs::Odometry& odom);
+    void updateFrenet(const Track& track); 
 };
 
-struct Pose {
-    double x;
-    double y;
-    double psi;
-};
+#endif // VEHICLESTATE_H
 
-
-
-struct FrenPose{
-    double s;
-    double ey;
-    double epsi;
-};
-
-// Segment structure for track segments
-struct KeyPoint {
-    double x;
-    double y;
-    double psi;
-    double cum_length;
-    double segment_length;
-    double curvature;
-};
 
 // // VehicleState structure for representing the state of a vehicle
 // struct VehicleState {
@@ -99,5 +67,3 @@ struct KeyPoint {
 //     //     this->p = fren_pose;
 //     // }    
 // };
-
-#endif

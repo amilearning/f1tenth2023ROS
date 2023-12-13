@@ -111,7 +111,7 @@ double Track::get_curvature(const double& s){
     return curv;
 }
 
-FrenPose Track::globalToLocal(const Pose& pos_cur) {
+FrenPose Track::globalToLocal(const Pose& pos_cur) const{
         if (key_pts.empty()) {
             throw std::runtime_error("Track key points have not been defined");
         }

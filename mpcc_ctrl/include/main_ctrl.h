@@ -102,6 +102,7 @@ dynamic_reconfigure::Server<mpcc_ctrl::testConfig>::CallbackType f;
 ros::ServiceServer mpcc_srv;
 Track track;
 
+VehicleState egoState, tarState;
 
 // Subscribers for odometry
 ros::Subscriber ego_odom_sub;
