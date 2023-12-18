@@ -1,8 +1,8 @@
-from barcgp.common.utils.file_utils import *
-from barcgp.prediction.cont_encoder.cont_encoderTrain import cont_encoder_train
-from barcgp.prediction.thetaGP.ThetaGPTrain import thetagp_train
-from barcgp.prediction.gp_berkely_train import gp_main
-from barcgp.prediction.covGP.covGPNN_Train import covGPNN_train
+from predictor.common.utils.file_utils import *
+from predictor.prediction.cont_encoder.cont_encoderTrain import cont_encoder_train
+from predictor.prediction.thetaGP.ThetaGPTrain import thetagp_train
+# from predictor.prediction.gp_berkely_train import gp_main
+from predictor.prediction.covGP.covGPNN_Train import covGPNN_train
 import os
 
 def get_dir(policy_name_, train_dir_):
@@ -13,19 +13,19 @@ def get_dir(policy_name_, train_dir_):
     dirs = [scencurve_dir, scenstraight_dir, scenchicane_dir]
     return dirs
 
-test_0 = get_dir('test_data', train_dir)
+# test_0 = get_dir('test_data', train_dir)
 
-timid_0 = get_dir('timid_0', train_dir)
-mild_5000_0 = get_dir('mild_5000_0', train_dir)
-reverse_0 = get_dir('reverse_0', train_dir)
-aggressive_blocking_0 = get_dir('aggressive_blocking_0', train_dir)
+# timid_0 = get_dir('timid_0', train_dir)
+# mild_5000_0 = get_dir('mild_5000_0', train_dir)
+# reverse_0 = get_dir('reverse_0', train_dir)
+# aggressive_blocking_0 = get_dir('aggressive_blocking_0', train_dir)
 
 
 
-wall_timid_0 = get_dir('wall_timid_0', train_dir)
-wall_mild_5000_0 = get_dir('wall_mild_5000_0', train_dir)
-wall_reverse_0 = get_dir('wall_reverse_0', train_dir)
-wall_aggressive_blocking_0 = get_dir('wall_aggressive_blocking_0', train_dir)
+# wall_timid_0 = get_dir('wall_timid_0', train_dir)
+# wall_mild_5000_0 = get_dir('wall_mild_5000_0', train_dir)
+# wall_reverse_0 = get_dir('wall_reverse_0', train_dir)
+# wall_aggressive_blocking_0 = get_dir('wall_aggressive_blocking_0', train_dir)
 
 # dirs = timid.copy()
 # # dirs.extend(m100)
@@ -43,10 +43,10 @@ wall_aggressive_blocking_0 = get_dir('wall_aggressive_blocking_0', train_dir)
 # dirs.extend(wall_reverse)
 
 # dirs = test_0.copy()
-dirs = timid_0.copy()
-dirs.extend(mild_5000_0)
-dirs.extend(reverse_0)
-dirs.extend(aggressive_blocking_0)
+# dirs = timid_0.copy()
+# dirs.extend(mild_5000_0)
+# dirs.extend(reverse_0)
+# dirs.extend(aggressive_blocking_0)
 
 # dirs.extend(wall_timid_0)
 # dirs.extend(wall_mild_5000_0)
@@ -84,6 +84,8 @@ dirs.extend(aggressive_blocking_0)
 # dirs = [track_scencurve_dir]
 
 
+dirs = [real_dir]
+
 def main():  
     # print("1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     # print("GP Berkely train init")
@@ -92,8 +94,8 @@ def main():
     # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     
     print("2~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("ConstAutoEncoder train init")
-    covGPNN_train(dirs)
+    print("covGPNN_train train init")
+    covGPNN_train(dirs, real_data = True)
     print("AutoEncoder train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 

@@ -1,22 +1,22 @@
 import torch
 import gpytorch
-from barcgp.prediction.abstract_gp_controller import GPController
+from predictor.prediction.abstract_gp_controller import GPController
 import array
 from tqdm import tqdm
 import numpy as np
-from barcgp.h2h_configs import *
-from barcgp.common.utils.file_utils import *
+from predictor.h2h_configs import *
+from predictor.common.utils.file_utils import *
 import torch.nn as nn
-from barcgp.prediction.dyn_prediction_model import TorchDynamicsModelForPredictor
-from barcgp.common.tracks.radius_arclength_track import RadiusArclengthTrack
-from barcgp.prediction.covGP.covGPNN_gp_nn_model import COVGPNNModel
+from predictor.prediction.dyn_prediction_model import TorchDynamicsModelForPredictor
+from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
+from predictor.prediction.covGP.covGPNN_gp_nn_model import COVGPNNModel, COVGPNNModelWrapper
 from torch.utils.data import DataLoader, random_split
 from typing import Type, List
-from barcgp.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
+from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 import sys
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
-from barcgp.prediction.torch_utils import get_curvature_from_keypts_torch
+from predictor.prediction.torch_utils import get_curvature_from_keypts_torch
 import time
 import torch.optim.lr_scheduler as lr_scheduler
 
@@ -307,7 +307,7 @@ class COVGPNN(GPController):
 
 
 class COVGPNNTrained(GPController):
-    def __init__(self, name, enable_GPU, model=None):        
+    def __init__(self, name, enable_GPU, load_trace = False, model=None):        
         if model is not None:
             self.load_model_from_object(model)
         else:
@@ -329,7 +329,23 @@ class COVGPNNTrained(GPController):
             # self.means_y = self.means_y.cpu()
             # self.stds_x = self.stds_x.cpu()
             # self.stds_y = self.stds_y.cpu()
+        self.load_trace = load_trace
+        self.trace_model = None
+        if self.load_trace:
+            self.gen_trace_model()
+            
+
+    def gen_trace_model(self):
         
+        with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
+            self.model.eval()
+            test_x = torch.randn(25,9,10).cuda()
+            pred = self.model(test_x)  # Do precomputation
+        with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
+            self.trace_model = torch.jit.trace(COVGPNNModelWrapper(self.model), test_x)
+            
+            
+
     def load_normalizing_consant(self, name ='normalizing'):        
         model = pickle_read(os.path.join(model_dir, name + '.pkl'))        
         self.means_x = model['mean_sample'].cuda()
@@ -412,10 +428,14 @@ class COVGPNNTrained(GPController):
             # gp_start_time = time.time()  
             roll_input = self.insert_to_end(roll_input, roll_tar_state, roll_tar_curv, roll_ego_state)                      
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                pred_delta_dist = self.model(self.standardize(roll_input))
+                if self.load_trace:
+                    mean, stddev = self.trace_model(self.standardize(roll_input))
+                else:
+                    pred_delta_dist = self.model(self.standardize(roll_input))
+                    mean = pred_delta_dist.mean
+                    stddev = pred_delta_dist.stddev
                 # pred_delta_dist = self.model(roll_input)            
-                mean = pred_delta_dist.mean
-                stddev = pred_delta_dist.stddev
+
                 tmp_delta = torch.distributions.Normal(mean, stddev).sample()                
                 pred_delta = self.outputToReal(tmp_delta)
        

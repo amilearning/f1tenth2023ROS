@@ -1,14 +1,14 @@
-from barcgp.common.pytypes import VehicleState, VehiclePrediction
+from predictor.common.pytypes import VehicleState, VehiclePrediction
 import numpy as np
 import gc
 import torch
 
-from barcgp.common.tracks.radius_arclength_track import RadiusArclengthTrack
-from barcgp.controllers.utils.controllerTypes import *
-from barcgp.prediction.trajectory_predictor import BasePredictor
+from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
+from predictor.controllers.utils.controllerTypes import *
+from predictor.prediction.trajectory_predictor import BasePredictor
 
-from barcgp.prediction.covGP.covGPNN_model import COVGPNNTrained
-from barcgp.prediction.covGP.covGPNN_dataGen import states_to_encoder_input_torch
+from predictor.prediction.covGP.covGPNN_model import COVGPNNTrained
+from predictor.prediction.covGP.covGPNN_dataGen import states_to_encoder_input_torch
 
 class CovGPPredictor(BasePredictor):
     def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1,cont_encoder = True):
@@ -29,7 +29,7 @@ class CovGPPredictor(BasePredictor):
 
         ######### Input prediction for Gaussian Processes regression ######### 
         input_predict_model = "covGP"
-        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU)
+        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = True)
         print("input predict_gp loaded")
     
         self.M = M  # number of samples

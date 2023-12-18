@@ -10,7 +10,8 @@ class Predictor(Enum):
     NMPC = 2
     DirectGP = 3
     AutoGP = 4 
-    ConstantInput = 5           
+    ConstantInput = 5 
+    COVGP = 6          
 
 class Controllers(Enum):
     NMPC = 0

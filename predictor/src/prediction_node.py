@@ -46,8 +46,11 @@ import rospkg
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
 from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info, compute_local_velocity
 from predictor.path_generator import PathGenerator
-from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
-from predictor.prediction.gp_thetapolicy_predictor import GPThetaPolicyPredictor
+# from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
+# from predictor.prediction.gp_thetapolicy_predictor import GPThetaPolicyPredictor
+
+from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
+
 from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
@@ -173,6 +176,7 @@ class Predictor:
         #                   1 : CAV
         #                   2: NMPC
         #                   3 : GP
+        #                   4: COVGP
         self.predictor_type = 0
         ### setup ego controller to compute the ego prediction 
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
@@ -183,7 +187,7 @@ class Predictor:
         
         ### our method 
         # self.predictor = GPThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
-        self.predictor = ThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))                    
         
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
@@ -260,6 +264,7 @@ class Predictor:
         if config.clear_buffer:
             self.clear_buffer()
         self.predictor_type = config.predictor_type
+        print("self.predictor_type = " + str(self.predictor_type))
         self.data_save = config.logging_vehicle_states
         if self.prev_data_save is True and self.data_save is False and config.clear_buffer is not True:
             self.save_buffer_in_thread()
@@ -463,6 +468,8 @@ class Predictor:
                     self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
                 elif self.predictor_type == 3:
                     self.tv_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
+                elif self.predictor_type == 4:
+                    self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)
                 else: 
                     print("select predictor")
 

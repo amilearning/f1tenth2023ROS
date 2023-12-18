@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 
-from barcgp.common.utils.file_utils import *
+from predictor.common.utils.file_utils import *
 import numpy as np
 import torch
 import gpytorch
 
-from barcgp.prediction.gpytorch_models import IndependentMultitaskGPModelApproximate
+from predictor.prediction.gpytorch_models import IndependentMultitaskGPModelApproximate
 
-from barcgp.prediction.encoder.encoderModel import LSTMAutomodel
-from barcgp.prediction.encoder.policyEncoder import PolicyEncoder
+from predictor.prediction.encoder.encoderModel import LSTMAutomodel
+from predictor.prediction.encoder.policyEncoder import PolicyEncoder
 from torch.utils.data import DataLoader, random_split
 
-from barcgp.prediction.thetaGP.ThetaGPdataGen import SampleGeneartorThetaGP
-from barcgp.prediction.thetaGP.ThetaGPModel import ThetaGPApproximate
-from barcgp.prediction.covGP.covGPNN_model import COVGPNN
-from barcgp.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
+from predictor.prediction.thetaGP.ThetaGPdataGen import SampleGeneartorThetaGP
+from predictor.prediction.thetaGP.ThetaGPModel import ThetaGPApproximate
+from predictor.prediction.covGP.covGPNN_model import COVGPNN
+from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
 
 # Training
