@@ -121,7 +121,7 @@ def shift_in_local_x(pose_msg: PoseStamped, dist = -0.13):
     pose_msg.pose.position.y = new_position[1]
 
 
-def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose : PoseStamped):
+def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose : PoseStamped, line=None):
     state.x.x = pose.pose.position.x
     state.x.y = pose.pose.position.y
     orientation_q = pose.pose.orientation    
@@ -129,7 +129,7 @@ def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose 
     (cur_roll, cur_pitch, cur_yaw) = quaternion_to_euler (quat)
     state.e.psi = cur_yaw
     xy_coord = (state.x.x, state.x.y, state.e.psi)
-    cl_coord = track.global_to_local(xy_coord)
+    cl_coord = track.global_to_local(xy_coord, line= line)
     if cl_coord is None:
         print('cl_coord is none')
         return
@@ -589,8 +589,8 @@ def prediction_to_marker(predictions):
         # marker_ref.scale.x, marker_ref.scale.y, marker_ref.scale.z = (0.6, 0.4, 0.3)
         scale = 1
         if predictions.xy_cov is not None:
-            x_cov = max(predictions.xy_cov[i][0,0],0.00001)
-            y_cov = max(predictions.xy_cov[i][1,1],0.00001)
+            x_cov = max(predictions.xy_cov[i][0,0],0.01)            
+            y_cov = max(predictions.xy_cov[i][1,1],0.01)
         else:
             x_cov = 0.01
             y_cov = 0.01
@@ -852,7 +852,7 @@ class LaptimeRecorder():
             if len(self.laptimes) ==1:
                 self.init_laptime = cur_state.t
             if len(self.laptimes) > 5:                                
-                file_name = self.file_name_prefix + str(len(self.laptimes)) + '_' + str(rospy.Time.now().to_sec()) + '.pkl'
+                file_name = self.file_name_prefix + +'_'+str(len(self.laptimes)) + '_' + str(rospy.Time.now().to_sec()) + '.pkl'
                 self.save(file_name)
             if self.init_laptime is not None:                
                 self.n_lap+=1

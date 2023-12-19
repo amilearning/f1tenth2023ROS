@@ -20,16 +20,15 @@ class CovGPPredictor(BasePredictor):
             "batch_size": 512,
             "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
             "input_dim": 9,
-            "n_time_step": 10,
-            "latent_dim": 4,
-            "gp_output_dim": 4,
-            "batch_size": 100,
-            "inducing_points" : 300                
+            "n_time_step": 15,
+            "latent_dim": 8,
+            "gp_output_dim": 4,            
+            "inducing_points" : 100                
             }
 
         ######### Input prediction for Gaussian Processes regression ######### 
         input_predict_model = "covGP"
-        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = True)
+        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = False)
         print("input predict_gp loaded")
     
         self.M = M  # number of samples
@@ -71,6 +70,7 @@ class CovGPPredictor(BasePredictor):
             pred.track_cov_to_local(self.track, self.N, self.cov_factor)  
         else:            
             pred = None # self.get_constant_vel_prediction_par(target_state) # self.gp.get_true_prediction_par(ego_state, target_state, ego_prediction, self.track, self.M)
+           
         # fill in covariance transformation to x,y
               
         # pred.convert_local_to_global_cov()

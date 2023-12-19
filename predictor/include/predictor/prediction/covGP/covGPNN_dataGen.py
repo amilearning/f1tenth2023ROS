@@ -1,9 +1,9 @@
 import torch
-from predictor.common.utils.scenario_utils import *
-from predictor.simulation.dynamics_simulator import DynamicsSimulator
-from predictor.h2h_configs import *    
-from predictor.common.utils.scenario_utils import policy_generator
-from predictor.common.utils.file_utils import *
+from barcgp.common.utils.scenario_utils import *
+from barcgp.simulation.dynamics_simulator import DynamicsSimulator
+from barcgp.h2h_configs import *    
+from barcgp.common.utils.scenario_utils import policy_generator
+from barcgp.common.utils.file_utils import *
 def states_to_encoder_input_torch(tar_st,ego_st):
     tar_s = tar_st.p.s
     ego_s = ego_st.p.s
@@ -32,7 +32,7 @@ def states_to_encoder_input_torch(tar_st,ego_st):
 
 
 class SampleGeneartorCOVGP(SampleGenerator):
-    def __init__(self, abs_path,load_normalization_constant = False, pre_load_data_name = None, randomize=False, elect_function=None, init_all=True):
+    def __init__(self, abs_path,args = None, real_data = False, load_normalization_constant = False, pre_load_data_name = None, randomize=False, elect_function=None, init_all=True):
         '''
         abs path: List of absolute paths of directories containing files to be used for training
         randomize: boolean deciding whether samples should be returned in a random order or by time and file
@@ -49,8 +49,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         #          
         self.normalized_sample = None
         self.normalized_output = None
-        self.input_dim = 9
-        self.time_horizon = 10
+        self.input_dim = args["input_dim"]        
+        self.time_horizon = args["n_time_step"]
         
         if elect_function is None:
             elect_function = self.useAll
@@ -59,22 +59,34 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.samples = []
         self.output_data = []
         self.info = []
+        self.debug_t = []
         self.means_y = None
         self.stds_y = None
         # pre_load_data_name = "preload_data"
         # if not dest_path.exists()        
-        if pre_load_data_name is not None:        
-            pre_data_dir =os.path.join(os.path.dirname(abs_path[0]),pre_load_data_name+'.pkl')
+        if pre_load_data_name is not None:       
+            pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')              
+            pre_data_dir =os.path.join(pre_data_dir,pre_load_data_name+'.pkl')
             self.load_pre_data(pre_data_dir)            
         else:
-            pre_data_dir =os.path.join(os.path.dirname(abs_path[0]),"preload_data.pkl")                        
+            pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
+            create_dir(pre_data_dir)        
+            pre_data_dir =os.path.join(pre_data_dir,"preload_data.pkl")                        
             for ab_p in self.abs_path:
                 for filename in os.listdir(ab_p):
                     if filename.endswith(".pkl"):
                         dbfile = open(os.path.join(ab_p, filename), 'rb')
-                        scenario_data: SimData = pickle.load(dbfile)                                
+                        if real_data:
+                            scenario_data: SimData = pickle.load(dbfile)                                
+                            track_ = scenario_data.track
+                        else:
+                            scenario_data: RealData = pickle.load(dbfile)                                                            
+                            track_ = scenario_data.scenario_def.track
+
+                        
                         # scenario_data: RealData = pickle.load(dbfile)                        
                         N = scenario_data.N                       
+                        
                         ######################## random Policy ############################
                         policy_name = ab_p.split('/')[-2]
                         policy_gen = False
@@ -82,7 +94,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             policy_gen = True
                             # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                    
                             # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
-                            tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                                        
+                            tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track_)                                        
                         ###################################################################
                         if N > self.time_horizon+5:
                             for t in range(N-1-self.time_horizon):                            
@@ -120,8 +132,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 
                                 next_tar_st = ntar_orin.copy()
                                 real_dt = next_tar_st.t - tar_st.t 
-                                valid_data = self.data_validation(ego_st,tar_st,next_tar_st,scenario_data.scenario_def.track)                        
-                                if valid_data and real_dt > 0.05:
+
+                                valid_data = self.data_validation(dat,tar_st,next_tar_st,track_)                        
+                                if valid_data and (real_dt > 0.05 and real_dt < 0.2):
                                     # dt = 0.1                        
                                     # ntar_st = interp_state_with_vel(scenario_data.track, tar_st,next_tar_st,dt).copy()
                                     # # state_input = torch.tensor([tar_st.p.x_tran,
@@ -140,6 +153,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
                                     delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
                                     delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long
+
+                                    
+                                    self.debug_t.append(real_dt)
                                     gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                
                                     # gp_output = torch.tensor(del_state)                                
                                     self.samples.append(dat.clone())  
@@ -167,7 +183,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
     def save_pre_data(self,pre_data_dir):
         model_to_save = dict()
         model_to_save['samples'] = self.samples
-        model_to_save['output_data'] = self.output_data
+        model_to_save['output_data'] = self.output_data        
         pickle_write(model_to_save,pre_data_dir)
         print('Successfully saved data')
 
@@ -234,21 +250,44 @@ class SampleGeneartorCOVGP(SampleGenerator):
         
         
      
-    def data_validation(self,ego_st: VehicleState,tar_st: VehicleState,ntar_st: VehicleState,track : RadiusArclengthTrack):
+    def data_validation(self,data : torch.tensor ,tar_st: VehicleState,ntar_st: VehicleState,track : RadiusArclengthTrack):
         valid_data = True
-        # if ego_st.p.s > track.track_length/2.0+0.5 or tar_st.p.s > track.track_length/2.0+0.5:
-        #     valid_data = False
+
+        delta_s = data[0,:]
+        tar_ey = data[1,:]
+        tar_epsi = data[2,:]
+        tar_vx = data[3,:]
+        k1 = data[4,:]
+        k2 = data[5,:]
+        ego_ey = data[6,:]
+        ego_epsi = data[7,:]
+        ego_vx = data[8,:]
+
         
-        if abs(ego_st.p.x_tran) > track.track_width or abs(tar_st.p.x_tran) > track.track_width:
-            valid_data = False
+
+
+        # # if ego_st.p.s > track.track_length/2.0+0.5 or tar_st.p.s > track.track_length/2.0+0.5:
+        # #     valid_data = False
+        
+        # if abs(ego_st.p.x_tran) > track.track_width or abs(tar_st.p.x_tran) > track.track_width:
+        #     valid_data = False
 
         # if ntar_st.p.s > track.track_length/2.0+0.5:
         #     valid_data = False
-        
-        if abs(ntar_st.p.x_tran) > track.track_width:
-            valid_data = False
+       
 
-        if abs(ntar_st.p.s - tar_st.p.s) > 1.0:
+        if abs(tar_ey).max() > track.track_width/2 or abs(ego_ey).max() > track.track_width/2:
+            valid_data = False
+        
+        if tar_vx.min() < 0.1:
+            valid_data = False
+            
+        
+
+        # if abs(ntar_st.p.x_tran) > track.track_width/2:
+        #     valid_data = False
+
+        if abs(ntar_st.p.s - tar_st.p.s) > track.track_length/4:
             valid_data = False
 
         return valid_data
@@ -296,7 +335,34 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
 
     def plotStatistics(self):
-        print("no plot statics for this dataset")
+        
+        # x_label = torch.stack(self.samples).detach().cpu().numpy()
+        import matplotlib.pyplot as plt
+        y_label = torch.stack(self.output_data).detach().cpu().numpy()
+        debug_t = np.array(self.debug_t)
+        titles = ["del_s", "del_ey", "del_epsi", "del_vx", "dt"]
+        fig, axs = plt.subplots(5, 1, figsize=(10, 10))
+
+        # Plot each column in a separate subplot
+        for i in range(4):
+            axs[i].plot(y_label[:, i])
+            axs[i].set_title(titles[i])
+            axs[i].set_xlabel('Sample Number')
+            axs[i].set_ylabel('Value')
+
+        axs[-1].plot(debug_t)
+        axs[-1].set_title(titles[-1])
+        axs[-1].set_xlabel('Sample Number')
+        axs[-1].set_ylabel('Value')
+
+
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        plt.show()
+        
+        print(1)
+        
+        
         return
         
 

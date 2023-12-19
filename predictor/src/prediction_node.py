@@ -38,7 +38,7 @@ import numpy as np
 from std_msgs.msg import Bool
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
-from visualization_msgs.msg import MarkerArray
+from visualization_msgs.msg import MarkerArray, Marker
 import threading
 from vesc_msgs.msg import VescStateStamped
 from hmcl_msgs.srv import mpcc
@@ -145,7 +145,10 @@ class Predictor:
         self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
 
         # Publishers                
-        self.tv_pred_marker_pub = rospy.Publisher('/tv_pred_marker',MarkerArray,queue_size = 2)                             
+        self.tv_pred_marker_pub = rospy.Publisher('/tv_pred_marker',MarkerArray,queue_size = 2)        
+        self.tv_pred_cov_marker_pub = rospy.Publisher('/tv_pred_cov', Marker, queue_size=10)
+        self.cov_list = []
+                         
         
         self.cov_trace_pub = rospy.Publisher('/pred_cov_trace',PoseStamped,queue_size = 2)                             
         
@@ -183,11 +186,11 @@ class Predictor:
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
         gp_policy_name = 'gpberkely'        
-        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(0.1))
+        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))
         
         ### our method 
         # self.predictor = GPThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))                    
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0))                    
         
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
@@ -457,6 +460,7 @@ class Predictor:
             _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
             ego_pred = self.gp_mpcc_ego_controller.get_prediction()
             
+            
             # ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
             
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None and ego_pred.x is not None:            
@@ -472,7 +476,7 @@ class Predictor:
                     self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)
                 else: 
                     print("select predictor")
-
+                
                 #################### predict only target is close to ego #####################################
                 cur_ego_s = self.cur_ego_state.p.s.copy()
                 cur_tar_s = self.cur_tar_state.p.s.copy()
@@ -516,7 +520,7 @@ class Predictor:
                 
         end_time = time.time()
         execution_time = end_time - start_time
-        if execution_time > 0.1:
+        if execution_time > 0.12:
             print(f"Prediction execution time: {execution_time} seconds")
 
     

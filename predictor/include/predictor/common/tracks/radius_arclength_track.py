@@ -414,16 +414,17 @@ class RadiusArclengthTrack():
                     continue
 
         if line == 'inside':
-            cl_coord = (cl_coord[0], cl_coord[1] - self.track_width / 5, cl_coord[2])
+            cl_coord = (cl_coord[0], cl_coord[1] - self.track_width / 3, cl_coord[2])
+            
+            
         elif line == 'outside':
-            cl_coord = (cl_coord[0], cl_coord[1] + self.track_width / 5, cl_coord[2])
+            cl_coord = (cl_coord[0], cl_coord[1] + self.track_width / 3, cl_coord[2])
         elif line == 'pid_offset':
             # PID controller tends to cut to the inside of the track
             cl_coord = (cl_coord[0], cl_coord[1] + (0.1 * self.track_width / 2), cl_coord[2])
-
+        
         # if cl_coord is None:
         #     raise ValueError('Point is out of the track!')
-
         return cl_coord
 
     """

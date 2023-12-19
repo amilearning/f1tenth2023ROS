@@ -70,7 +70,7 @@ class OvertakingAgent:
         (cur_roll, cur_pitch, cur_yaw) = euler_from_quaternion (orientation_list)
         state.e.psi = cur_yaw
         xy_coord = (state.x.x, state.x.y, state.e.psi)
-        cl_coord = self.track_info.track.global_to_local(xy_coord)
+        cl_coord = self.track_info.track.global_to_local(xy_coord) 
         if cl_coord is None:
             return
         state.p.s = cl_coord[0]

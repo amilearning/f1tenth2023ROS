@@ -18,9 +18,18 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
 
 # Training
-def covGPNN_train(dirs = None):
-    
-    sampGen = SampleGeneartorCOVGP(dirs, randomize=True)
+def covGPNN_train(dirs = None, real_data = False):
+    args = {                    
+            "batch_size": 512,
+            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+            "input_dim": 9,
+            "n_time_step": 15,
+            "latent_dim": 8,
+            "gp_output_dim": 4,
+            "inducing_points" : 100,
+            "train_nn" : False                
+            }
+    sampGen = SampleGeneartorCOVGP(dirs, args = args, randomize=True, real_data = real_data)
     
     sampGen.plotStatistics()
     
@@ -28,22 +37,14 @@ def covGPNN_train(dirs = None):
         raise RuntimeError(
             f"Directory: {dirs[0]} does not exist, need to train using `gen_training_data` first")
 
-    args = {                    
-            "batch_size": 512,
-            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-            "input_dim": 9,
-            "n_time_step": 10,
-            "latent_dim": 8,
-            "gp_output_dim": 4,
-            "inducing_points" : 300,
-            "train_nn" : False                
-            }
+  
     
     likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=args["gp_output_dim"]) 
     covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
-                     
-    # snapshot_name = 'covGPNNOnly25snapshot'
-    # covgp_predictor.load_model(snapshot_name)
+    
+    # if args["train_nn"] is False:
+    #     snapshot_name = 'covGPNNOnly600snapshot'
+    #     covgp_predictor.load_model(snapshot_name)
     covgp_predictor.train(sampGen)
     covgp_predictor.set_evaluation_mode()
     trained_model = covgp_predictor.model, covgp_predictor.likelihood

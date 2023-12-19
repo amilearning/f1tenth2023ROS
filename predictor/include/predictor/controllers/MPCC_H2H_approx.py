@@ -118,7 +118,7 @@ class MPCC_H2H_approx(AbstractController):
 
         self.num_std_deviations = control_params.num_std_deviations
         self.policy_map = {None: self.no_blocking_policy, "aggressive_blocking": self.aggressive_blocking_policy,
-                           "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy, "timid": self.no_blocking_policy}
+                           "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy, "timid": self.no_blocking_policy, "reverse" : self.reverse_blocking_policy}
 
         self.optlevel = control_params.optlevel
 
@@ -182,9 +182,11 @@ class MPCC_H2H_approx(AbstractController):
             tv_state.p.s += self.track_length
         elif abs((tv_state.p.s - self.track_length) - ego_state.p.s) < abs(tv_state.p.s - ego_state.p.s):
             tv_state.p.s -= self.track_length
-        x_ref_blocking, blocking = policy(ego_state, tv_state)
-        x_ref = np.tile(x_ref_blocking, (self.N,))
+        x_ref_blocking, blocking = policy(ego_state, tv_state)        
+        x_ref = np.tile(x_ref_blocking, (self.N,))        
         xref_scale = max(ego_state.p.s - tv_state.p.s, 0) if tv_state is not None else 0
+        
+      
 
         # Initialize Obstacle List
         obstacle = list()
@@ -206,6 +208,7 @@ class MPCC_H2H_approx(AbstractController):
         # if not blocking, we need to use all predictions! Otherwise, only interested in the current one to avoid
         # crashing
         # if not blocking and tv_pred is not None and tv_pred.t and tv_state.p.s - ego_state.p.s < 4 *self.lencar:
+        
         if tv_pred is not None and tv_pred.t and tv_state is not None and tv_state.t:
             # contains_parametric = tv_pred.s and np.any(tv_pred.s)
             # contains_global = tv_pred.x and np.any(tv_pred.x)
@@ -262,7 +265,7 @@ class MPCC_H2H_approx(AbstractController):
                     obstacle[i] = RectangleObstacle(xc=x, yc=y, psi=psi, h=self.lencar, w=self.widthcar,
                                                         std_local_x=self.num_std_deviations * np.sqrt(xy_std[0, 0]),
                                                         std_local_y=self.num_std_deviations * np.sqrt(xy_std[1, 1]))
-            
+        
         control, info, exitflag = self.solve(ego_state, ego_state.p.s, x_ref, xref_scale, obstacle, blocking)
 
         ego_state.u.u_a = control.u_a
@@ -797,6 +800,27 @@ class MPCC_H2H_approx(AbstractController):
             # non-blocking mode
             x_ref = -20
             blocking = False
+        return x_ref, blocking
+
+    def reverse_blocking_policy(self, ego_state: VehicleState, tv_state: VehicleState,
+                                   tv_prediction: VehiclePrediction = None):
+        """
+        Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
+        """
+        dist = tv_state.p.s - ego_state.p.s        
+        if abs(dist) > self.track.track_length/4.0:
+            dist -=self.track.track_length/2.0
+        
+        # tv_state.p.s < ego_state.p.s 
+        if tv_state is not None and abs(dist) <4.0 and tv_state.p.s < ego_state.p.s :            
+            blocking = True
+            xt = tv_state.p.x_tran
+            x_ref = -1*np.sign(xt) * min(self.track.half_width, abs(float(xt)))
+        else:
+            # non-blocking mode
+            x_ref = -20
+            blocking = False
+        print(x_ref)
         return x_ref, blocking
 
     def only_right_blocking_policy(self, ego_state: VehicleState, tv_state: VehicleState,

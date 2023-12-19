@@ -118,7 +118,7 @@ class CNNModel(nn.Module):
                 nn.LeakyReLU(),                                    
                 nn.Linear(8, self.output_dim)                               
         )
-
+        self.latent_size = self.output_dim
         self.decoder_fc = nn.Sequential(
                 nn.Linear(self.output_dim, 12),        
                 nn.LeakyReLU(),                                    
@@ -156,13 +156,15 @@ class CNNModel(nn.Module):
     
     def get_latent(self,x):
         x = self.seq_conv(x)
-        # x = self.encoder_fc(x)
+        self.seq_conv_shape1 = x.shape[1]
+        self.seq_conv_shape2 = x.shape[2]
+        x = self.encoder_fc(x.view(x.shape[0],-1))
         return x
 
     def forward(self, x):       
         latent = self.get_latent(x) 
-        # y = self.decoder_fc(latent)        
-        y = self.seq_deconv(latent)
+        z = self.decoder_fc(latent)        
+        y = self.seq_deconv(z.view(z.shape[0],self.seq_conv_shape1, self.seq_conv_shape2))
         # z = self.post_fc(y.view(y.shape[0],-1))
         # z = z.view(z.shape[0],x.shape[1],x.shape[2])
         return y, latent
@@ -184,7 +186,7 @@ class COVGPNNModel(gpytorch.Module):
         
         self.covnn = CNNModel(args)                
         
-        self.gp_input_dim = self.covnn.auc_conv_out_size + 3
+        self.gp_input_dim = self.covnn.latent_size + 3
         self.gp_layer = CovSparseGP(inducing_points_num=inducing_points,
                                                         input_dim=self.gp_input_dim,
                                                         num_tasks=self.gp_output_dim)  # Independent        
@@ -218,16 +220,16 @@ class COVGPNNModel(gpytorch.Module):
         e_psi_diff = input_data[:,2,:]-input_data[:,7,:]
         v_long_diff = input_data[:,3,:]-input_data[:,8,:]        
         input_corrcoefs = []
-        input_corrcoefs.append(torch.corrcoef(s_diff))        
-        input_corrcoefs.append(torch.corrcoef(x_tran_diff))
-        input_corrcoefs.append(torch.corrcoef(e_psi_diff))
-        input_corrcoefs.append(torch.corrcoef(v_long_diff))
+        # input_corrcoefs.append(torch.corrcoef(s_diff))        
+        # input_corrcoefs.append(torch.corrcoef(x_tran_diff))
+        # input_corrcoefs.append(torch.corrcoef(e_psi_diff))
+        # input_corrcoefs.append(torch.corrcoef(v_long_diff))
 
         # or torch.cov        
-        # input_corrcoefs.append(torch.cov(s_diff))        
-        # input_corrcoefs.append(torch.cov(x_tran_diff))
-        # input_corrcoefs.append(torch.cov(e_psi_diff))
-        # input_corrcoefs.append(torch.cov(v_long_diff))
+        input_corrcoefs.append(torch.cov(s_diff))        
+        input_corrcoefs.append(torch.cov(x_tran_diff))
+        input_corrcoefs.append(torch.cov(e_psi_diff))
+        input_corrcoefs.append(torch.cov(v_long_diff))
 
 
         input_corrcoefs = torch.stack(input_corrcoefs)
@@ -254,9 +256,11 @@ class COVGPNNModel(gpytorch.Module):
             output_covs = []
         # F.mse_loss(recons, input)  
             for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
-                cov = gpytorch.kernels.MaternKernel(nu=1.5).to("cuda")
-                cov.lengthscale =  self.gp_layer.covar_module.base_kernel.lengthscale[i]
-                cout = cov(latent_x.view(input_data.shape[0],-1)).evaluate().clone()
+                cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")
+                cov.outputscale = self.gp_layer.covar_module.outputscale[i]
+                cov.base_kernel.lengthscale =  (self.gp_layer.covar_module.base_kernel.lengthscale[i])
+                cout = cov(gp_input).evaluate().clone()
+                cout = torch.log(cout)
                 output_covs.append(cout)
             output_covs = torch.stack(output_covs)
             
@@ -279,7 +283,7 @@ class COVGPNNModelWrapper(torch.nn.Module):
     
     def forward(self, x):
         output_dist = self.gp(x)
-        return output_dist.mean, output_dist.variance
+        return output_dist.mean, output_dist.stddev
     
 
 # correlation_coefficients = []

@@ -33,7 +33,6 @@ class COVGPNN(GPController):
             "n_time_step": 10,
             "latent_dim": 4,
             "gp_output_dim": 4,
-            "batch_size": 100,
             "inducing_points" : 300,
             "train_nn" : False                
             }
@@ -99,17 +98,17 @@ class COVGPNN(GPController):
         # Use the Adam optimizer
         optimizer = torch.optim.Adam([{'params': self.model.covnn.parameters()}],lr = 0.01)
         lr_gp = 0.005
-        # optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.01},
-        #                                 {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
-        #                                 {'params': self.model.gp_layer.variational_parameters()},
-        #                                 {'params': self.likelihood.parameters()},
-        #                             ], lr=lr_gp)
-        optimizer_gp = torch.optim.Adam([{'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
+        optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.01},
+                                        {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
                                     ], lr=lr_gp)
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.9)
-        scheduler_gp = lr_scheduler.StepLR(optimizer_gp, step_size=5, gamma=0.9)
+        # optimizer_gp = torch.optim.Adam([{'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
+        #                                 {'params': self.model.gp_layer.variational_parameters()},
+        #                                 {'params': self.likelihood.parameters()},
+        #                             ], lr=lr_gp)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.99)
+        scheduler_gp = lr_scheduler.StepLR(optimizer_gp, step_size=200, gamma=0.99)
 
         # GP marginal log likelihood
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
@@ -137,7 +136,7 @@ class COVGPNN(GPController):
                     optimizer_gp.zero_grad()
                     output, recons, input_covs, output_covs = self.model(train_x,train=True)
                     reconloss_weight = 1.0
-                    covloss_weight = 0.8
+                    covloss_weight = 1.0
                     # varational_weight = 0.001
                     covloss = mseloss(input_covs, output_covs)* covloss_weight
                     reconloss = mseloss(recons,train_x)* reconloss_weight
@@ -150,10 +149,10 @@ class COVGPNN(GPController):
                     self.writer.add_scalar('Loss/recon_loss', reconloss.item(), epoch * len(train_dataloader) + step)
                     # self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
                     self.writer.add_scalar('Loss/cov_loss', covloss.item(), epoch * len(train_dataloader) + step)
-                    for name, param in self.model.covnn.named_parameters():
-                        self.writer.add_histogram(f'Weights/{name}', param.data.cpu().numpy(), epoch)
-                        if param.grad is not None:
-                            self.writer.add_histogram(f'Gradients/{name}', param.grad.data.cpu().numpy(), epoch)
+                    # for name, param in self.model.covnn.named_parameters():
+                    #     self.writer.add_histogram(f'Weights/{name}', param.data.cpu().numpy(), epoch)
+                    #     if param.grad is not None:
+                    #         self.writer.add_histogram(f'Gradients/{name}', param.grad.data.cpu().numpy(), epoch)
 
                     loss.backward()
                     optimizer.step()
@@ -161,14 +160,14 @@ class COVGPNN(GPController):
                     optimizer_gp.zero_grad()
                     optimizer.zero_grad()
                     output, recons, input_covs, output_covs = self.model(train_x,train=True)
-                    reconloss_weight = 0.01
-                    covloss_weight = 0.01
-                    varational_weight = 1.0
+                    reconloss_weight = 1.0
+                    covloss_weight = 1.0
+                    varational_weight = 0.1
                     covloss = mseloss(input_covs, output_covs)* covloss_weight
                     reconloss = mseloss(recons,train_x)* reconloss_weight
                     variational_loss = -mll(output, train_y)*varational_weight
                     ######## prediction + reconstruction + covariance losses ###########
-                    loss = variational_loss #+covloss +reconloss
+                    loss = variational_loss +covloss + reconloss
                     ####################################################################
                     train_loss += loss.item()
                     # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
@@ -180,8 +179,8 @@ class COVGPNN(GPController):
             
             # self.train_nn = not self.train_nn
             scheduler.step()
-            scheduler_gp.step()
-            if epoch % 5 ==0:
+            # scheduler_gp.step()
+            if epoch % 200 ==0:
                 if self.train_nn:
                     snapshot_name = 'covGPNNOnly' + str(epoch)+ 'snapshot'
                     self.set_evaluation_mode()
@@ -208,7 +207,8 @@ class COVGPNN(GPController):
             if c_loss > last_loss:
                 if no_progress_epoch >= 10:
                     if self.train_nn is False:
-                        done = True
+                        done = True     
+                        done = False                   
             else:
                 best_model = copy.copy(self.model)
                 best_likeli = copy.copy(self.likelihood)
@@ -339,7 +339,7 @@ class COVGPNNTrained(GPController):
         
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.model.eval()
-            test_x = torch.randn(25,9,10).cuda()
+            test_x = torch.randn(25,9,15).cuda()
             pred = self.model(test_x)  # Do precomputation
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.trace_model = torch.jit.trace(COVGPNNModelWrapper(self.model), test_x)
@@ -435,8 +435,10 @@ class COVGPNNTrained(GPController):
                     mean = pred_delta_dist.mean
                     stddev = pred_delta_dist.stddev
                 # pred_delta_dist = self.model(roll_input)            
-
-                tmp_delta = torch.distributions.Normal(mean, stddev).sample()                
+                # print(stddev.cpu().numpy())
+                
+                tmp_delta = torch.distributions.Normal(mean, stddev).sample()            
+                    
                 pred_delta = self.outputToReal(tmp_delta)
        
             roll_tar_state[:,0] += pred_delta[:,0] 

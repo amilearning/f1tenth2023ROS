@@ -105,7 +105,7 @@ class Predictor:
         self.ego_odom_ready = False
         self.tar_odom_ready = False
 
-        self.target_policy_name = "aggressive_blocking"
+        self.target_policy_name = "aggressive_blocking"  # aggressive_blocking , reverse, timid
         
         # Service client 
         # self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
@@ -238,7 +238,7 @@ class Predictor:
             return 
         
 
-        
+        self.tv_pred = None
         info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
         tar_state_pred = self.gp_mpcc_ego_controller.get_prediction()
         if tar_state_pred is not None and tar_state_pred.x is not None:
@@ -256,7 +256,7 @@ class Predictor:
             pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
             cmd_accel = self.gp_mpcc_ego_controller.x_pred[1,9]             
             if cmd_accel < 0.0:                
-                vel_cmd = pred_v_lon[10]
+                vel_cmd = pred_v_lon[6]
             else:            
                 vel_cmd = pred_v_lon[4]            
             # vel_cmd = np.clip(vel_cmd, 0.5, 2.0)

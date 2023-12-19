@@ -83,8 +83,10 @@ def get_dir(policy_name_, train_dir_):
 # dirs = [a_scencurve_dir, a_scenstraight_dir, a_scenchicane_dir,t_scencurve_dir, t_scenstraight_dir, t_scenchicane_dir]
 # dirs = [track_scencurve_dir]
 
-
-dirs = [real_dir]
+timid = os.path.join(real_dir, 'lowspeed_nonblocking')
+block = os.path.join(real_dir, 'lowspeed_blocking')
+dirs = [timid,block]
+# dirs = [timid]
 
 def main():  
     # print("1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
