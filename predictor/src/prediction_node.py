@@ -73,8 +73,8 @@ pkg_dir = rospack.get_path('predictor')
 class Predictor:
     def __init__(self):       
       
-        self.n_nodes = rospy.get_param('~n_nodes', default=13)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.3)                   
+        self.n_nodes = rospy.get_param('~n_nodes', default=10)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
         self.torch_device = "cuda:0"   ## Specify the name of GPU 
         # self.torch_dtype  = torch.double
         self.dt = self.t_horizon / self.n_nodes*1.0        
@@ -136,8 +136,14 @@ class Predictor:
         ## controller callback        
         self.ego_list = []
         self.tar_list = []
+        self.tar_pred_list = []
+        
+        
+        
+
         self.data_save = False
         self.prev_data_save = False
+        self.pred_data_save = False
         self.save_buffer_length = 200
 
         
@@ -208,7 +214,7 @@ class Predictor:
         self.prediction_timer = rospy.Timer(rospy.Duration(1/self.prediction_hz), self.prediction_callback)         
         self.data_logging_hz = rospy.get_param('~data_logging_hz', default=10)
         self.prev_dl_time = rospy.Time.now().to_sec()
-        self.prediction_timer = rospy.Timer(rospy.Duration(1/self.data_logging_hz), self.datalogging_callback)         
+        # self.prediction_timer = rospy.Timer(rospy.Duration(1/self.data_logging_hz), self.datalogging_callback)         
         
   
         
@@ -264,6 +270,9 @@ class Predictor:
  
 
     def dyn_callback(self,config,level):        
+        
+        self.pred_data_save = config.logging_prediction_results
+
         if config.clear_buffer:
             self.clear_buffer()
         self.predictor_type = config.predictor_type
@@ -281,6 +290,7 @@ class Predictor:
         if len(self.ego_list) > 0:
             self.ego_list.clear()
             self.tar_list.clear()
+            self.tar_pred_list.clear()
     
     def save_buffer_in_thread(self):
         # Create a new thread to run the save_buffer function
@@ -288,6 +298,8 @@ class Predictor:
             
         t = threading.Thread(target=self.save_buffer)
         t.start()
+
+        
 
 # @dataclass
 # class RealData():
@@ -297,7 +309,7 @@ class Predictor:
 #     tar_states: List[VehicleState]
 
     def save_buffer(self):        
-        real_data = RealData(self.track_info.track, len(self.tar_list), self.ego_list, self.tar_list)
+        real_data = RealData(self.track_info.track, len(self.tar_list), self.ego_list, self.tar_list, self.tar_pred_list)
         create_dir(path=real_dir)        
         pickle_write(real_data, os.path.join(real_dir, str(self.cur_ego_state.t) + '_'+ str(len(self.tar_list))+'.pkl'))
         rospy.loginfo("states data saved")
@@ -365,7 +377,7 @@ class Predictor:
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
-        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
+        shift_in_local_x(self.cur_tar_pose, dist = -0.01)
     
                     
     def state_interpolation(self,vehicle_states, interval = 0.1):
@@ -411,10 +423,17 @@ class Predictor:
       
    
                         
-    def datalogging_callback(self,event):
+    def datalogging_callback(self):
       
+        
         if self.data_save:
                 if isinstance(self.cur_ego_state.t,float) and isinstance(self.cur_tar_state.t,float) and self.cur_ego_state.p.s is not None and self.cur_tar_state.p.s is not None and abs(self.cur_tar_state.p.x_tran) < self.track_info.track.track_width and abs(self.cur_ego_state.p.x_tran) < self.track_info.track.track_width:
+                    if self.pred_data_save:
+                        if self.tv_pred is None:                                                 
+                            return
+                        else:
+                            self.tar_pred_list.append(self.tv_pred)
+                            
                     
                     self.ego_list.append(self.cur_ego_state.copy())
                     self.tar_list.append(self.cur_tar_state.copy())                     
@@ -495,6 +514,8 @@ class Predictor:
                         tv_pred_markerArray = prediction_to_marker(self.tv_pred)
                         # convert covarariance in local coordinate for visualization
                         # self.tv_pred.convert_local_to_global_cov()                        ###
+                        self.datalogging_callback()
+                        
                         
                     if tar_pred_msg is not None:
                         self.tar_pred_pub.publish(tar_pred_msg)          

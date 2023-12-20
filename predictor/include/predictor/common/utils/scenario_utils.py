@@ -92,7 +92,9 @@ class RealData():
     N: int
     ego_states: List[VehicleState]
     tar_states: List[VehicleState]
+    tar_pred: List[VehiclePrediction] = field(default=List[VehiclePrediction])
     
+
 @dataclass
 class SimData():
     scenario_def: ScenarioDefinition

@@ -220,16 +220,16 @@ class COVGPNNModel(gpytorch.Module):
         e_psi_diff = input_data[:,2,:]-input_data[:,7,:]
         v_long_diff = input_data[:,3,:]-input_data[:,8,:]        
         input_corrcoefs = []
-        # input_corrcoefs.append(torch.corrcoef(s_diff))        
-        # input_corrcoefs.append(torch.corrcoef(x_tran_diff))
-        # input_corrcoefs.append(torch.corrcoef(e_psi_diff))
-        # input_corrcoefs.append(torch.corrcoef(v_long_diff))
+        input_corrcoefs.append(torch.corrcoef(s_diff))        
+        input_corrcoefs.append(torch.corrcoef(x_tran_diff))
+        input_corrcoefs.append(torch.corrcoef(e_psi_diff))
+        input_corrcoefs.append(torch.corrcoef(v_long_diff))
 
         # or torch.cov        
-        input_corrcoefs.append(torch.cov(s_diff))        
-        input_corrcoefs.append(torch.cov(x_tran_diff))
-        input_corrcoefs.append(torch.cov(e_psi_diff))
-        input_corrcoefs.append(torch.cov(v_long_diff))
+        # input_corrcoefs.append(torch.cov(s_diff))        
+        # input_corrcoefs.append(torch.cov(x_tran_diff))
+        # input_corrcoefs.append(torch.cov(e_psi_diff))
+        # input_corrcoefs.append(torch.cov(v_long_diff))
 
 
         input_corrcoefs = torch.stack(input_corrcoefs)
@@ -256,12 +256,17 @@ class COVGPNNModel(gpytorch.Module):
             output_covs = []
         # F.mse_loss(recons, input)  
             for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
+                
+
+
                 cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")
                 cov.outputscale = self.gp_layer.covar_module.outputscale[i]
                 cov.base_kernel.lengthscale =  (self.gp_layer.covar_module.base_kernel.lengthscale[i])
-                cout = cov(gp_input).evaluate().clone()
-                cout = torch.log(cout)
+                cout = cov(gp_input,gp_input).evaluate().clone()
+                # cout = torch.log(cout)
                 output_covs.append(cout)
+                input_covs[i,:,:] = abs(self.gp_layer.covar_module.outputscale[i].item() * input_covs[i,:,:])
+
             output_covs = torch.stack(output_covs)
             
             return pred, recons, input_covs, output_covs

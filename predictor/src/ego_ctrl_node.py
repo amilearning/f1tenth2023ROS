@@ -71,8 +71,8 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
-        self.n_nodes = rospy.get_param('~n_nodes', default=13)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.3)                           
+        self.n_nodes = rospy.get_param('~n_nodes', default=10)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        
         ## 
         # Generate Racing track info 
@@ -139,6 +139,7 @@ class Predictor:
         
         #### Laptime recorder
         self.laprecorder = LaptimeRecorder(track = self.track_info.track, vehicle_name = 'ego')
+        
 
         ## controller callback
         self.cmd_hz = 20
@@ -175,7 +176,7 @@ class Predictor:
     
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
-        shift_in_local_x(self.cur_tar_pose, dist = -0.10)
+        shift_in_local_x(self.cur_tar_pose, dist = -0.01)
     
     def warm_start(self):
         cur_state_copy = self.cur_ego_state.copy()

@@ -24,7 +24,7 @@ class Controllers(Enum):
 # Time discretization
 dt = 0.1
 # Horizon length
-N = 13
+N = 10
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')
@@ -91,7 +91,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft= 1.1, #3.3, ## reference speed .. only activate if speed exceeds it     
+    vlong_max_soft= 1.3, #3.3, ## reference speed .. only activate if speed exceeds it     
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
@@ -99,7 +99,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     num_std_deviations= 0.01,
 
     u_a_max=1.75, #
-    vx_max= 1.5, #3.5,    
+    vx_max= 1.7, #3.5,    
     u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
@@ -152,14 +152,16 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     optlevel=2,
 
     N=N,
-    Qc=300.0, # e_cont , countouring error  10 for blocking 250 for non blockign
-    # Qc=50.0, # e_cont , countouring error  10 for blocking 250 for non blockign
+    Qc=300.0, # e_cont , countouring error  10 for blocking 300 for non blockign
+    # Qc=10.0, # e_cont , countouring error  10 for blocking 300 for non blockign
+    
     Ql=500.0, #500.0  # e_lag, lag error 
     Q_theta= 200, # progress speed  v_proj_prev 
 
 
     # Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    Q_xref=5000.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
 
@@ -167,15 +169,15 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft=0.8, ## reference speed .. only activate if speed exceeds it     
+    vlong_max_soft=1.25, ##0.8 reference speed .. only activate if speed exceeds it     
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
     num_std_deviations= 0.1, # 0.01
 
-    u_a_max=1.5,
-    vx_max=0.85,    
+    u_a_max=1.75,
+    vx_max=1.65,    
     u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,

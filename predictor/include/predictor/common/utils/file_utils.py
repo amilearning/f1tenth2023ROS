@@ -8,6 +8,7 @@ sys.path.append("/home/orin1/gp-opponent-prediction-models/barcgp")
 gp_dir = os.path.expanduser('~') + '/barc_data/'
 train_dir = os.path.join(gp_dir, 'trainingData/')
 real_dir = os.path.join(gp_dir, 'realData/')
+multiEval_dir = os.path.join(gp_dir, 'MultiEvalData/')
 eval_dir = os.path.join(gp_dir, 'evaluationData/')
 model_dir = os.path.join(train_dir, 'models/')
 param_dir = os.path.join(gp_dir, 'params/')

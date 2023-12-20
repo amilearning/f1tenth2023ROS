@@ -114,7 +114,7 @@ class COVGPNN(GPController):
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
         mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.gp_layer, num_data=sampGen.getNumSamples())
         mseloss = nn.MSELoss()
-        max_epochs = 500* len(train_dataloader)
+        max_epochs = 3000* len(train_dataloader)
         last_loss = np.inf
         no_progress_epoch = 0
         done = False
@@ -161,12 +161,13 @@ class COVGPNN(GPController):
                     optimizer.zero_grad()
                     output, recons, input_covs, output_covs = self.model(train_x,train=True)
                     reconloss_weight = 1.0
-                    covloss_weight = 1.0
+                    covloss_weight = 10.0
                     varational_weight = 0.1
                     covloss = mseloss(input_covs, output_covs)* covloss_weight
                     reconloss = mseloss(recons,train_x)* reconloss_weight
                     variational_loss = -mll(output, train_y)*varational_weight
                     ######## prediction + reconstruction + covariance losses ###########
+                    # loss = variational_loss +covloss + reconloss
                     loss = variational_loss +covloss + reconloss
                     ####################################################################
                     train_loss += loss.item()
@@ -208,7 +209,8 @@ class COVGPNN(GPController):
                 if no_progress_epoch >= 10:
                     if self.train_nn is False:
                         done = True     
-                        done = False                   
+                        done = False
+                                     
             else:
                 best_model = copy.copy(self.model)
                 best_likeli = copy.copy(self.likelihood)
@@ -269,6 +271,39 @@ class COVGPNN(GPController):
         plt.show()
 
 
+    
+    def pred_eval(self,sampGen: SampleGeneartorCOVGP):
+        
+        self.writer = SummaryWriter()
+        train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
+        batch_size = self.args["batch_size"]
+        dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)  
+
+        if self.enable_GPU:
+            self.model = self.model.cuda()
+            self.likelihood = self.likelihood.cuda()
+        # Find optimal model hyper-parameters
+        self.model.eval()
+        self.likelihood.eval()
+        
+        z_tmp_list = []
+        input_list = []
+        dist_thres = np.inf  ## 
+        vx_thres = -1*np.inf
+        for step, (data_x, data_y) in enumerate(dataloader):    
+            with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                latent_x = self.model.get_hidden(data_x)
+                
+                delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
+                vx_avg, tmp = torch.max(data_x[:,3,:],dim=1)
+                filtered_idx = (vx_avg > vx_thres)*(delta_s_avg<dist_thres)*(delta_s_avg>-1*dist_thres)
+                selected_latent_x = latent_x[filtered_idx,:]
+                selected_data_x = data_x[filtered_idx,:,:]
+
+                z_tmp_list.append(selected_latent_x.view(selected_latent_x.shape[0],-1))
+                input_list.append(selected_data_x)
+                stacked_z_tmp = torch.cat(z_tmp_list, dim=0)
+                input_list_tmp= torch.cat(input_list, dim=0)
 
     def tsne_evaluate(self,sampGen: SampleGeneartorCOVGP):
         
@@ -286,14 +321,17 @@ class COVGPNN(GPController):
         
         z_tmp_list = []
         input_list = []
-        
+        dist_thres = np.inf  ## 
+        vx_thres = -1*np.inf
         for step, (data_x, data_y) in enumerate(dataloader):    
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
                 latent_x = self.model.get_hidden(data_x)
                 
                 delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
-                selected_latent_x = latent_x[(delta_s_avg<0.5)*(delta_s_avg>0.0),:,:]
-                selected_data_x = data_x[(delta_s_avg<0.5)*(delta_s_avg>0.0),:,:]
+                vx_avg, tmp = torch.max(data_x[:,3,:],dim=1)
+                filtered_idx = (vx_avg > vx_thres)*(delta_s_avg<dist_thres)*(delta_s_avg>-1*dist_thres)
+                selected_latent_x = latent_x[filtered_idx,:]
+                selected_data_x = data_x[filtered_idx,:,:]
 
                 z_tmp_list.append(selected_latent_x.view(selected_latent_x.shape[0],-1))
                 input_list.append(selected_data_x)

@@ -21,14 +21,14 @@ class CovGPPredictor(BasePredictor):
             "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
             "input_dim": 9,
             "n_time_step": 15,
-            "latent_dim": 8,
+            "latent_dim": 15,
             "gp_output_dim": 4,            
             "inducing_points" : 100                
             }
 
         ######### Input prediction for Gaussian Processes regression ######### 
         input_predict_model = "covGP"
-        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = False)
+        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = True)
         print("input predict_gp loaded")
     
         self.M = M  # number of samples
@@ -77,6 +77,13 @@ class CovGPPredictor(BasePredictor):
         return pred
 
 
+    def get_eval_prediction(self,input_buffer,  ego_state: VehicleState, target_state: VehicleState,
+                       ego_prediction: VehiclePrediction, tar_prediction=None):
+
+        pred = self.covgpnn_predict.get_true_prediction_par(input_buffer,  ego_state, target_state, ego_prediction, self.track, self.M)            
+        pred.track_cov_to_local(self.track, self.N, self.cov_factor)  
+        
+        return pred
 
 
 

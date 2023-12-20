@@ -26,13 +26,14 @@ def states_to_encoder_input_torch(tar_st,ego_st):
                         ego_st.p.e_psi, 
                         ego_st.v.v_long                       
                         ])
+    
     return input_data
 
 
 
 
 class SampleGeneartorCOVGP(SampleGenerator):
-    def __init__(self, abs_path,args = None, real_data = False, load_normalization_constant = False, pre_load_data_name = None, randomize=False, elect_function=None, init_all=True):
+    def __init__(self, abs_path,args = None, real_data = False, load_normalization_constant = False, pre_load_data_name = None, randomize=False, elect_function=None, init_all=True, tsne = False):
         '''
         abs path: List of absolute paths of directories containing files to be used for training
         randomize: boolean deciding whether samples should be returned in a random order or by time and file
@@ -134,6 +135,12 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 real_dt = next_tar_st.t - tar_st.t 
 
                                 valid_data = self.data_validation(dat,tar_st,next_tar_st,track_)                        
+                                
+                                if tsne:
+                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.0:
+                                        valid_data = False
+                                     
+
                                 if valid_data and (real_dt > 0.05 and real_dt < 0.2):
                                     # dt = 0.1                        
                                     # ntar_st = interp_state_with_vel(scenario_data.track, tar_st,next_tar_st,dt).copy()
@@ -174,6 +181,58 @@ class SampleGeneartorCOVGP(SampleGenerator):
         #     random.shuffle(self.samples)
     
     
+    def get_eval_data(self,abs_path,pred_horizon = 10, real_data = True):
+        # pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
+        # create_dir(pre_data_dir)        
+        # pre_data_dir =os.path.join(pre_data_dir,"eval_preload_data.pkl")                        
+        input_buffer_list = [] 
+        ego_state_list = []
+        tar_state_list = []
+        gt_tar_state_list = []
+        for ab_p in abs_path:
+            for filename in os.listdir(ab_p):
+                if filename.endswith(".pkl"):
+                    dbfile = open(os.path.join(ab_p, filename), 'rb')
+                    if real_data:
+                        scenario_data: SimData = pickle.load(dbfile)                                
+                        track_ = scenario_data.track
+                    else:
+                        scenario_data: RealData = pickle.load(dbfile)                                                            
+                        track_ = scenario_data.scenario_def.track
+
+                    
+                    # scenario_data: RealData = pickle.load(dbfile)                        
+                    N = scenario_data.N   
+                    if N > self.time_horizon+5:
+                        for t in range(N-1-self.time_horizon - pred_horizon):                            
+                            # define empty torch with proper size 
+                            encoder_input = torch.zeros(self.input_dim, self.time_horizon)                            
+                            for i in range(t,t+self.time_horizon):                                
+                                ego_st = scenario_data.ego_states[i]
+                                tar_st = scenario_data.tar_states[i]
+                                encoder_input[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
+                                
+                            ego_state =  scenario_data.ego_states[i]
+                            tar_state =  scenario_data.tar_states[i]                            
+                            tar_pred = VehiclePrediction()
+                            tar_pred.s = array.array('d')
+                            tar_pred.x_tran = array.array('d')
+                            tar_pred.e_psi = array.array('d')
+                            tar_pred.v_long = array.array('d')
+                            for i in range(t+self.time_horizon-1,t+self.time_horizon+pred_horizon):
+                                tar_pred.t = ego_state.t
+                                tar_pred.s.append(scenario_data.tar_states[i].p.s)
+                                tar_pred.x_tran.append(scenario_data.tar_states[i].p.x_tran)
+                                tar_pred.e_psi.append(scenario_data.tar_states[i].p.e_psi)
+                                tar_pred.v_long.append(scenario_data.tar_states[i].v.v_long)
+                            
+                            input_buffer_list.append(encoder_input)
+                            ego_state_list.append(ego_state)
+                            tar_state_list.append(tar_state)
+                            gt_tar_state_list.append(tar_pred)
+
+        return input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list
+
     def load_pre_data(self,pre_data_dir):        
         model = pickle_read(pre_data_dir)
         self.samples = model['samples']

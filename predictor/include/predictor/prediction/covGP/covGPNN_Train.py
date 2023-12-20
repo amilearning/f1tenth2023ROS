@@ -43,7 +43,7 @@ def covGPNN_train(dirs = None, real_data = False):
     covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
     
     # if args["train_nn"] is False:
-    #     snapshot_name = 'covGPNNOnly600snapshot'
+    #     snapshot_name = 'covGP_backup'
     #     covgp_predictor.load_model(snapshot_name)
     covgp_predictor.train(sampGen)
     covgp_predictor.set_evaluation_mode()
@@ -56,9 +56,23 @@ def covGPNN_train(dirs = None, real_data = False):
     # covgp_predictor.evaluate()
 
 
-def tsne_analysis(dirs, load_data = False):
+def tsne_analysis(dirs, folders = None, perplexity = 10, load_data = False):
     # def tsne_evaluate(self,sampGen: SampleGeneartorCOVGP):    
     
+    args = {                    
+            "batch_size": 512,
+            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+            "input_dim": 9,
+            "n_time_step": 15,
+            "latent_dim": 8,
+            "gp_output_dim": 4,
+            "inducing_points" : 100,
+            "train_nn" : False                
+            }
+    
+    
+
+
     tsne_data_dir =os.path.join(eval_dir,'tsne.pkl')
     if load_data:    
         loaded_model = pickle_read(tsne_data_dir)
@@ -68,16 +82,7 @@ def tsne_analysis(dirs, load_data = False):
         print('Successfully loaded data')
 
     else:
-        args = {                    
-                "batch_size": 512,
-                "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-                "input_dim": 9,
-                "n_time_step": 10,
-                "latent_dim": 8,
-                "gp_output_dim": 4,
-                "inducing_points" : 300,
-                "train_nn" : False                
-                }
+      
         
         likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=args["gp_output_dim"]) 
         
@@ -86,9 +91,10 @@ def tsne_analysis(dirs, load_data = False):
         y_label = []
         for i in range(len(dirs)):
             dir = [dirs[i]]
-            sampGen = SampleGeneartorCOVGP(dir,load_normalization_constant = True, randomize=True)        
+            
+            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
             covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
-            snapshot_name = 'covGP_25snapshot'
+            snapshot_name = 'covGP'
             covgp_predictor.load_model(snapshot_name)
             if not dir_exists(dirs[0]):
                 raise RuntimeError(
@@ -98,7 +104,7 @@ def tsne_analysis(dirs, load_data = False):
             covgp_predictor.set_evaluation_mode()        
             z_list.append(a_stacked_z)
             input_list.append(a_input)
-            a_y_label = torch.ones(a_stacked_z.shape[0])*(i//3)
+            a_y_label = torch.ones(a_stacked_z.shape[0])*(i%(len(dirs)))
             y_label.append(a_y_label)
 
 
@@ -127,8 +133,8 @@ def tsne_analysis(dirs, load_data = False):
     for i in range(1):
         ###################################        
         dim = 2        
-        perplexity_ = 50
-        n_iter_ = 3000        
+        perplexity_ = perplexity
+        n_iter_ = 20000        
 
         tsne_model = TSNE(n_components=dim,perplexity=perplexity_, verbose= 2,n_iter=n_iter_)        
         print("t-SNE optimization begin")
@@ -143,7 +149,10 @@ def tsne_analysis(dirs, load_data = False):
             fig, ax = plt.subplots()
             scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1], c=stacked_label, cmap='viridis')            
             # labels = ["timid", "mild_100", "mild_200", "mild_300", "mild_500","mild_1000", "mild_5000", "reverse"]
-            labels = [ "timid", "mild_500", "mild_5000", "reverse"]
+            if folders is None:
+                labels = [ "timid","blocking", "reverse"]
+            else:
+                labels = folders
 
 
             plt.legend(handles=scatter_plot.legend_elements()[0], labels=labels, title='Legend')
@@ -171,3 +180,4 @@ def tsne_analysis(dirs, load_data = False):
     
 
             plt.show()
+

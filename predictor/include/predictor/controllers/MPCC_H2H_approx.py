@@ -820,7 +820,7 @@ class MPCC_H2H_approx(AbstractController):
             # non-blocking mode
             x_ref = -20
             blocking = False
-        print(x_ref)
+        
         return x_ref, blocking
 
     def only_right_blocking_policy(self, ego_state: VehicleState, tv_state: VehicleState,

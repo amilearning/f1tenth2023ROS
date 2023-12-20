@@ -829,14 +829,17 @@ class LaptimeRecorder():
         self.n_lap = 0
         self.init_s = 0
         self.track_length = track.track_length/2.0
-        self.num_max_lap = 5  # 5 for experiment
+        self.num_max_lap = np.inf  # 5 for experiment
         print("track length is set as = " + str(self.track_length))        
         self.laptimes = []
         self.cumulative_laptime = 0.0
+        
         self.init_laptime = None
         self.prev_state = None
         self.last_laptime = None
         self.file_name_prefix = vehicle_name+ '_race_state'
+
+        
     
     def update_state(self, cur_state: VehicleState):
         reached_max_lap = False
@@ -845,14 +848,17 @@ class LaptimeRecorder():
             self.last_laptime = cur_state.t    
             return reached_max_lap
         
-        if cur_state.p.s-self.prev_state.p.s < -2:
+
+
+        if cur_state.p.s-self.prev_state.p.s < -2:            
             
             self.laptimes.append(cur_state.t - self.last_laptime)            
             self.last_laptime = cur_state.t
             if len(self.laptimes) ==1:
                 self.init_laptime = cur_state.t
             if len(self.laptimes) > 5:                                
-                file_name = self.file_name_prefix + +'_'+str(len(self.laptimes)) + '_' + str(rospy.Time.now().to_sec()) + '.pkl'
+                file_name = self.file_name_prefix + '_'+str(len(self.laptimes)) + '_' + str(rospy.Time.now().to_sec()) + '.pkl'
+                
                 self.save(file_name)
             if self.init_laptime is not None:                
                 self.n_lap+=1
@@ -860,6 +866,7 @@ class LaptimeRecorder():
         self.prev_state = cur_state     
         if self.n_lap >= self.num_max_lap:
             reached_max_lap = True
+        
         return reached_max_lap  
                 
 
@@ -897,3 +904,5 @@ class LaptimeRecorder():
         stats["avg_laptime"] = avg_laptime
         stats["cum_laptime"] = cum_laptime
         pickle_write (stats,os.path.join(static_dir, file_name))
+
+

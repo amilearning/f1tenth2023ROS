@@ -1,8 +1,8 @@
-from barcgp.common.utils.file_utils import *
-from barcgp.prediction.cont_encoder.cont_encoderTrain import cont_encoder_train
-from barcgp.prediction.thetaGP.ThetaGPTrain import thetagp_train
-from barcgp.prediction.gp_berkely_train import gp_main
-from barcgp.prediction.covGP.covGPNN_Train import covGPNN_train, tsne_analysis
+from predictor.common.utils.file_utils import *
+from predictor.prediction.cont_encoder.cont_encoderTrain import cont_encoder_train
+from predictor.prediction.thetaGP.ThetaGPTrain import thetagp_train
+
+from predictor.prediction.covGP.covGPNN_Train import covGPNN_train, tsne_analysis
 import os
 
 def get_dir(policy_name_, train_dir_):
@@ -68,10 +68,22 @@ dirs.extend(reverse_0)
 # dirs = [track_scencurve_dir]
 
 
+folder_name = ['centerline_1220',  'hjpolicy_1220'] 
+centerline_1220 = os.path.join(real_dir, folder_name[0])
+# nonblocking_yet_racing_1220 = os.path.join(real_dir, folder_name[1])
+# blocking_1220 = os.path.join(real_dir, folder_name[2])
+hjpolicy_1220 = os.path.join(real_dir, folder_name[1])
+# reverse_1220 = os.path.join(real_dir, folder_name[4])
+
+
+dirs = [centerline_1220, hjpolicy_1220]
+
+
+
 def main():  
 
 
-    tsne_analysis(dirs, load_data=False)
+    tsne_analysis(dirs, folders = folder_name, perplexity = 200, load_data=False)
 
   
 
