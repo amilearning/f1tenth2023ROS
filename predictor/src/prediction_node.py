@@ -383,13 +383,12 @@ class Predictor:
             # ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
             
             if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None and self.ego_pred.x is not None:            
-                # if self.predictor_type == 4:
-                self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, self.ego_pred)
-                # elif self.predictor_type == 1:
-                # self.tv_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)                                               
-                    
-                # else: 
-                #     print("select predictor")
+                if self.predictor_type == 4:
+                    self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, self.ego_pred)
+                elif self.predictor_type == 1:
+                    self.tv_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)                                                                   
+                else: 
+                    print("select predictor")
                 
                 #################### predict only target is close to ego #####################################
                 cur_ego_s = self.cur_ego_state.p.s.copy()
