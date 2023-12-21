@@ -4,7 +4,7 @@ from predictor.common.utils.file_utils import *
 import numpy as np
 import torch
 import gpytorch
-
+from datetime import datetime
 from predictor.prediction.gpytorch_models import IndependentMultitaskGPModelApproximate
 
 from predictor.prediction.encoder.encoderModel import LSTMAutomodel
@@ -18,20 +18,14 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
 
 # Training
-def covGPNN_train(dirs = None, real_data = False):
-    args = {                    
-            "batch_size": 512,
-            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-            "input_dim": 9,
-            "n_time_step": 15,
-            "latent_dim": 8,
-            "gp_output_dim": 4,
-            "inducing_points" : 100,
-            "train_nn" : False                
-            }
+def covGPNN_train(dirs = None, real_data = False, args = None):
+   
+    if args is None:
+        print("ARGS should be given!!")
+        return 
     sampGen = SampleGeneartorCOVGP(dirs, args = args, randomize=True, real_data = real_data)
     
-    sampGen.plotStatistics()
+    # sampGen.plotStatistics()
     
     if not dir_exists(dirs[0]):
         raise RuntimeError(
@@ -45,31 +39,34 @@ def covGPNN_train(dirs = None, real_data = False):
     # if args["train_nn"] is False:
     #     snapshot_name = 'covGP_backup'
     #     covgp_predictor.load_model(snapshot_name)
-    covgp_predictor.train(sampGen)
+    covgp_predictor.train(sampGen, args = args)
     covgp_predictor.set_evaluation_mode()
     trained_model = covgp_predictor.model, covgp_predictor.likelihood
 
     create_dir(path=model_dir)
-    gp_name = 'covGP'
+    if(args['include_cov_loss']):
+        gp_name = 'covGP'
+    else:
+        gp_name = 'nocovGP'
     covgp_predictor.save_model(gp_name)
     # covgp_predictor.load_model(gp_name)
     # covgp_predictor.evaluate()
 
 
-def tsne_analysis(dirs, folders = None, perplexity = 10, load_data = False):
+def tsne_analysis(dirs, args = None , snapshot_name = 'covGP',  folders = None, perplexity = 10, load_data = False):
     # def tsne_evaluate(self,sampGen: SampleGeneartorCOVGP):    
-    
-    args = {                    
-            "batch_size": 512,
-            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-            "input_dim": 9,
-            "n_time_step": 15,
-            "latent_dim": 8,
-            "gp_output_dim": 4,
-            "inducing_points" : 100,
-            "train_nn" : False                
-            }
-    
+    if args is None:
+        args = {                    
+                "batch_size": 512,
+                "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+                "input_dim": 9,
+                "n_time_step": 15,
+                "latent_dim": 8,
+                "gp_output_dim": 4,
+                "inducing_points" : 100,
+                "train_nn" : False                
+                }
+        
     
 
 
@@ -94,7 +91,7 @@ def tsne_analysis(dirs, folders = None, perplexity = 10, load_data = False):
             
             sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
             covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
-            snapshot_name = 'covGP'
+            
             covgp_predictor.load_model(snapshot_name)
             if not dir_exists(dirs[0]):
                 raise RuntimeError(
@@ -157,27 +154,28 @@ def tsne_analysis(dirs, folders = None, perplexity = 10, load_data = False):
 
             plt.legend(handles=scatter_plot.legend_elements()[0], labels=labels, title='Legend')
 
-           
+            
+            current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = os.path.join(fig_dir, f"tsne_{snapshot_name}_{current_time}.png")
+            plt.savefig(file_path)
             # cbar = plt.colorbar()
             # cbar.set_label('Color Bar Label')
-            for i in range(10):
-                points = plt.ginput(1)
-                x_clicked, y_clicked = points[0]
-                dists = np.sqrt((theta_2d[:, 0] - x_clicked)**2 + (theta_2d[:, 1] - y_clicked)**2)
-                index = np.argmin(dists)
-                print("clicked x = ",round(x_clicked,1), ", clicked y = ", round(y_clicked,1))
-                # print(np.around(filted_data[index,:],3))
-                print("tars-egos = " ,   np.round(stacked_input[index,0,0].cpu(),3))
-                print("tar_ey = " ,      np.round(stacked_input[index,0,1].cpu(),3))
-                print("tar_epsi = " ,    np.round(stacked_input[index,0,2].cpu(),3))
-                print("tar_vx = " ,    np.round(stacked_input[index,0,3].cpu(),3))
-                print("tar_cur = "  ,     np.round(stacked_input[index,0,4].cpu(),3))
-                print("ego_ey = "   ,      np.round(stacked_input[index,0,5].cpu(),3))
-                print("ego_epsi = " ,    np.round(stacked_input[index,0,6].cpu(),3))
-                print("ego_vx = "  ,     np.round(stacked_input[index,0,7].cpu(),3))                                
-                print("ego_cur = "  ,     np.round(stacked_input[index,0,8].cpu(),3))       
-                print("stacked_label = " ,   stacked_label[index])
+            # for i in range(10):
+            #     points = plt.ginput(1)
+            #     x_clicked, y_clicked = points[0]
+            #     dists = np.sqrt((theta_2d[:, 0] - x_clicked)**2 + (theta_2d[:, 1] - y_clicked)**2)
+            #     index = np.argmin(dists)
+            #     print("clicked x = ",round(x_clicked,1), ", clicked y = ", round(y_clicked,1))
+            #     # print(np.around(filted_data[index,:],3))
+            #     print("tars-egos = " ,   np.round(stacked_input[index,0,0].cpu(),3))
+            #     print("tar_ey = " ,      np.round(stacked_input[index,0,1].cpu(),3))
+            #     print("tar_epsi = " ,    np.round(stacked_input[index,0,2].cpu(),3))
+            #     print("tar_vx = " ,    np.round(stacked_input[index,0,3].cpu(),3))
+            #     print("tar_cur = "  ,     np.round(stacked_input[index,0,4].cpu(),3))
+            #     print("ego_ey = "   ,      np.round(stacked_input[index,0,5].cpu(),3))
+            #     print("ego_epsi = " ,    np.round(stacked_input[index,0,6].cpu(),3))
+            #     print("ego_vx = "  ,     np.round(stacked_input[index,0,7].cpu(),3))                                
+            #     print("ego_cur = "  ,     np.round(stacked_input[index,0,8].cpu(),3))       
+            #     print("stacked_label = " ,   stacked_label[index])
     
-
-            plt.show()
 

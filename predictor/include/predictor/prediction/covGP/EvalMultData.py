@@ -1,6 +1,7 @@
 
 import numpy as np   
 import os
+from datetime import datetime
 import pickle
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -10,6 +11,7 @@ from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import EvalData, PostprocessData, RealData
 
 from predictor.h2h_configs import *
+
 
 
 def multi_policy_lat_lon_error_covs(real_data : RealData):
@@ -32,7 +34,7 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
     total_longitunidal_error = []    
     track = real_data.track
     samps = 0
-    init_eval_time_step = 20
+    init_eval_time_step = 0
     for timeStep in range(init_eval_time_step, len(real_data.tar_states)-1):
         
         lateral_error = []
@@ -81,79 +83,65 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
     return np.array(total_lateral_error), np.array(total_longitunidal_error), np.array(total_cov_list)
 
 
-def main(args=None):
+
+
+def get_process(policy_name, predictor_type = 0):
     
+    policy_dir = os.path.join(multiEval_dir, policy_name)
+    
+    longitudinal_errors = []
+    lateral_errors = []
+    pred_covs = []
 
-  
-    def get_process(policy_name):
-        
-        policy_dir = os.path.join(multiEval_dir, policy_name)
-        
-        longitudinal_errors = []
-        lateral_errors = []
-        pred_covs = []
-
-        for filename in os.listdir(policy_dir):
-            if filename.endswith('.pkl'):
-                # Construct the full file path
-                filepath = os.path.join(policy_dir, filename)
-                # Read and process the .pkl file
-                with open(filepath, 'rb') as file:
+    for filename in os.listdir(policy_dir):
+        tmp_str = str(predictor_type)+ '.pkl'
+        if filename.endswith(tmp_str):
+            # Construct the full file path
+            filepath = os.path.join(policy_dir, filename)
+            # Read and process the .pkl file
+            with open(filepath, 'rb') as file:
+                
+                data = pickle.load(file) # RealData()
+                if (len(data.tar_states) != len(data.tar_pred)) or len(data.tar_states) < 30:
+                    continue 
+                else:                        
+                    lateral_error, longitudinal_error, pred_cov = multi_policy_lat_lon_error_covs(data)
                     
-                    data = pickle.load(file) # RealData()
-                    if (len(data.tar_states) != len(data.tar_pred)) or len(data.tar_states) < 30:
-                        continue 
-                    else:                        
-                        lateral_error, longitudinal_error, pred_cov = multi_policy_lat_lon_error_covs(data)
-                        
-                        # lateral_errors.append(np.sqrt(np.mean(lateral_error[:,-1] ** 2)))
-                        lateral_errors.append(lateral_error[:,-1])
-                        # longitudinal_errors.append(np.sqrt(np.mean(longitudinal_error[:,-1] ** 2)))
-                        longitudinal_errors.append(longitudinal_error[:,-1])
-                        pred_covs.append(np.mean(np.mean(pred_cov[:,:,:], axis=1), axis=1))
-       
-        pred_covs = np.concatenate(pred_covs)
-        lateral_errors = np.concatenate(lateral_errors)
-        longitudinal_errors = np.concatenate(longitudinal_errors)
-        
-        return lateral_errors, longitudinal_errors, pred_covs
-
-    # policy_names = ['eval_reverse_only_elbo', 'eval_reverse_withpcov', 'eval_reverse_naivegp']
-    policy_names = ['centerline_1220', 'nonblocking_yet_racing_1220', 'blocking_1220', 'hjpolicy_1220', 'reverse_1220'] 
-    # policy_names = [ 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
-    lateral_errors_list= []
-    longitudinal_errors_list= []
-    pred_covs_list= []
-    for j in range(len(policy_names)):        
-        lateral_errors, longitudinal_errors, pred_covs = get_process(policy_names[j])
-        lateral_errors_list.append(lateral_errors)
-        longitudinal_errors_list.append(longitudinal_errors)
-        pred_covs_list.append(pred_covs)
+                    # lateral_errors.append(np.sqrt(np.mean(lateral_error[:,-1] ** 2)))
+                    lateral_errors.append(lateral_error[:,-1])
+                    # longitudinal_errors.append(np.sqrt(np.mean(longitudinal_error[:,-1] ** 2)))
+                    longitudinal_errors.append(longitudinal_error[:,-1])
+                    pred_covs.append(np.mean(np.mean(pred_cov[:,:,:], axis=1), axis=1))
     
+    pred_covs = np.concatenate(pred_covs)
+    lateral_errors = np.concatenate(lateral_errors)
+    longitudinal_errors = np.concatenate(longitudinal_errors)
+    
+    return lateral_errors, longitudinal_errors, pred_covs
 
 
-    def draw_barplot_with_list(list_, plot_name = None):
-        plt.figure()
+
+
+
+def draw_barplot_with_list(list_, policy_names, plot_name = None, value_name_ = None):
+    
+    df_list = []
+    for j, policy_data in enumerate(list_):
         data = []
-        for i, errors in enumerate(list_):
-            for error in errors:
-                data.append({'Policy': policy_names[i], plot_name: error})
-        df = pd.DataFrame(data)
+        for i, pred_data in enumerate(policy_data):                
+            data.append(pred_data)
+        data_np = np.transpose(np.array(data))                    
+        df = pd.DataFrame(data_np, columns=['NOCOVGP', 'CAV', 'NLMPC', 'NaiveGP', 'COVGP'])
+        df['Policy'] = str(policy_names[j])
+        df_list.append(df)
 
-
-        # Create the bar plot
-        sns.barplot(x='Policy', y=plot_name, data=df, capsize=0.2)
-
-        # Adding labels and title
-        plt.xlabel('Driving Policy')
-        plt.ylabel(plot_name)
-        plt.title(plot_name+ 'Statistics by Driving Policy')
-
-
-    draw_barplot_with_list(lateral_errors_list, 'later')
-    # draw_barplot_with_list(longitudinal_errors_list, 'long')
-    draw_barplot_with_list(pred_covs_list, 'covs')
+    cat_df = pd.concat(df_list)
+    cat_df_melted = pd.melt(cat_df, id_vars='Policy', var_name='Policy_Name', value_name=value_name_)
+    error_plt= sns.catplot(x='Policy', y=value_name_, hue='Policy_Name', kind='box', data=cat_df_melted,showfliers = False)
     
-    plt.show()
-if __name__ == '__main__':
-    main()
+    plt.xlabel('Policy')
+    plt.ylabel(value_name_)        
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_path = os.path.join(fig_dir, f"{value_name_}_{current_time}.png")
+    plt.savefig(file_path)
+

@@ -68,15 +68,18 @@ dirs.extend(reverse_0)
 # dirs = [track_scencurve_dir]
 
 
-folder_name = ['centerline_1220',  'hjpolicy_1220'] 
-centerline_1220 = os.path.join(real_dir, folder_name[0])
-# nonblocking_yet_racing_1220 = os.path.join(real_dir, folder_name[1])
+# folder_name = ['centerline_1220',  'hjpolicy_1220', 'blocking_1220','reverse_1220', 'nonblocking_yet_racing_1220'] 
+folder_name = ['hjpolicy_1220', 'nonblocking_yet_racing_1220'] 
+# centerline_1220 = os.path.join(real_dir, folder_name[0])
+# hjpolicy_1220 = os.path.join(real_dir, folder_name[1])
 # blocking_1220 = os.path.join(real_dir, folder_name[2])
-hjpolicy_1220 = os.path.join(real_dir, folder_name[1])
-# reverse_1220 = os.path.join(real_dir, folder_name[4])
 
 
-dirs = [centerline_1220, hjpolicy_1220]
+
+reverse_1220 = os.path.join(real_dir, folder_name[0])
+nonblocking_yet_racing_1220 = os.path.join(real_dir, folder_name[1])
+
+dirs = [reverse_1220, nonblocking_yet_racing_1220]
 
 
 

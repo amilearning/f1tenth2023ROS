@@ -645,7 +645,7 @@ def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
     ros_msg.header.stamp= rospy.Time.now()
     ros_msg.header.frame_id = "map"
     # Assign values from the VehiclePrediction object to the ROS message
-    ros_msg.t = vehicle_prediction_obj.t
+    ros_msg.t = ros_msg.header.stamp.to_sec()
     
     if vehicle_prediction_obj.x is not None:
         ros_msg.x = array.array('f', vehicle_prediction_obj.x)

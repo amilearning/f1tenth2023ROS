@@ -290,7 +290,7 @@ class SampleGenerator():
     function to determine whether a sample is useful or not.
     '''
 
-    def __init__(self, abs_path, randomize=False, elect_function=None, init_all=True):
+    def __init__(self, abs_path, randomize=False, elect_function=None, realdata= False, init_all=True):
         '''
         abs path: List of absolute paths of directories containing files to be used for training
         randomize: boolean deciding whether samples should be returned in a random order or by time and file
@@ -308,18 +308,26 @@ class SampleGenerator():
             for filename in os.listdir(ab_p):
                 if filename.endswith(".pkl"):
                     dbfile = open(os.path.join(ab_p, filename), 'rb')
-                    scenario_data: SimData = pickle.load(dbfile)
-                    ######################## random Policy ############################
+                    
+                    if realdata:
+                        scenario_data: RealData = pickle.load(dbfile)
+                        track = scenario_data.track
+                        
+                    else:
+                        scenario_data: SimData = pickle.load(dbfile)
+                        track = scenario_data.scenario_def.track
+                        
+                                            ######################## random Policy ############################
                     policy_name = ab_p.split('/')[-2]
                     policy_gen = False
                     if policy_name == 'wall':
                         policy_gen = True
-                        tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                    
+                        tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track)                    
                     
                     ###################################################################
                     N = scenario_data.N
                     for i in range(N-1):
-                        if i%3 == 0 and scenario_data.tar_preds[i] is not None:
+                        if i%3 == 0 and scenario_data.tar_states[i] is not None:
                             ego_st = scenario_data.ego_states[i]
                             tar_st = scenario_data.tar_states[i]
                             if policy_gen:

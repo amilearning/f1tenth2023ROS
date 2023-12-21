@@ -71,6 +71,7 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
+        
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
         self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        
@@ -120,6 +121,8 @@ class Predictor:
         self.tar_debug_pub = rospy.Publisher("/tar_debug", PoseStamped, queue_size=2)  
         self.obs_debug_pub = rospy.Publisher("/obs_debug_marker", MarkerArray, queue_size=2)  
         self.ego_pred_marker_pub = rospy.Publisher("/ego_pred_marker", MarkerArray, queue_size=2)  
+
+        self.ego_pred_pub = rospy.Publisher("/ego_pred",VehiclePredictionROS, queue_size= 2)
         
         
         # Subscribers
@@ -253,6 +256,9 @@ class Predictor:
         info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
         
         ego_state_pred = self.gp_mpcc_ego_controller.get_prediction()
+        ego_pred_msg = prediction_to_rosmsg(ego_state_pred)
+        self.ego_pred_pub.publish(ego_pred_msg)
+
         if ego_state_pred is not None and ego_state_pred.x is not None:
             if len(ego_state_pred.x) > 0:
                 ego_marker_color = [0.0, 1.0, 0.0]

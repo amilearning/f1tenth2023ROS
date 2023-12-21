@@ -72,8 +72,12 @@ class COVGPNN(GPController):
         else:
             return output
 
-    def train(self,sampGen: SampleGeneartorCOVGP):
+    def train(self,sampGen: SampleGeneartorCOVGP, args = None):
         
+        include_cov_loss= args["include_cov_loss"]
+        n_epoch = args["n_epoch"]
+
+
         self.writer = SummaryWriter()
 
         train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
@@ -114,7 +118,7 @@ class COVGPNN(GPController):
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
         mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.gp_layer, num_data=sampGen.getNumSamples())
         mseloss = nn.MSELoss()
-        max_epochs = 3000* len(train_dataloader)
+        max_epochs = n_epoch* len(train_dataloader)
         last_loss = np.inf
         no_progress_epoch = 0
         done = False
@@ -168,7 +172,10 @@ class COVGPNN(GPController):
                     variational_loss = -mll(output, train_y)*varational_weight
                     ######## prediction + reconstruction + covariance losses ###########
                     # loss = variational_loss +covloss + reconloss
-                    loss = variational_loss +covloss + reconloss
+                    if include_cov_loss:
+                        loss = variational_loss + covloss + reconloss
+                    else:   
+                        loss = variational_loss
                     ####################################################################
                     train_loss += loss.item()
                     # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
@@ -189,7 +196,10 @@ class COVGPNN(GPController):
                     self.model.train()
                     self.likelihood.train()
                 else:   
-                    snapshot_name = 'covGP_' + str(epoch)+ 'snapshot'
+                    if args['include_cov_loss']:
+                        snapshot_name = 'covGP_' + str(epoch)+ 'snapshot'
+                    else:
+                        snapshot_name = 'nocovGP_' + str(epoch)+ 'snapshot'
                     self.set_evaluation_mode()
                     self.save_model(snapshot_name)
                     self.model.train()
@@ -206,11 +216,9 @@ class COVGPNN(GPController):
                 valid_dataloader.set_postfix(log={'valid_loss': f'{(c_loss):.5f}'})                
             self.writer.add_scalar('Loss/valid_loss', valid_loss, epoch)
             if c_loss > last_loss:
-                if no_progress_epoch >= 10:
+                if no_progress_epoch >= 50:
                     if self.train_nn is False:
                         done = True     
-                        done = False
-                                     
             else:
                 best_model = copy.copy(self.model)
                 best_likeli = copy.copy(self.likelihood)

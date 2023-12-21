@@ -11,7 +11,7 @@ from predictor.prediction.covGP.covGPNN_model import COVGPNNTrained
 from predictor.prediction.covGP.covGPNN_dataGen import states_to_encoder_input_torch
 
 class CovGPPredictor(BasePredictor):
-    def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1,cont_encoder = True):
+    def __init__(self,  N: int, track : RadiusArclengthTrack, use_GPU: bool, M: int, cov_factor: float = 1, input_predict_model = "covGP",):
         super(CovGPPredictor, self).__init__(N, track)
         gc.collect()
         torch.cuda.empty_cache()        
@@ -20,14 +20,14 @@ class CovGPPredictor(BasePredictor):
             "batch_size": 512,
             "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
             "input_dim": 9,
-            "n_time_step": 15,
+            "n_time_step": 15, ## how much we see the past history 
             "latent_dim": 15,
             "gp_output_dim": 4,            
             "inducing_points" : 100                
             }
 
         ######### Input prediction for Gaussian Processes regression ######### 
-        input_predict_model = "covGP"
+        # input_predict_model = "covGP"
         self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = True)
         print("input predict_gp loaded")
     

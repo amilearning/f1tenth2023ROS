@@ -45,7 +45,7 @@ class GPController(ABC):
         self.stds_y = None
         self.pull_samples()  # will initialize model
 
-    def pull_samples(self, holdout=150):
+    def pull_samples(self, holdout=10):
         self.train_x = torch.zeros((self.sample_generator.getNumSamples() - holdout, self.input_size))  # [ego_state | tv_state]
         self.test_x = torch.zeros((holdout, self.input_size))  # [ego_state | tv_state]
         self.train_y = torch.zeros([self.sample_generator.getNumSamples() - holdout, self.output_size])  # [tv_actuation]
@@ -82,9 +82,10 @@ class GPController(ABC):
                 self.stds_x[0, i] = 1
         self.train_x = (self.train_x - self.means_x) / self.stds_x
         self.test_x = (self.test_x - self.means_x) / self.stds_x
-
-        self.means_y = self.train_y.mean(dim=0, keepdim=True)
-        self.stds_y = self.train_y.std(dim=0, keepdim=True)
+        self.train_y = self.train_y.cuda()
+        self.test_y  = self.test_y.cuda()
+        self.means_y = self.train_y.mean(dim=0, keepdim=True).cuda()
+        self.stds_y = self.train_y.std(dim=0, keepdim=True).cuda()
         for i in range(self.stds_y.shape[1]):
             if self.stds_y[0, i] == 0:
                 self.stds_y[0, i] = 1
@@ -92,6 +93,8 @@ class GPController(ABC):
         self.test_y = (self.test_y - self.means_y) / self.stds_y
         print(f"train_x shape: {self.train_x.shape}")
         print(f"train_y shape: {self.train_y.shape}")
+
+
 
     def train(self):
         pass
@@ -112,14 +115,14 @@ class GPController(ABC):
         upper = self.outputToReal(upper)
     
         # Plot training data as black stars
-        ax[0].plot(mean.numpy()[:, 0], 'k*')
-        ax[0].plot(self.test_y.numpy()[:, 0], 'b')
-        ax[1].plot(mean.numpy()[:, 1], 'k*')
-        ax[1].plot(self.test_y.numpy()[:, 1], 'b')
-        ax[2].plot(mean.numpy()[:, 2], 'k*')
-        ax[2].plot(self.test_y.numpy()[:, 2], 'b')
-        ax[3].plot(mean.numpy()[:, 3], 'k*')
-        ax[3].plot(self.test_y.numpy()[:, 3], 'b')
+        ax[0].plot(mean.cpu().numpy()[:, 0], 'k*')
+        ax[0].plot(self.test_y.cpu().numpy()[:, 0], 'b')
+        ax[1].plot(mean.cpu().numpy()[:, 1], 'k*')
+        ax[1].plot(self.test_y.cpu().numpy()[:, 1], 'b')
+        ax[2].plot(mean.cpu().numpy()[:, 2], 'k*')
+        ax[2].plot(self.test_y.cpu().numpy()[:, 2], 'b')
+        ax[3].plot(mean.cpu().numpy()[:, 3], 'k*')
+        ax[3].plot(self.test_y.cpu().numpy()[:, 3], 'b')
         # Plot predictive means as blue line
         '''ax.plot(test_x.numpy(), mean.numpy(), 'b')
         # Shade between the lower and upper confidence bounds

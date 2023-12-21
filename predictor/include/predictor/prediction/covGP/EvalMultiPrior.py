@@ -39,6 +39,7 @@ from predictor.common.utils.scenario_utils import EvalData, PostprocessData, Rea
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
 from predictor.path_generator import PathGenerator
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
+from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
@@ -56,20 +57,26 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
 
 
-folder_name = ['centerline_1220', 'nonblocking_yet_racing_1220', 'blocking_1220', 'hjpolicy_1220', 'reverse_1220'] 
-centerline_1220 = os.path.join(real_dir, folder_name[0])
-nonblocking_yet_racing_1220 = os.path.join(real_dir, folder_name[1])
-blocking_1220 = os.path.join(real_dir, folder_name[2])
-hjpolicy_1220 = os.path.join(real_dir, folder_name[3])
-reverse_1220 = os.path.join(real_dir, folder_name[4])
+# folder_name = ['centerline_1220', 'nonblocking_yet_racing_1220', 'blocking_1220', 'hjpolicy_1220', 'reverse_1220'] 
+# centerline_1220 = os.path.join(real_dir, folder_name[0])
+# nonblocking_yet_racing_1220 = os.path.join(real_dir, folder_name[1])
+# blocking_1220 = os.path.join(real_dir, folder_name[2])
+# hjpolicy_1220 = os.path.join(real_dir, folder_name[3])
+# reverse_1220 = os.path.join(real_dir, folder_name[4])
+# dirs = [centerline_1220, nonblocking_yet_racing_1220, blocking_1220, hjpolicy_1220, reverse_1220]
 
-dirs = [centerline_1220, nonblocking_yet_racing_1220, blocking_1220, hjpolicy_1220, reverse_1220]
+# folder_name = ['test']
+# test_folder = os.path.join(real_dir, folder_name[0])
+# dirs = [test_folder]
 
-rospack = rospkg.RosPack()
-pkg_dir = rospack.get_path('predictor')
+
+
+# rospack = rospkg.RosPack()
+# pkg_dir = rospack.get_path('predictor')
 
 class MultiPredPostEval:
-    def __init__(self):
+    def __init__(self, dirs):
+        self.dirs = dirs
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
         self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
         self.torch_device = "cuda:0"   ## Specify the name of GPU 
@@ -105,23 +112,35 @@ class MultiPredPostEval:
 
         # prediction callback   
         self.tv_pred = None
-        self.predictor_type = 0
+        
         ### setup ego controller to compute the ego prediction 
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track, policy_name='aggressive_blocking', use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0))                    
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "covGP")                    
+        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nocovGP")                    
+                                          
 
-    
-
-        self.pred_eval()
-
-    def pred_eval(self, snapshot_name = None, load_data = False):
+        gp_policy_name = 'gpberkely'        
+        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))        
+        self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
+        ## NMPC based game theoretic approach 
+        self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
+        self.nmpc_predictor.set_warm_start()
         
-        for j in range(len(dirs)):
-            tmp_dir = os.path.join(multiEval_dir,dirs[j].split('/')[-1])
+    
+        self.pred_eval(predictor_type = 0)
+        self.pred_eval(predictor_type = 1)
+        self.pred_eval(predictor_type = 2)
+        self.pred_eval(predictor_type = 3)
+        self.pred_eval(predictor_type = 4)
+
+    def pred_eval(self, predictor_type = 0, snapshot_name = None, load_data = False):
+        
+        for j in range(len(self.dirs)):
+            tmp_dir = os.path.join(multiEval_dir,self.dirs[j].split('/')[-1])
             create_dir(path=tmp_dir)   
-            dir = [dirs[j]]                        
+            dir = [self.dirs[j]]                        
            
             sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = self.predictor.args, randomize=True, real_data = True, tsne = True)
             input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list = sampGen.get_eval_data(dir,real_data = True)            
@@ -137,13 +156,28 @@ class MultiPredPostEval:
                     tar_state = tar_state_list[i]
                     _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(ego_state, tv_state=tar_state, tv_pred=self.tv_pred)                    
                     ego_pred = self.gp_mpcc_ego_controller.get_prediction()
-                    self.tv_pred = self.predictor.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)
+
+                    if predictor_type == 0:
+                        self.tv_pred = self.predictor_withoutCOV.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)                         
+                    elif predictor_type == 1:
+                        self.tv_pred = self.cav_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)                               
+                    elif predictor_type == 2:
+                        self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
+                    elif predictor_type == 3:
+                        self.tv_pred = self.gp_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
+                    elif predictor_type == 4:
+                        self.tv_pred = self.predictor.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)
+                    else: 
+                        print("select predictor")
+                
+
+
                     pred_tar_state_list.append(self.tv_pred.copy())
                     
                     if i % 20 == 0:                         
                         print("Sample : {} out of {}".format(i, len(input_buffer_list)))    
             tmp_real_data = RealData(self.predictor.track, len(input_buffer_list),ego_state_list, tar_state_list, pred_tar_state_list)
-            pickle_write(tmp_real_data, os.path.join(tmp_dir, str(i) + '.pkl'))            
+            pickle_write(tmp_real_data, os.path.join(tmp_dir, 'predictor_'  +str(i) + '_'+ str(predictor_type) +'.pkl'))            
         
             # if self.predictor and self.cur_ego_state is not None:                
             #     _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred)

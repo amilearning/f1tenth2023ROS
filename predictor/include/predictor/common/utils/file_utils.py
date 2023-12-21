@@ -14,6 +14,7 @@ model_dir = os.path.join(train_dir, 'models/')
 param_dir = os.path.join(gp_dir, 'params/')
 track_dir = os.path.join(gp_dir, 'tracks/')
 static_dir = os.path.join(gp_dir, 'statics/')
+fig_dir = os.path.join(gp_dir, 'figures/')
 
 def dir_exists(path=''):
     dest_path = pathlib.Path(path).expanduser()
