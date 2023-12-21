@@ -20,7 +20,7 @@ class CovGPPredictor(BasePredictor):
             "batch_size": 512,
             "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
             "input_dim": 9,
-            "n_time_step": 15,
+            "n_time_step": 15, ## how much we see the past history 
             "latent_dim": 15,
             "gp_output_dim": 4,            
             "inducing_points" : 100                
@@ -66,7 +66,7 @@ class CovGPPredictor(BasePredictor):
 
         is_encoder_input_ready = self.append_vehicleState(ego_state,target_state)  
         if is_encoder_input_ready: ## encoder_is_ready = True            
-            pred = self.covgpnn_predict.get_true_prediction_par(self.encoder_input,  ego_state, target_state, ego_prediction, self.track, self.M)            
+            pred = self.covgpnn_predict.sample_traj_gp_par(self.encoder_input,  ego_state, target_state, ego_prediction, self.track, self.M)            
             pred.track_cov_to_local(self.track, self.N, self.cov_factor)  
         else:            
             pred = None # self.get_constant_vel_prediction_par(target_state) # self.gp.get_true_prediction_par(ego_state, target_state, ego_prediction, self.track, self.M)

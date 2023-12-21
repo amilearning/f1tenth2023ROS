@@ -32,7 +32,7 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
     total_longitunidal_error = []    
     track = real_data.track
     samps = 0
-    init_eval_time_step = 20
+    init_eval_time_step = 0
     for timeStep in range(init_eval_time_step, len(real_data.tar_states)-1):
         
         lateral_error = []
@@ -151,7 +151,7 @@ def main(args=None):
 
 
     draw_barplot_with_list(lateral_errors_list, 'later')
-    # draw_barplot_with_list(longitudinal_errors_list, 'long')
+    draw_barplot_with_list(longitudinal_errors_list, 'long')
     draw_barplot_with_list(pred_covs_list, 'covs')
     
     plt.show()

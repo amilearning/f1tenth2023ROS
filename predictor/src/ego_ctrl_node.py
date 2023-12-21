@@ -71,6 +71,7 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
+        
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
         self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        

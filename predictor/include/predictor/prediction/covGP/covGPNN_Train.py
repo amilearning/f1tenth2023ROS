@@ -18,17 +18,11 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
 
 # Training
-def covGPNN_train(dirs = None, real_data = False):
-    args = {                    
-            "batch_size": 512,
-            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-            "input_dim": 9,
-            "n_time_step": 15,
-            "latent_dim": 8,
-            "gp_output_dim": 4,
-            "inducing_points" : 100,
-            "train_nn" : False                
-            }
+def covGPNN_train(dirs = None, real_data = False, args = None):
+   
+    if args is None:
+        print("ARGS should be given!!")
+        return 
     sampGen = SampleGeneartorCOVGP(dirs, args = args, randomize=True, real_data = real_data)
     
     sampGen.plotStatistics()
@@ -45,7 +39,7 @@ def covGPNN_train(dirs = None, real_data = False):
     # if args["train_nn"] is False:
     #     snapshot_name = 'covGP_backup'
     #     covgp_predictor.load_model(snapshot_name)
-    covgp_predictor.train(sampGen)
+    covgp_predictor.train(sampGen, args = args)
     covgp_predictor.set_evaluation_mode()
     trained_model = covgp_predictor.model, covgp_predictor.likelihood
 

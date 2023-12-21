@@ -41,30 +41,24 @@ from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import MarkerArray, Marker
 import threading
 from vesc_msgs.msg import VescStateStamped
-from hmcl_msgs.srv import mpcc
 import rospkg
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
-from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info, compute_local_velocity
+from predictor.utils import shift_in_local_x, pose_to_vehicleState, odom_to_vehicleState, prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
 # from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 # from predictor.prediction.gp_thetapolicy_predictor import GPThetaPolicyPredictor
 
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
 
-from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor
+from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
-from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction, interp_state, prediction_to_std_trace
-from predictor.simulation.dynamics_simulator import DynamicsSimulator
-from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
+from predictor.utils import prediction_to_rosmsg, rosmsg_to_prediction,  prediction_to_std_trace
 from hmcl_msgs.msg import VehiclePredictionROS 
 from dynamic_reconfigure.server import Server
 from predictor.cfg import predictorDynConfig
-from predictor.controllers.utils.controllerTypes import PIDParams
-from predictor.controllers.PID import PIDLaneFollower
-from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
-from collections import deque
+
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
 rospack = rospkg.RosPack()
@@ -138,17 +132,11 @@ class Predictor:
         self.tar_list = []
         self.tar_pred_list = []
         
-        
-        
 
         self.data_save = False
         self.prev_data_save = False
         self.pred_data_save = False
         self.save_buffer_length = 200
-
-        
-        # Service client 
-        self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
 
         # Publishers                
         self.tv_pred_marker_pub = rospy.Publisher('/tv_pred_marker',MarkerArray,queue_size = 2)        
@@ -160,8 +148,11 @@ class Predictor:
         
         self.tar_pred_pub = rospy.Publisher("/tar_pred", VehiclePredictionROS, queue_size=2)
 
+        self.ego_pred = None
+        
 
         # Subscribers
+        self.ego_pred_sub = rospy.Subscriber('/ego_pred', VehiclePredictionROS, self.ego_pred_callback)                        
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
         # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
         self.target_odom_sub = rospy.Subscriber(target_odom_topic, Odometry, self.target_odom_callback)                     
@@ -187,12 +178,10 @@ class Predictor:
         #                   3 : GP
         #                   4: COVGP
         self.predictor_type = 0
-        ### setup ego controller to compute the ego prediction 
-        self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
-        self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
-        self.ego_warm_start()
-        gp_policy_name = 'gpberkely'        
-        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))
+        ### setup ego controller to compute the ego prediction         
+        
+        # gp_policy_name = 'gpberkely'        
+        # self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))
         
         ### our method 
         # self.predictor = GPThetaPolicyPredictor(N=self.n_nodes, track=self.track_info.track, policy_name=gp_model_name, use_GPU=use_GPU, M=M, cov_factor=np.sqrt(0.1))            
@@ -203,10 +192,6 @@ class Predictor:
         ## constant angular velocity model 
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
 
-        ## NMPC based game theoretic approach 
-        self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
-        self.nmpc_predictor.set_warm_start()
-        
         
         # NLMPCPredictor(N, None, cov=.01, v_ref=mpcc_tv_params.vx_max),
         self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
@@ -217,9 +202,6 @@ class Predictor:
         # self.prediction_timer = rospy.Timer(rospy.Duration(1/self.data_logging_hz), self.datalogging_callback)         
         
   
-        
-        
-        
         rate = rospy.Rate(1)     
         while not rospy.is_shutdown():            
             msg = Bool()
@@ -227,47 +209,10 @@ class Predictor:
             # self.status_pub.publish(msg)          
             rate.sleep()
 
-    def ego_warm_start(self):
-        cur_state_copy = self.cur_ego_state.copy()
-        x_ref = cur_state_copy.p.x_tran
-        
-        pid_steer_params = PIDParams()
-        pid_steer_params.dt = self.dt
-        pid_steer_params.default_steer_params()
-        pid_steer_params.Kp = 1
-        pid_speed_params = PIDParams()
-        pid_speed_params.dt = self.dt
-        pid_speed_params.default_speed_params()
-        pid_controller_1 = PIDLaneFollower(cur_state_copy.v.v_long, x_ref, self.dt, pid_steer_params, pid_speed_params)
-        ego_dynamics_simulator = DynamicsSimulator(0.0, ego_dynamics_config, track=self.track_info.track) 
-        input_ego = VehicleActuation()
-        t = 0.0
-        state_history_ego = deque([], self.n_nodes); input_history_ego = deque([], self.n_nodes)
-        n_iter = self.n_nodes+1
-        approx = True
-        while n_iter > 0:
-            pid_controller_1.step(cur_state_copy)
-            ego_dynamics_simulator.step(cur_state_copy)            
-            self.track_info.track.update_curvature(cur_state_copy)
-            input_ego.t = t
-            cur_state_copy.copy_control(input_ego)
-            q, _ = ego_dynamics_simulator.model.state2qu(cur_state_copy)
-            u = ego_dynamics_simulator.model.input2u(input_ego)
-            if approx:
-                q = np.append(q, cur_state_copy.p.s)
-                q = np.append(q, cur_state_copy.p.s)
-                u = np.append(u, cur_state_copy.v.v_long)
-            state_history_ego.append(q)
-            input_history_ego.append(u)
-            t += self.dt
-            n_iter-=1
-           
-        compose_history = lambda state_history, input_history: (np.array(state_history), np.array(input_history))
-        ego_warm_start_history = compose_history(state_history_ego, input_history_ego)
-        self.gp_mpcc_ego_controller.initialize()
-        self.gp_mpcc_ego_controller.set_warm_start(*ego_warm_start_history)
-        print("warm start done")
  
+    def ego_pred_callback(self,msg):
+        self.ego_pred = rosmsg_to_prediction(msg)
+        
 
     def dyn_callback(self,config,level):        
         
@@ -344,11 +289,12 @@ class Predictor:
         #     self.tar_prev_pose = target_pose_topic
 
         # self.ego_odom_callback(ego_odom_topic)
+        
         self.ego_pose_callback(ego_pose_topic)
         # self.target_odom_callback(target_odom_topic)
         self.target_pose_callback(target_pose_topic)
 
-        
+    
 
     def ego_odom_callback(self,msg):
         if self.ego_odom_ready is False:
@@ -378,54 +324,9 @@ class Predictor:
     def target_pose_callback(self,msg):
         self.cur_tar_pose = msg
         shift_in_local_x(self.cur_tar_pose, dist = -0.01)
-    
-                    
-    def state_interpolation(self,vehicle_states, interval = 0.1):
-        # Regular time interval for interpolation        
-        init_vehicle_states = vehicle_states.copy()
-        re_state = []
-        if len(vehicle_states) < 1:
-            return
-        real_time = [state.t for state in vehicle_states]
-        regular_t = np.arange(vehicle_states[0].t, vehicle_states[-1].t, interval)
-        
-        new_vehicle_state = vehicle_states[:len(regular_t)]
-
-
-    
-        # Perform linear interpolation for each attribute
-        current_state=  vehicle_states[0]
-        for attr_name in dir(vehicle_states[0]):
-            if not attr_name.startswith("__"): 
-                attr_current = getattr(current_state, attr_name)                
-                if isinstance(attr_current, (float, int)):
-                    x_tmp = [getattr(state, attr_name) for state in vehicle_states]
-                    interpolated_values = np.interp(regular_t, real_time, x_tmp)
-                    for i in range(len(new_vehicle_state)):                        
-                        setattr(new_vehicle_state[i], attr_name, interpolated_values[i])
-                else:                       
-                    inner_attr = getattr(current_state, attr_name)                
-                    for innter_attr_name in dir(inner_attr):
-                        if not innter_attr_name.startswith("__"):
-                            attr_tmp = getattr(inner_attr, innter_attr_name)                
-                            if isinstance(attr_tmp, (float, int)):
-                                x_tmp = [getattr(getattr(state, attr_name),innter_attr_name) for state in vehicle_states]
-                                interpolated_values = np.interp(regular_t, real_time, x_tmp)
-                                for i in range(len(new_vehicle_state)):                                
-                                    setattr(getattr(new_vehicle_state[i],attr_name), innter_attr_name, interpolated_values[i])
-        
-        return new_vehicle_state
-        #     # Update the time attribute of the current state to match the last interpolated time
-        #     # current_state.t = regular_t[-1]
-        #     re_state.append(current_state)
-        # return [state.t for state in vehicle_states]
-
-      
-   
-                        
+               
     def datalogging_callback(self):
       
-        
         if self.data_save:
                 if isinstance(self.cur_ego_state.t,float) and isinstance(self.cur_tar_state.t,float) and self.cur_ego_state.p.s is not None and self.cur_tar_state.p.s is not None and abs(self.cur_tar_state.p.x_tran) < self.track_info.track.track_width and abs(self.cur_ego_state.p.x_tran) < self.track_info.track.track_width:
                     if self.pred_data_save:
@@ -454,7 +355,7 @@ class Predictor:
     def prediction_callback(self,event):
         
         start_time = time.time()
-        if self.ego_odom_ready is False or self.tar_odom_ready is False:            
+        if self.ego_odom_ready is False or self.tar_odom_ready is False or self.ego_pred is None:            
             return
         
         if self.ego_odom_ready and self.tar_odom_ready:
@@ -476,25 +377,19 @@ class Predictor:
 
             ## TODO : receive ego prediction from mpcc ctrl, instead computing one more time            
             self.use_predictions_from_module = True
-            _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None)
-            ego_pred = self.gp_mpcc_ego_controller.get_prediction()
+            
             
             
             # ego_pred = self.predictor.get_constant_vel_prediction_par(self.cur_ego_state)
             
-            if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None and ego_pred.x is not None:            
-                if self.predictor_type == 0:
-                    self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)               
-                elif self.predictor_type == 1:
-                    self.tv_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)                               
-                elif self.predictor_type == 2:
-                    self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
-                elif self.predictor_type == 3:
-                    self.tv_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = ego_pred)
-                elif self.predictor_type == 4:
-                    self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, ego_pred)
-                else: 
-                    print("select predictor")
+            if self.cur_ego_state.t is not None and self.cur_tar_state.t is not None and self.ego_pred.x is not None:            
+                # if self.predictor_type == 4:
+                self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, self.ego_pred)
+                # elif self.predictor_type == 1:
+                # self.tv_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)                                               
+                    
+                # else: 
+                #     print("select predictor")
                 
                 #################### predict only target is close to ego #####################################
                 cur_ego_s = self.cur_ego_state.p.s.copy()
@@ -541,8 +436,8 @@ class Predictor:
                 
         end_time = time.time()
         execution_time = end_time - start_time
-        if execution_time > 0.12:
-            print(f"Prediction execution time: {execution_time} seconds")
+        # if execution_time > 0.12:
+        print(f"Prediction execution time: {execution_time} seconds")
 
     
 ###################################################################################

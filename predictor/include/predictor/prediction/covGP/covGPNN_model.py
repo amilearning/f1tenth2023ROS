@@ -7,7 +7,6 @@ import numpy as np
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 import torch.nn as nn
-from predictor.prediction.dyn_prediction_model import TorchDynamicsModelForPredictor
 from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.prediction.covGP.covGPNN_gp_nn_model import COVGPNNModel, COVGPNNModelWrapper
 from torch.utils.data import DataLoader, random_split
@@ -72,8 +71,12 @@ class COVGPNN(GPController):
         else:
             return output
 
-    def train(self,sampGen: SampleGeneartorCOVGP):
+    def train(self,sampGen: SampleGeneartorCOVGP, args = None):
         
+        include_cov_loss= args["include_cov_loss"]
+        n_epoch = args["n_epoch"]
+
+
         self.writer = SummaryWriter()
 
         train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
@@ -114,7 +117,7 @@ class COVGPNN(GPController):
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
         mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.gp_layer, num_data=sampGen.getNumSamples())
         mseloss = nn.MSELoss()
-        max_epochs = 3000* len(train_dataloader)
+        max_epochs = n_epoch* len(train_dataloader)
         last_loss = np.inf
         no_progress_epoch = 0
         done = False
@@ -168,7 +171,10 @@ class COVGPNN(GPController):
                     variational_loss = -mll(output, train_y)*varational_weight
                     ######## prediction + reconstruction + covariance losses ###########
                     # loss = variational_loss +covloss + reconloss
-                    loss = variational_loss +covloss + reconloss
+                    if include_cov_loss:
+                        loss = variational_loss + covloss + reconloss
+                    else:   
+                        loss = variational_loss
                     ####################################################################
                     train_loss += loss.item()
                     # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
@@ -371,7 +377,9 @@ class COVGPNNTrained(GPController):
         self.trace_model = None
         if self.load_trace:
             self.gen_trace_model()
-            
+        
+        
+        
 
     def gen_trace_model(self):
         
@@ -403,16 +411,21 @@ class COVGPNNTrained(GPController):
         self.set_evaluation_mode()
         # draw M samples
         
-        preds = self.sample_traj_gp_par(input, ego_state, target_state, ego_prediction, track, M)
+        
+
+        pred = self.sample_traj_gp_par(input, ego_state, target_state, ego_prediction, track, M)
         
         # numeric mean and covariance calculation.
         # cov_start_time = time.time()
-        pred = self.mean_and_cov_from_list(preds, M) 
+        
+        # pred = self.mean_and_cov_from_list(preds, M) 
+        pred.t = ego_state.t
+        
         # cov_end_time = time.time()
         # cov_elapsed_time = cov_end_time - cov_start_time
         # print(f"COV Elapsed time: {cov_elapsed_time} seconds")    
-        pred.t = ego_state.t
-
+        
+        
         
 
         return pred
@@ -441,17 +454,14 @@ class COVGPNNTrained(GPController):
         '''
         encoder_input = batch x feature_dim x time_horizon
         '''     
-        prediction_samples = []
-        for j in range(M):
-            tmp_prediction = VehiclePrediction() 
-            tmp_prediction.s = [target_state.p.s]
-            tmp_prediction.x_tran = [target_state.p.x_tran]
-            tmp_prediction.e_psi = [ target_state.p.e_psi]
-            tmp_prediction.v_long = [ target_state.v.v_long]                          
-            prediction_samples.append(tmp_prediction)
-    
-        
 
+        horizon = len(ego_prediction.x) 
+        pred_tar_state = torch.zeros(M,4,horizon)
+        pred_tar_state[:,0,0] = target_state.p.s # s
+        pred_tar_state[:,1,0] = target_state.p.x_tran # ey 
+        pred_tar_state[:,2,0] = target_state.p.e_psi # epsi
+        pred_tar_state[:,3,0] = target_state.v.v_long # vx
+ 
         roll_input = encoder_input.repeat(M,1,1).to('cuda') 
         roll_tar_state = torch.tensor([target_state.p.s, target_state.p.x_tran, target_state.p.e_psi, target_state.v.v_long]).to('cuda')        
         roll_tar_state = roll_tar_state.repeat(M,1)
@@ -459,8 +469,7 @@ class COVGPNNTrained(GPController):
         roll_tar_curv = roll_tar_curv.repeat(M,1)
         roll_ego_state = torch.tensor([ego_state.p.s, ego_state.p.x_tran, ego_state.p.e_psi, ego_state.v.v_long]).to('cuda')
         roll_ego_state = roll_ego_state.repeat(M,1)
-
-        horizon = len(ego_prediction.x)    
+ 
         # start_time = time.time()
         for i in range(horizon-1):         
             # gp_start_time = time.time()  
@@ -478,37 +487,63 @@ class COVGPNNTrained(GPController):
                 tmp_delta = torch.distributions.Normal(mean, stddev).sample()            
                     
                 pred_delta = self.outputToReal(tmp_delta)
-       
+            # pred_delta = torch.zeros(roll_tar_state.shape).cuda()
             roll_tar_state[:,0] += pred_delta[:,0] 
             roll_tar_state[:,1] += pred_delta[:,1] 
             roll_tar_state[:,2] += pred_delta[:,2]
             roll_tar_state[:,3] += pred_delta[:,3]  
-            roll_tar_curv[:,0] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach(),track)
-            roll_tar_curv[:,1] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach()+target_state.lookahead.dl*2,track)                        
+            ###################################  0.04 ###################################
+            roll_tar_curv[:,0] = get_curvature_from_keypts_torch(pred_delta[:,0],track)
+            roll_tar_curv[:,1] = get_curvature_from_keypts_torch(pred_delta[:,0]+target_state.lookahead.dl*2,track)                        
+            ################################### ###################################
             roll_ego_state[:,0] = ego_prediction.s[i+1]
             roll_ego_state[:,1] = ego_prediction.x_tran[i+1]
             roll_ego_state[:,2] =  ego_prediction.e_psi[i+1]
             roll_ego_state[:,3] =  ego_prediction.v_long[i+1]
 
 
-            for j in range(M):                          # tar 0 1 2 3 4 5       #ego 6 7 8 9 10 11
-                prediction_samples[j].s.append(roll_tar_state[j,0].cpu().numpy())
-                prediction_samples[j].x_tran.append(roll_tar_state[j,1].cpu().numpy())                    
-                prediction_samples[j].e_psi.append(roll_tar_state[j,2].cpu().numpy())
-                prediction_samples[j].v_long.append(roll_tar_state[j,3].cpu().numpy())
+            pred_tar_state[:,0,i+1] = roll_tar_state[:,0].clone() # s
+            pred_tar_state[:,1,i+1] = roll_tar_state[:,1].clone() # ey 
+            pred_tar_state[:,2,i+1] = roll_tar_state[:,2].clone() # epsi
+            pred_tar_state[:,3,i+1] = roll_tar_state[:,3].clone() # vx
+
+            # for j in range(M):                          # tar 0 1 2 3 4 5       #ego 6 7 8 9 10 11
+            #     prediction_samples[j].s.append(roll_tar_state[j,0].cpu().numpy())
+            #     prediction_samples[j].x_tran.append(roll_tar_state[j,1].cpu().numpy())                    
+            #     prediction_samples[j].e_psi.append(roll_tar_state[j,2].cpu().numpy())
+            #     prediction_samples[j].v_long.append(roll_tar_state[j,3].cpu().numpy())
         
         # end_time = time.time()
         # elapsed_time = end_time - start_time
         # print(f"Time taken for GP(over horizons) call: {elapsed_time} seconds")
 
-        for i in range(M):
-            prediction_samples[i].s = array.array('d', prediction_samples[i].s)
-            prediction_samples[i].x_tran = array.array('d', prediction_samples[i].x_tran)
-            prediction_samples[i].e_psi = array.array('d', prediction_samples[i].e_psi)
-            prediction_samples[i].v_long = array.array('d', prediction_samples[i].v_long)            
+
+        # prediction_samples = []
+        # for j in range(M):
+        #     tmp_prediction = VehiclePrediction() 
+        #     tmp_prediction.s = array.array('d', pred_tar_state[j,0,:])
+        #     tmp_prediction.x_tran = array.array('d', pred_tar_state[j,1,:])
+        #     tmp_prediction.e_psi = array.array('d', pred_tar_state[j,2,:])
+        #     tmp_prediction.v_long = array.array('d', pred_tar_state[j,3,:])            
+        #     prediction_samples.append(tmp_prediction)
+
+        mean_tar_pred = torch.mean(pred_tar_state,dim=0)        
+        mean_pred = VehiclePrediction()
+        mean_pred.s = array.array('d', mean_tar_pred[0,:])
+        mean_pred.x_tran = array.array('d', mean_tar_pred[1,:])
+        mean_pred.e_psi = array.array('d', mean_tar_pred[2,:])
+        mean_pred.v_long = array.array('d', mean_tar_pred[3,:])
+
+        std_tar_pred = torch.std(pred_tar_state,dim=0)
+        std_tar_pred[3,:] = std_tar_pred[1,:]
+        std_tar_pred[2,:] = 0.0
+        std_tar_pred[1,:] = 0.0
+        mean_pred.sey_cov = array.array('d', std_tar_pred.T.flatten())
+       
+
+        return mean_pred 
 
         
-        return prediction_samples
 
 
 

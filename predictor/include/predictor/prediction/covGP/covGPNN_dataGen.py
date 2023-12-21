@@ -1,9 +1,9 @@
 import torch
-from barcgp.common.utils.scenario_utils import *
-from barcgp.simulation.dynamics_simulator import DynamicsSimulator
-from barcgp.h2h_configs import *    
-from barcgp.common.utils.scenario_utils import policy_generator
-from barcgp.common.utils.file_utils import *
+from predictor.common.utils.scenario_utils import *
+from predictor.simulation.dynamics_simulator import DynamicsSimulator
+from predictor.h2h_configs import *    
+from predictor.common.utils.scenario_utils import policy_generator
+from predictor.common.utils.file_utils import *
 def states_to_encoder_input_torch(tar_st,ego_st):
     tar_s = tar_st.p.s
     ego_s = ego_st.p.s
