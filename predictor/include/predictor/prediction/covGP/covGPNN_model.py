@@ -163,7 +163,8 @@ class COVGPNN(GPController):
                 else:
                     optimizer_gp.zero_grad()
                     optimizer.zero_grad()
-                    output, recons, input_covs, output_covs = self.model(train_x,train=True)
+                    train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):] 
+                    output, output_covs = self.model(train_x_h, train_x_f ,train=True)
                     reconloss_weight = 1.0
                     covloss_weight = 10.0
                     varational_weight = 0.1
@@ -173,7 +174,7 @@ class COVGPNN(GPController):
                     ######## prediction + reconstruction + covariance losses ###########
                     # loss = variational_loss +covloss + reconloss
                     if include_cov_loss:
-                        loss = variational_loss + covloss + reconloss
+                        loss = variational_loss + reconloss
                     else:   
                         loss = variational_loss
                     ####################################################################
@@ -217,7 +218,7 @@ class COVGPNN(GPController):
             self.writer.add_scalar('Loss/valid_loss', valid_loss, epoch)
             if c_loss > last_loss:
                 if no_progress_epoch >= 50:
-                    if self.train_nn is False:
+                    if self.train_nn is False and epoch > 5000:
                         done = True     
             else:
                 best_model = copy.copy(self.model)

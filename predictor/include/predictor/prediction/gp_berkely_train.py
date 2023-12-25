@@ -41,7 +41,7 @@ def gp_main(dirs,realdata = False):
     # dirs = [track_scencurve_dir]
     # change curve type in file_utils
     sampGen = SampleGenerator(dirs, randomize=True,realdata = realdata)
-    # sampGen.plotStatistics('c')
+    # sampGen.plotStatistics('s')
     # sampGen.even_augment('s', 0.3)
     if not dir_exists(dirs[0]):
         raise RuntimeError(

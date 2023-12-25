@@ -53,8 +53,16 @@ def covGPNN_train(dirs = None, real_data = False, args = None):
     # covgp_predictor.evaluate()
 
 
-def tsne_analysis(dirs, args = None , snapshot_name = 'covGP',  folders = None, perplexity = 10, load_data = False):
+def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = None, perplexity = 10, load_data = False):
     # def tsne_evaluate(self,sampGen: SampleGeneartorCOVGP):    
+
+
+    dirs = []
+    for i in range(len(eval_policy_names)):
+        eval_folder = os.path.join(real_dir, eval_policy_names[i])
+        dirs.append(eval_folder)
+
+
     if args is None:
         args = {                    
                 "batch_size": 512,
@@ -146,10 +154,10 @@ def tsne_analysis(dirs, args = None , snapshot_name = 'covGP',  folders = None, 
             fig, ax = plt.subplots()
             scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1], c=stacked_label, cmap='viridis')            
             # labels = ["timid", "mild_100", "mild_200", "mild_300", "mild_500","mild_1000", "mild_5000", "reverse"]
-            if folders is None:
+            if eval_policy_names is None:
                 labels = [ "timid","blocking", "reverse"]
             else:
-                labels = folders
+                labels = eval_policy_names
 
 
             plt.legend(handles=scatter_plot.legend_elements()[0], labels=labels, title='Legend')

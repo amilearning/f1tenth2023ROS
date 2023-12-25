@@ -98,82 +98,65 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track_)                                        
                         ###################################################################
                         if N > self.time_horizon+5:
-                            for t in range(N-1-self.time_horizon):                            
+                            for t in range(N-1-self.time_horizon*2):                            
                                 # define empty torch with proper size 
-                                dat = torch.zeros(self.input_dim, self.time_horizon)
-                                
+                                dat = torch.zeros(self.input_dim, 2*self.time_horizon)
+                                # fdat = torch.zeros(self.input_dim, self.time_horizon)
                                 for i in range(t,t+self.time_horizon):                                
                                     ego_st = scenario_data.ego_states[i]
                                     tar_st = scenario_data.tar_states[i]
                                     ntar_orin = scenario_data.tar_states[i+1]
                                     real_dt = ntar_orin.t - tar_st.t 
-                                    # valid_data = self.data_validation(ego_st,tar_st,scenario_data.tar_states[i+1],scenario_data.track)                        
-                                    # if valid_data and real_dt > 0.05:
-                                        # dt = 0.1                        
-                                        # ntar_st = interp_state_with_vel(scenario_data.track, tar_st,ntar_orin,dt).copy()
-
-
-
+                                   
                                     if policy_gen:
                                         scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
                                         ntar_orin = scenario_data.tar_states[i+1]
                                     # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
                                     #                 tar_ey, tar_epsi, tar_cur]                                 
-                                    dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
-                                    # torch.tensor([ tar_st.p.s - ego_st.p.s,
-                                    #                             ego_st.p.x_tran,
-                                    #                             ego_st.p.e_psi,
-                                    #                             ego_st.lookahead.curvature[0],                                                            
-                                    #                             tar_st.p.x_tran,
-                                    #                             tar_st.p.e_psi,
-                                    #                             tar_st.lookahead.curvature[0]])
-                                        
-                                
-                                ### Add curvature[2] at the last dimension 
-                                
+                                    dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)      
+
+                                                                         
                                 next_tar_st = ntar_orin.copy()
                                 real_dt = next_tar_st.t - tar_st.t 
-
-                                valid_data = self.data_validation(dat,tar_st,next_tar_st,track_)                        
-                                
+                                valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                 if tsne:
                                     if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.0:
                                         valid_data = False
-                                     
 
-                                if valid_data and (real_dt > 0.05 and real_dt < 0.2):
-                                    # dt = 0.1                        
-                                    # ntar_st = interp_state_with_vel(scenario_data.track, tar_st,next_tar_st,dt).copy()
-                                    # # state_input = torch.tensor([tar_st.p.x_tran,
-                                    # #                             tar_st.p.e_psi,                                                            
-                                    # #                             tar_st.v.v_long,                                                           
-                                    # #                             tar_st.v.v_tran,                                                           
-                                    # #                             tar_st.lookahead.curvature[0],
-                                    # #                             tar_st.lookahead.curvature[2]]).to(torch.device("cuda"))  
-                                    # state_input = torch.tensor([   tar_st.p.x_tran,
-                                    #                                 tar_st.p.e_psi,                                                            
-                                    #                                 tar_st.v.v_long,                                          
-                                    #                                 tar_st.lookahead.curvature[0],                                                            
-                                    #                                 tar_st.lookahead.curvature[2]]).to(torch.device("cuda"))  
-                                    # del_state = self.get_residual_pose_using_kinematicmodel(tar_st,next_tar_st,dt=0.1)
+                                if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
                                     delta_s = next_tar_st.p.s-tar_st.p.s
                                     delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
                                     delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
                                     delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long
-
                                     
                                     self.debug_t.append(real_dt)
                                     gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                
-                                    # gp_output = torch.tensor(del_state)                                
-                                    self.samples.append(dat.clone())  
+                                    # gp_output = torch.tensor(del_state)                                                                    
                                     self.output_data.append(gp_output.clone())    
+                                        
+                                    for i in range(t+self.time_horizon, t+self.time_horizon*2):
+                                        ego_st = scenario_data.ego_states[i]
+                                        tar_st = scenario_data.tar_states[i]
+                                        ntar_orin = scenario_data.tar_states[i+1]
+                                        real_dt = ntar_orin.t - tar_st.t 
+                                    
+                                        if policy_gen:
+                                            scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
+                                            ntar_orin = scenario_data.tar_states[i+1]
+                                        # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
+                                        #                 tar_ey, tar_epsi, tar_cur]                                 
+                                        dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
+                                    self.samples.append(dat.clone())  
+                                ### Add curvature[2] at the last dimension 
+                       
                                 
                             
                         
                         dbfile.close()
             self.save_pre_data(pre_data_dir)
         
-        
+        if len(self.samples) < 1 or self.samples is None:
+            return 
         self.input_output_normalizing(load_constants=load_normalization_constant)
         print('Generated Dataset with', len(self.samples), 'samples!')
         
@@ -277,12 +260,18 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
 
     def input_output_normalizing(self,name = 'normalizing', load_constants = False):
-        tensor_sample = torch.stack(self.samples)
+        
+
+        # x_h_tensor = torch.stack([sample[0] for sample in self.samples])
+        # x_f_tensor = torch.stack([sample[1] for sample in self.samples])
+        x_tensor = torch.stack( self.samples)
+
         tensor_output = torch.stack(self.output_data)
+        
         if load_constants:
-            self.load_normalizing_consant(tensor_sample, tensor_output)
+            self.load_normalizing_consant(x_tensor, tensor_output)
         else:
-            self.normalized_sample, mean_sample, std_sample= self.normalize(tensor_sample)
+            self.normalized_sample, mean_sample, std_sample= self.normalize(x_tensor)
             self.normalized_output, mean_output, std_output = self.normalize(tensor_output)        
             model_to_save = dict()
             model_to_save['mean_sample'] = mean_sample

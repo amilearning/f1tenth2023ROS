@@ -73,11 +73,20 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
                         lateral = -dx * np.sin(angle) + dy * np.cos(angle)
                     else:
                         longitudinal = pred.s[i] - tar_st.p.s
+                        if abs(longitudinal) > track.track_length/4:
+                            if pred.s[i] > track.track_length/4 and tar_st.p.s < track.track_length/4:
+                                tmp = pred.s[i] - track.track_length/2
+                                longitudinal = tmp - tar_st.p.s
+                            elif tar_st.p.s > track.track_length/4 and pred.s[i] < track.track_length/4:
+                                tmp = tar_st.p.s - track.track_length/2
+                                longitudinal = pred.s[i] - tmp
+                    
                         lateral = pred.x_tran[i] - tar_st.p.x_tran                    
                     longitudinal_error.append(longitudinal)
                     lateral_error.append(lateral)
         
                 total_longitunidal_error.append(np.array(longitudinal_error))
+            
                 total_lateral_error.append(np.array(lateral_error))
                 
     return np.array(total_lateral_error), np.array(total_longitunidal_error), np.array(total_cov_list)
@@ -94,7 +103,7 @@ def get_process(policy_name, predictor_type = 0):
     pred_covs = []
 
     for filename in os.listdir(policy_dir):
-        tmp_str = str(predictor_type)+ '.pkl'
+        tmp_str = '_'+str(predictor_type)+ '.pkl'
         if filename.endswith(tmp_str):
             # Construct the full file path
             filepath = os.path.join(policy_dir, filename)
@@ -106,13 +115,13 @@ def get_process(policy_name, predictor_type = 0):
                     continue 
                 else:                        
                     lateral_error, longitudinal_error, pred_cov = multi_policy_lat_lon_error_covs(data)
-                    
+                
                     # lateral_errors.append(np.sqrt(np.mean(lateral_error[:,-1] ** 2)))
                     lateral_errors.append(lateral_error[:,-1])
                     # longitudinal_errors.append(np.sqrt(np.mean(longitudinal_error[:,-1] ** 2)))
                     longitudinal_errors.append(longitudinal_error[:,-1])
                     pred_covs.append(np.mean(np.mean(pred_cov[:,:,:], axis=1), axis=1))
-    
+  
     pred_covs = np.concatenate(pred_covs)
     lateral_errors = np.concatenate(lateral_errors)
     longitudinal_errors = np.concatenate(longitudinal_errors)

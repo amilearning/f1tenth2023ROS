@@ -35,6 +35,7 @@ import rospy
 import os
 import numpy as np 
 import rospkg
+from visualization_msgs.msg import MarkerArray
 from predictor.common.utils.scenario_utils import EvalData, PostprocessData, RealData
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
 from predictor.path_generator import PathGenerator
@@ -44,6 +45,7 @@ from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
+from predictor.utils import prediction_to_marker
 from predictor.controllers.utils.controllerTypes import PIDParams
 from predictor.controllers.PID import PIDLaneFollower
 from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
@@ -77,6 +79,7 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 class MultiPredPostEval:
     def __init__(self, dirs):
         self.dirs = dirs
+        self.visualize = True
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
         self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
         self.torch_device = "cuda:0"   ## Specify the name of GPU 
@@ -109,7 +112,8 @@ class MultiPredPostEval:
                                       u=VehicleActuation(t=0.0, u_a=0.0, u_steer = 0.0))
         self.cur_tar_state = VehicleState()
           
-
+        self.tv_pred_marker_pub = rospy.Publisher('/tv_pred',MarkerArray,queue_size = 2)
+        self.ego_pred_marker_pub = rospy.Publisher('/ego_pred',MarkerArray,queue_size = 2)
         # prediction callback   
         self.tv_pred = None
         
@@ -143,6 +147,8 @@ class MultiPredPostEval:
             dir = [self.dirs[j]]                        
            
             sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = self.predictor.args, randomize=True, real_data = True, tsne = True)
+            if len(sampGen.samples) < 1: 
+                return
             input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list = sampGen.get_eval_data(dir,real_data = True)            
             pred_tar_state_list = []
             self.tv_pred = None ## Assume each directory contains single time race
@@ -170,7 +176,11 @@ class MultiPredPostEval:
                     else: 
                         print("select predictor")
                 
-
+                    if self.visualize:
+                        tv_pred_markerArray = prediction_to_marker(self.tv_pred)
+                        self.tv_pred_marker_pub.publish(tv_pred_markerArray)
+                        ego_pred_markerArray = prediction_to_marker(ego_pred)
+                        self.ego_pred_marker_pub.publish(ego_pred_markerArray)
 
                     pred_tar_state_list.append(self.tv_pred.copy())
                     

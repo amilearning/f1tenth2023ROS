@@ -27,7 +27,7 @@ def main():
     
     print("1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print("GP Berkely train init")
-    gp_main(dirs, realdata = True)
+    # gp_main(dirs, realdata = True)
     print("GP Berkely train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     

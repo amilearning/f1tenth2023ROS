@@ -227,7 +227,7 @@ class GPControllerApproximate(GPController):
                 c_loss = valid_loss / (step + 1)
                 valid_dataloader.set_postfix(log={'valid_loss': f'{(c_loss):.5f}'})
             if c_loss > last_loss:
-                if no_progress_epoch >= 15:
+                if no_progress_epoch >= 20:
                     not_done = False
             else:
                 best_model = copy.copy(self.model)

@@ -7,6 +7,7 @@ import random
 import torch
 from typing import List, Tuple
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 
@@ -327,7 +328,8 @@ class SampleGenerator():
                     ###################################################################
                     N = scenario_data.N
                     for i in range(N-1):
-                        if i%3 == 0 and scenario_data.tar_states[i] is not None:
+                        # if i%3 == 0 and scenario_data.tar_states[i] is not None:
+                        if scenario_data.tar_states[i] is not None:
                             ego_st = scenario_data.ego_states[i]
                             tar_st = scenario_data.tar_states[i]
                             if policy_gen:
@@ -339,7 +341,7 @@ class SampleGenerator():
                             dtar.p.e_psi = ntar_st.p.e_psi - tar_st.p.e_psi
                             dtar.v.v_long = ntar_st.v.v_long - tar_st.v.v_long
                             dtar.w.w_psi = ntar_st.w.w_psi - tar_st.w.w_psi
-                            if elect_function(ego_st, tar_st):
+                            if elect_function(ego_st, tar_st) and abs(dtar.p.s) < track.track_length/4:
                                 self.samples.append(Sample((ego_st, tar_st), dtar, tar_st.lookahead.curvature[0]))
                     dbfile.close()
         print('Generated Dataset with', len(self.samples), 'samples!')
@@ -368,7 +370,14 @@ class SampleGenerator():
         else:
             return self.samples[self.counter - 1]
 
-    
+    def plotStatistics(self, param):
+        data_list = []
+        if param == 's':
+            for i in self.samples:
+                data_list.append(i.output.p.s)
+        fig, axs = plt.subplots(1, 1)
+        axs.hist(data_list, bins=50)
+        plt.show()
 
     def even_augment(self, param, maxQ):
         '''
