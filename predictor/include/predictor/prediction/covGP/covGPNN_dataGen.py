@@ -89,7 +89,10 @@ class SampleGeneartorCOVGP(SampleGenerator):
                         N = scenario_data.N                       
                         
                         ######################## random Policy ############################
-                        policy_name = ab_p.split('/')[-2]
+                        if real_data:
+                            policy_name = ab_p.split('/')[-1]
+                        else:
+                            policy_name = ab_p.split('/')[-2]
                         policy_gen = False
                         if policy_name == 'wall':
                             policy_gen = True
@@ -120,7 +123,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 real_dt = next_tar_st.t - tar_st.t 
                                 valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                 if tsne:
-                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.0:
+                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.5:
                                         valid_data = False
 
                                 if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              

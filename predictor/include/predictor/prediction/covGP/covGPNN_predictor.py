@@ -23,7 +23,7 @@ class CovGPPredictor(BasePredictor):
             "n_time_step": 15, ## how much we see the past history 
             "latent_dim": 15,
             "gp_output_dim": 4,            
-            "inducing_points" : 100                
+            "inducing_points" : 200                
             }
 
         ######### Input prediction for Gaussian Processes regression ######### 

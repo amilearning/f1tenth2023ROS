@@ -30,6 +30,7 @@
   @brief: ROS node for sampling based nonlinear model predictive controller (Model predictive path integrator) 
   @details: main node for MPPI
 """
+import threading
 import pickle
 import rospy
 import os
@@ -121,8 +122,8 @@ class MultiPredPostEval:
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "covGP")                    
-        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nocovGP")                    
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "traceGP")                    
+        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "notraceGP")                    
                                           
 
         gp_policy_name = 'gpberkely'        
@@ -133,11 +134,25 @@ class MultiPredPostEval:
         self.nmpc_predictor.set_warm_start()
         
     
-        self.pred_eval(predictor_type = 0)
-        self.pred_eval(predictor_type = 1)
-        self.pred_eval(predictor_type = 2)
-        self.pred_eval(predictor_type = 3)
-        self.pred_eval(predictor_type = 4)
+        # self.pred_eval(predictor_type = 0)
+        # self.pred_eval(predictor_type = 1)
+        # self.pred_eval(predictor_type = 2)
+        # self.pred_eval(predictor_type = 3)
+        # self.pred_eval(predictor_type = 4)
+        self.pred_eval_parallel()
+        
+    def pred_eval_parallel(self):
+        threads = []
+        for i in range(5):
+            # Create a thread for each predictor type
+            thread = threading.Thread(target=self.pred_eval, args=(i,))
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+
 
     def pred_eval(self, predictor_type = 0, snapshot_name = None, load_data = False):
         

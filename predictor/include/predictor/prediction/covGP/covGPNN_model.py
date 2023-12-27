@@ -72,9 +72,34 @@ class COVGPNN(GPController):
         else:
             return output
 
+
+
+
+    def cosine_loss(self, z: torch.tensor, z_hat: torch.tensor) -> torch.tensor:
+        """ This function calculates the Cosine Loss for a given set of input tensors z and z_hat. The Cosine Loss is
+        defined as the negative mean of the cosine similarity between z and z_hat and aims to
+        minimize the cosine distance between the two tensors z and z_hat, rather than maximizing their similarity.
+
+        Args:
+            - z:        (batch_size, seq_len, output_dim)
+            - z_hat:    (batch_size, seq_len, output_dim)
+        Returns:
+            - loss: torch.tensor
+        """
+        cos_fn = nn.CosineSimilarity(dim=2).to(z.device)
+        cos_sim = cos_fn(z, z_hat)
+        loss = -torch.mean(cos_sim, dim=0).mean()
+        return loss
+
+
+    def euclidean_loss(self, encode_future_embeds: torch.Tensor, fcst_future_embeds: torch.Tensor):        
+        dist = torch.cdist(encode_future_embeds,fcst_future_embeds)
+        return torch.mean(dist).mean()
+
+
     def train(self,sampGen: SampleGeneartorCOVGP, args = None):
         
-        include_cov_loss= args["include_cov_loss"]
+        include_trace_loss= args["include_trace_loss"]
         n_epoch = args["n_epoch"]
 
 
@@ -100,9 +125,10 @@ class COVGPNN(GPController):
         self.likelihood.train()
 
         # Use the Adam optimizer
-        optimizer = torch.optim.Adam([{'params': self.model.covnn.parameters()}],lr = 0.01)
+        # optimizer = torch.optim.Adam([{'params': self.model.covnn.parameters()}],lr = 0.01)
         lr_gp = 0.005
-        optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.01},
+        optimizer_gp = torch.optim.SGD([{'params': self.model.covnn.parameters(), 'lr': 0.01},
+                                         {'params': self.model.predictor.parameters(), 'lr': 0.001 * 0.01},
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
@@ -111,8 +137,8 @@ class COVGPNN(GPController):
         #                                 {'params': self.model.gp_layer.variational_parameters()},
         #                                 {'params': self.likelihood.parameters()},
         #                             ], lr=lr_gp)
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.99)
-        scheduler_gp = lr_scheduler.StepLR(optimizer_gp, step_size=200, gamma=0.99)
+        scheduler = lr_scheduler.StepLR(optimizer_gp, step_size=1000, gamma=0.9)
+        # scheduler_gp = lr_scheduler.StepLR(optimizer_gp, step_size=300, gamma=0.99)
 
         # GP marginal log likelihood
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
@@ -153,6 +179,11 @@ class COVGPNN(GPController):
                     self.writer.add_scalar('Loss/recon_loss', reconloss.item(), epoch * len(train_dataloader) + step)
                     # self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
                     self.writer.add_scalar('Loss/cov_loss', covloss.item(), epoch * len(train_dataloader) + step)
+
+
+
+
+
                     # for name, param in self.model.covnn.named_parameters():
                     #     self.writer.add_histogram(f'Weights/{name}', param.data.cpu().numpy(), epoch)
                     #     if param.grad is not None:
@@ -162,27 +193,44 @@ class COVGPNN(GPController):
                     optimizer.step()
                 else:
                     optimizer_gp.zero_grad()
-                    optimizer.zero_grad()
+                    # optimizer.zero_grad()
                     train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):] 
-                    output, output_covs = self.model(train_x_h, train_x_f ,train=True)
-                    reconloss_weight = 1.0
-                    covloss_weight = 10.0
-                    varational_weight = 0.1
-                    covloss = mseloss(input_covs, output_covs)* covloss_weight
-                    reconloss = mseloss(recons,train_x)* reconloss_weight
+                    
+                    output, encode_future_embeds, fcst_future_embeds = self.model(train_x_h, train_x_f ,train=True)
+
+                    cosine_loss_weight = 1e1
+                    cosine_loss = self.cosine_loss(encode_future_embeds, fcst_future_embeds) * cosine_loss_weight
+                    # cosine_loss = self.euclidean_loss(encode_future_embeds, fcst_future_embeds)* cosine_loss_weight
+                    
+                    
+                    # eye_mtx = torch.eye(output_covs.shape[-1])
+                    # traces = [torch.trace(cov) for cov in output_covs]
+                    # trace_diff = [torch.trace(eye_mtx) - trace for trace in traces]
+                    # trace_loss_weight = 1e-2                    
+                    # trace_loss = torch.sum(torch.stack(trace_diff)) * trace_loss_weight                                         
+
+                    varational_weight = 1.0                    
                     variational_loss = -mll(output, train_y)*varational_weight
                     ######## prediction + reconstruction + covariance losses ###########
                     # loss = variational_loss +covloss + reconloss
-                    if include_cov_loss:
-                        loss = variational_loss + reconloss
+                    if include_trace_loss:
+                        if epoch > 1800:
+                            loss =  variational_loss + cosine_loss
+                        else:
+                            loss =  cosine_loss
                     else:   
                         loss = variational_loss
                     ####################################################################
                     train_loss += loss.item()
-                    # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                
-                    self.writer.add_scalar('Loss/recon_loss', reconloss.item(), epoch * len(train_dataloader) + step)
+                    # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                                    
                     self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Loss/cov_loss', covloss.item(), epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Loss/cosine_loss', cosine_loss.item(), epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Lr/learning_rate1', optimizer_gp.param_groups[0]['lr'], epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Lr/learning_rate2', optimizer_gp.param_groups[1]['lr'], epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Lr/learning_rate3', optimizer_gp.param_groups[2]['lr'], epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Lr/learning_rate4', optimizer_gp.param_groups[3]['lr'], epoch * len(train_dataloader) + step)
+                    self.writer.add_scalar('Lr/learning_rate5', optimizer_gp.param_groups[4]['lr'], epoch * len(train_dataloader) + step)
+                 
                     loss.backward()
                     optimizer_gp.step()
             
@@ -191,16 +239,16 @@ class COVGPNN(GPController):
             # scheduler_gp.step()
             if epoch % 200 ==0:
                 if self.train_nn:
-                    snapshot_name = 'covGPNNOnly' + str(epoch)+ 'snapshot'
+                    snapshot_name = 'traceGPNNOnly' + str(epoch)+ 'snapshot'
                     self.set_evaluation_mode()
                     self.save_model(snapshot_name)
                     self.model.train()
                     self.likelihood.train()
                 else:   
-                    if args['include_cov_loss']:
-                        snapshot_name = 'covGP_' + str(epoch)+ 'snapshot'
+                    if args['include_trace_loss']:
+                        snapshot_name = 'traceGP_' + str(epoch)+ 'snapshot'
                     else:
-                        snapshot_name = 'nocovGP_' + str(epoch)+ 'snapshot'
+                        snapshot_name = 'notraceGP_' + str(epoch)+ 'snapshot'
                     self.set_evaluation_mode()
                     self.save_model(snapshot_name)
                     self.model.train()
@@ -209,7 +257,7 @@ class COVGPNN(GPController):
             
             self.writer.add_scalar('Loss/total_train_loss', train_loss, epoch)
             for step, (train_x, train_y) in enumerate(valid_dataloader):
-                optimizer.zero_grad()
+                # optimizer.zero_grad()
                 output = self.model(train_x)
                 loss = -mll(output, train_y)
                 valid_loss += loss.item()
@@ -396,8 +444,10 @@ class COVGPNNTrained(GPController):
     def load_normalizing_consant(self, name ='normalizing'):        
         model = pickle_read(os.path.join(model_dir, name + '.pkl'))        
         self.means_x = model['mean_sample'].cuda()
+        self.means_x = self.means_x[:,:int(self.means_x.shape[1]/2)]
         self.means_y = model['mean_output'].cuda()
         self.stds_x = model['std_sample'].cuda()
+        self.stds_x = self.stds_x[:,:int(self.stds_x.shape[1]/2)]
         self.stds_y = model['std_output'].cuda()        
         # self.independent = model['independent'] TODO uncomment        
         print('Successfully loaded normalizing constants', name)

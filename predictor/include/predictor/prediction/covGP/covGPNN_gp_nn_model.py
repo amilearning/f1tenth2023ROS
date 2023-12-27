@@ -136,6 +136,7 @@ class CausalConvolutionBlock(torch.nn.Module):
         padding = self.padding
         # First causal convolution
         self.conv1 = torch.nn.utils.weight_norm(torch.nn.Conv1d(
+        # self.conv1 = torch.nn.Conv1d(
             in_channels, out_channels, kernel_size,
             padding=padding, dilation=dilation
         ))
@@ -145,6 +146,7 @@ class CausalConvolutionBlock(torch.nn.Module):
 
         # Second causal convolution
         self.conv2 = torch.nn.utils.weight_norm(torch.nn.Conv1d(
+        # self.conv2 = torch.nn.Conv1d(
             out_channels, out_channels, kernel_size,
             padding=padding, dilation=dilation
         ))
@@ -157,7 +159,7 @@ class CausalConvolutionBlock(torch.nn.Module):
         ) if in_channels != out_channels else None
 
         # Final activation function
-        self.relu = torch.nn.ReLU() if final else None
+        self.relu = None
         
     def forward(self, x):
        
@@ -187,7 +189,7 @@ class LinearPred(torch.nn.Module):
         self.Wk_wl = nn.Linear(input_len, output_len).to(self.device)
         self.Wk_wl2 = nn.Linear(input_dims, output_dims).to(self.device)        
         self.relu = nn.ReLU(inplace=False)
-
+      
     def forward(self,x):
         x_pred = self.relu(self.Wk_wl(x)).transpose(1,2)
         x_pred2 = self.Wk_wl2(x_pred)
@@ -217,7 +219,7 @@ class CausalCNNEncoder(torch.nn.Module):
                  in_channels,
                  reduced_size,
                  component_dims, 
-                 kernel_list=[1,2, 4, 8],
+                 kernel_list=[1,2, 4],
                  ):
         super(CausalCNNEncoder, self).__init__()
 
@@ -232,7 +234,7 @@ class CausalCNNEncoder(torch.nn.Module):
             [nn.Conv1d(reduced_size, component_dims, k, padding=k-1) for k in kernel_list]
         )
 
-        self.predictor =LinearPred(component_dims,1,component_dims, int(reduced_size/2))
+        
 
     def print_para(self):
         
@@ -246,7 +248,7 @@ class CausalCNNEncoder(torch.nn.Module):
         # x_h = x_h.transpose(2,1)
         x_h = self.input_fc(x_h)        
         
-        if train:
+        if train and x_f is not None:
  
             x_f = self.input_fc(x_f)
 
@@ -283,9 +285,10 @@ class CausalCNNEncoder(torch.nn.Module):
             latent_x = trend_h[:,-1,:]
 
             # print(rand_idx)
-            fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))
-
-            return fcst_future_embeds, latent_x, trend_f.detach()
+            # self.predictor =LinearPred(component_dims,1,component_dims, int(reduced_size/2))
+            # fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))
+           
+            return latent_x, trend_f.detach()
 
         else:
             trend_h = []
@@ -307,8 +310,8 @@ class CausalCNNEncoder(torch.nn.Module):
 
             
             latent_x = trend_h[:,-1,:]
-
-            return None, latent_x, None
+            
+            return latent_x, None
         
 
         
@@ -321,16 +324,16 @@ class CNNModel(nn.Module):
         self.n_time_step = args['n_time_step']        
         kernel_list=[1,2, 4]        
         self.net = CausalCNNEncoder(in_channels = self.input_dim, 
-                                reduced_size=30, 
+                                reduced_size=self.n_time_step, 
                                 component_dims = self.output_dim, 
                                 kernel_list= kernel_list).cuda()
         
         x_h = torch.randn(2, self.input_dim,self.n_time_step, requires_grad=False).cuda()
         x_f = torch.randn(2, self.input_dim,self.n_time_step, requires_grad=False).cuda()
-        fcst_future_embeds, latent_x, trend_f = self.net(x_h, x_f)
+        latent_x, trend_f = self.net(x_h, x_f)
         self.latent_size = latent_x.shape[-1]
-        
-       
+    
+
 
     def _get_conv_out_size(self, model, input_dim, seq_dim):
         # dummy_input = torch.randn(1, input_dim, seq_dim, requires_grad=False).to(self.gpu_id).float()         
@@ -339,12 +342,12 @@ class CNNModel(nn.Module):
         return conv_output.view(-1).size(0)
     
     def get_latent(self,x):        
-        fcst_future_embeds, latent_x, trend_f = self.net(x, None)
+        latent_x, trend_f = self.net(x, None)              
         return latent_x
 
     def forward(self, x, x_f = None):       
-        fcst_future_embeds, latent_x, trend_f = self.net(x, x_f)
-        return fcst_future_embeds, latent_x, trend_f
+        latent_x, trend_f = self.net(x, x_f)
+        return latent_x, trend_f
         
 
 
@@ -361,8 +364,14 @@ class COVGPNNModel(gpytorch.Module):
         self.seq_len = args['n_time_step']
         inducing_points = args['inducing_points']
         
-        self.covnn = CNNModel(args)                        
+        self.covnn = CNNModel(args)   
+                              
+        self.predictor =LinearPred(args['latent_dim'] ,1,args['latent_dim'] , int(self.seq_len))
+    
         
+
+        self.scale_to_bounds = gpytorch.utils.grid.ScaleToBounds(-10, 10)
+
         self.gp_input_dim = self.covnn.latent_size + 3
         self.gp_layer = CovSparseGP(inducing_points_num=inducing_points,
                                                         input_dim=self.gp_input_dim,
@@ -383,36 +392,40 @@ class COVGPNNModel(gpytorch.Module):
     def forward(self, x_h, x_f = None, train= False):    
         # current vehicle state, pred_action , RGB-D normalized image (4 channel)        
         if train:
-            fcst_future_embeds, latent_x, trend_f = self.covnn(x_h, x_f)
+            latent_x, trend_f = self.covnn(x_h, x_f)      
+            fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))
+            latent_x = F.normalize(latent_x, p=2, dim=1)
+            # latent_x = self.scale_to_bounds(latent_x).clone()
             trend_f = trend_f.detach()
         else:
             latent_x = self.covnn.get_latent(x_h)
+            latent_x = F.normalize(latent_x, p=2, dim=1)
+            # latent_x = self.scale_to_bounds(latent_x).clone()
         
         if latent_x.shape[0] == 1:
             gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,1:4,-1]])
         else:
             gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,1:4,-1]])
-          
+        
+        # gp_input = latent_x
+            
+
         # exp_dir_pred = dir_pred.reshape(dir_pred.shape[0],-1,5)        
         # # remap to [batch , sqeucen, feature]  -> [batch x sqeucen, feature + 1 (temporal encoding)]                        
         if train:
             pred = self.gp_layer(gp_input)
             
-            output_covs = []
-        # F.mse_loss(recons, input)  
-            for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
-                cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")
-                cov.outputscale = self.gp_layer.covar_module.outputscale[i]
-                cov.base_kernel.lengthscale =  (self.gp_layer.covar_module.base_kernel.lengthscale[i])
-                cout = cov(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),trend_f.view(trend_f.shape[0],-1)).evaluate().clone() /cov.base_kernel.lengthscale
-                a = cov(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),fcst_future_embeds.view(trend_f.shape[0],-1)).evaluate().clone() /cov.base_kernel.lengthscale
-                # cout = torch.log(cout)
-                output_covs.append(cout)
-                
-
-            output_covs = torch.stack(output_covs)
+            # output_covs = []
+            # for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
+            #     cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")                                                
+            #     cov.base_kernel.lengthscale =  (self.gp_layer.covar_module.base_kernel.lengthscale[i])                   
+            #     cout = cov.base_kernel(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),trend_f.view(trend_f.shape[0],-1)).evaluate().clone()                
+            #     # a = cov(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),fcst_future_embeds.view(trend_f.shape[0],-1)).evaluate().clone() /cov.base_kernel.lengthscale
+            #     # cout = torch.log(cout)
+            #     output_covs.append(cout.clone())                
+            # output_covs = torch.stack(output_covs)
             
-            return pred, output_covs
+            return pred, trend_f.detach(), fcst_future_embeds
 
         # q = output.covariance_matrix.detach().cpu().numpy()
         

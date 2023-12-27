@@ -13,12 +13,12 @@ args_ = {
     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
     "input_dim": 9,
     "n_time_step": 15,
-    "latent_dim": 8,
+    "latent_dim": 9,
     "gp_output_dim": 4,
-    "inducing_points" : 100,
+    "inducing_points" : 200,
     "train_nn" : False,
-    "include_cov_loss" : True,
-    "n_epoch" : 200
+    "include_trace_loss" : True,
+    "n_epoch" : 3000
     }
 
 
@@ -42,7 +42,7 @@ def main_train(train_policy_names = None):
 
 
     print("2~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("covGPNN_train  init")
+    print("traceGPNN_train  init")
     covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -50,8 +50,8 @@ def main_train(train_policy_names = None):
     
     
     print("3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("No covGPNN_train  init")
-    args_["include_cov_loss"] = False
+    print("No traceGPNN_train  init")
+    args_["include_trace_loss"] = False
     covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -101,8 +101,8 @@ def run_eval(eval_policy_names):
 
 def main():  
     ####################################################
-    train_policy_names = ['hjpolicy_1220',
-                        'centerline_1220', 
+    train_policy_names = ['centerline_1220',
+                        'blocking_1220', 
                          'highspeed_aggresive_1221',
                          'highspeed_centerlin_1221',
                          'highspeed_centerline2_1221',
@@ -113,10 +113,10 @@ def main():
                          'nonsense_reverse',
                          'reverse_1220']    
     ####################################################
-    # main_train(train_policy_names)
+    main_train(train_policy_names)
     ####################################################
-    eval_policy_names = ['hjpolicy_1220',
-                    'centerline_1220',
+    eval_policy_names = ['eval_centerline_1220',
+                    'eval_blocking_1220',
                     'highspeed_aggresive_1221',
                     'highspeed_centerlin_1221']
                     # ,
@@ -132,8 +132,8 @@ def main():
     ####################################################
     run_eval(eval_policy_names)        
     ############ TSNE ##################################
-    tsne_analysis( args = args_, snapshot_name = 'covGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
-    tsne_analysis(args = args_, snapshot_name = 'nocovGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    tsne_analysis( args = args_, snapshot_name = 'traceGP', eval_policy_names = eval_policy_names, perplexity = 100, load_data=False)
+    tsne_analysis(args = args_, snapshot_name = 'notraceGP', eval_policy_names = eval_policy_names, perplexity = 100, load_data=False)
     ####################################################
 
 if __name__ == "__main__":

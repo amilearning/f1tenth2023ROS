@@ -40,7 +40,7 @@ def main():
         "gp_output_dim": 4,
         "inducing_points" : 100,
         "train_nn" : False,
-        "include_cov_loss" : False,
+        "include_trace_loss" : True,
         "n_epoch" : 30
         }
     

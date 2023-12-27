@@ -5,6 +5,9 @@ import string
 from dataclasses import dataclass, field
 import random
 import torch
+
+
+
 from typing import List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
@@ -119,6 +122,11 @@ class EvalData(SimData):
     tv_infeasible: bool = field(default=False)
     ego_infeasible: bool = field(default=False)
 
+@dataclass
+class MultiPolicyEvalData():
+    ego_config: MPCCApproxFullModelParams = field(default=MPCCApproxFullModelParams)
+    tar_config: MPCCApproxFullModelParams = field(default=MPCCApproxFullModelParams)
+    evaldata: EvalData = field(default=EvalData)
 
 
 @dataclass
@@ -319,7 +327,11 @@ class SampleGenerator():
                         track = scenario_data.scenario_def.track
                         
                                             ######################## random Policy ############################
-                    policy_name = ab_p.split('/')[-2]
+                    if realdata:
+                        policy_name = ab_p.split('/')[-1]
+                    else:
+                        policy_name = ab_p.split('/')[-2]
+                    
                     policy_gen = False
                     if policy_name == 'wall':
                         policy_gen = True
@@ -738,7 +750,174 @@ def post_gp(sim_data: EvalData, gp):
                 sim_data.tar_gp_pred_post[timeStep] = pred
 
 
+def smoothPlotResults(sim_data: SimData, speedup=1, fps=60, start_t=0, close_loop=False):
+    import pynput
+    import scipy.interpolate
+    from barcgp.visualization.barc_plotter_qt import BarcFigure, GlobalPlotConfigs, VehiclePlotConfigs
+    import time
+    import scipy.interpolate
+    import scipy
+    import multiprocessing as mp
+    def on_release(key):
+        if key == pynput.keyboard.Key.enter:
+            # Stop listener
+            return False
+    def on_press(key):
+        if key == pynput.keyboard.Key.enter:
+            # Stop listener
+            return False
 
+    print('Plotting simulation of length t=', sim_data.ego_states[-1].t, " with ", speedup, "x speed")
+    plot_conf = GlobalPlotConfigs(buffer_length=50, draw_period=1 / (2 * fps), update_period=1 / (2 * fps),
+                                  close_loop=close_loop)
+    ego_v_plot_conf = VehiclePlotConfigs('ego', vehicle_draw_L=0.26, vehicle_draw_W=.173, show_sim=True, simulated=True,
+                                         show_est=False, show_ecu=True, show_pred=True, show_traces=True, show_full_traj=True,
+                                         state_list = sim_data.ego_states, color='g')
+    tar_v_plot_conf = VehiclePlotConfigs('tar', vehicle_draw_L=0.26, vehicle_draw_W=.173, show_sim=True, simulated=True,
+                                         show_est=False, show_ecu=True, show_pred=True,
+                                         show_traces=False, show_full_traj=True, state_list=sim_data.tar_states)
+    fig = BarcFigure(0, plot_conf)
+    fig.track = sim_data.scenario_def.track
+    fig.add_vehicle(ego_v_plot_conf)
+    fig.add_vehicle(tar_v_plot_conf)
+    if hasattr(sim_data, "tar_gp_pred") and sim_data.tar_gp_pred is not None:
+        gp_tar_v_plot_conf = VehiclePlotConfigs('gp_tar', vehicle_draw_L=0.26, vehicle_draw_W=.173, show_sim=True,
+                                             simulated=True,
+                                             show_est=False, show_ecu=True, show_pred=True,
+                                             show_cov=True, # Enable covariance plotting
+                                             show_traces=False, show_full_vehicle_bodies=True, color='r')
+        fig.add_vehicle(gp_tar_v_plot_conf)
+        # prepare local to global plot data. Barc plotter can't handle that because track model will be changed
+        '''for j in range(len(sim_data.tar_gp_pred)):
+            if sim_data.tar_gp_pred[j] is not None:
+                sim_data.tar_gp_pred[j].x = []
+                sim_data.tar_gp_pred[j].y = []
+                sim_data.tar_gp_pred[j].psi = []
+                for i in range(len(sim_data.tar_gp_pred[j].s)):
+                    (x, y, psi) = fig.track.local_to_global([sim_data.tar_gp_pred[j].s[i], sim_data.tar_gp_pred[j].x_tran[i], sim_data.tar_gp_pred[j].e_psi[i]])
+                    sim_data.tar_gp_pred[j].x.append(x)
+                    sim_data.tar_gp_pred[j].y.append(y)
+                    sim_data.tar_gp_pred[j].psi.append(psi)'''
+    fig.track.remove_phase_out()
+    p = mp.Process(target=fig.run_plotter)
+    p.start()
+    i = 0
+    i2 = 0
+    j = 0
+    k = 0
+    start_id = 0
+    if start_t != 0:
+        start_id = next(k for k,x in enumerate(sim_data.ego_states) if x.t >= start_t)
+    i+= start_id
+    ego_state = sim_data.ego_states[i]
+    ego_interp = interp_data(sim_data.ego_states[start_id:], speedup * 1 / fps)
+    tar_interp = interp_data(sim_data.tar_states[start_id:], speedup * 1 / fps)
+    tar_state = sim_data.tar_states[i]
+    not_done = True
+    fig.update('ego', ego_state)
+    fig.update('tar', tar_state)
+    print("Press 'Enter' to play simulation")
+
+    with pynput.keyboard.Listener(on_press=on_press,
+            on_release=on_release) as listener:
+        listener.join()
+    start_time = time.time()
+    itemp = 0
+    while not_done:
+        dtime = time.time() - start_time
+        j += 1
+        ego_state.x.x = ego_interp['x'][k]
+        ego_state.x.y = ego_interp['y'][k]
+        ego_state.e.psi = ego_interp['psi'][k]
+        ego_state.p.s = sim_data.ego_states[i].p.s
+        tar_state.x.x = tar_interp['x'][k]
+        tar_state.x.y = tar_interp['y'][k]
+        tar_state.e.psi = tar_interp['psi'][k]
+        if dtime < 1 / fps:
+            time.sleep(1 / fps - dtime)
+        fig.update('ego', sim_data=ego_state)
+        fig.update('tar', tar_state)
+        k += 1
+        if i > len(sim_data.ego_preds)-1:
+            break
+        if sim_data.ego_preds[i] is not None and sim_data.ego_preds[i].x is not None:
+            fig.update_vehicle_prediction('ego', sim_data.ego_preds[i])
+            '''act = sim_data.ego_states[i].u
+            act.t = sim_data.ego_states[i].t
+            fig.update('ego', ecu_data=sim_data.ego_states[i].u)'''
+        if sim_data.tar_preds[i] is not None and sim_data.tar_preds[i].x is not None:
+            fig.update_vehicle_prediction('tar', sim_data.tar_preds[i])
+            pass
+
+        # GP predictions
+        if hasattr(sim_data, "tar_gp_pred") and sim_data.tar_gp_pred is not None and sim_data.tar_gp_pred[i] is not None:
+            fig.update('gp_tar', sim_data.tar_states[i])
+            fig.update_vehicle_prediction('gp_tar', sim_data.tar_gp_pred[i])
+            '''if i < len(sim_data.tar_states)-1 and not i == itemp:
+                print('True u_a', sim_data.tar_states[i+1].u.u_a, 'u_s', sim_data.tar_states[i+1].u.u_steer)
+                print('Pred u_a', sim_data.tar_gp_pred[i].u.u_a, 'u_s', sim_data.tar_gp_pred[i].u.u_steer)
+                itemp = i'''
+        while sim_data.ego_states[i].t <= speedup * j * 1 / fps + start_t:
+            i += 1
+            if i >= len(sim_data.ego_states):
+                break
+        if i < len(sim_data.ego_states) and i < len(sim_data.tar_states) and k < len(ego_interp['x']):
+            pass
+        else:
+            not_done = False
+        start_time = time.time()
+    p.join()
+    p.close()
+
+
+def interp_data(state_list, dt, kind='quadratic'):
+    x = []
+    y = []
+    psi = []
+    t = []
+    t_end = state_list[-1].t - state_list[0].t
+    for st in state_list:
+        x.append(st.x.x)
+        y.append(st.x.y)
+        psi_ = st.e.psi
+        while len(psi) > 0 and abs(psi[-1] - psi_) > np.pi / 2:
+            if psi[-1] - psi_ > np.pi / 2:
+                psi_ = psi_ + np.pi
+            else:
+                psi_ = psi_ - np.pi
+        psi.append(psi_)
+        t.append(st.t- state_list[0].t)
+    t = np.array(t)
+    x = np.array(x)
+    y = np.array(y)
+    psi = np.array(psi)
+    interpStates = dict()
+    x_interp = scipy.interpolate.interp1d(t, x, kind=kind)
+    y_interp = scipy.interpolate.interp1d(t, y, kind=kind)
+    psi_interp = scipy.interpolate.interp1d(t, psi, kind=kind)
+    interpStates['x'] = [float(x_interp(dt * i)) for i in range(round(t_end / dt))]
+    interpStates['y'] = [float(y_interp(dt * i)) for i in range(round(t_end / dt))]
+    interpStates['psi'] = [float(psi_interp(dt * i)) for i in range(round(t_end / dt))]
+    interpStates['t'] = [dt * i for i in range(round(t_end / dt))]
+    return interpStates
+
+
+def interp_state(state1, state2, t):
+    state = state1.copy()
+    dt0 = t - state1.t
+    dt = state2.t - state1.t
+    state.p.s = (state2.p.s - state1.p.s) / dt * dt0 + state1.p.s
+    state.p.x_tran = (state2.p.x_tran - state1.p.x_tran) / dt * dt0 + state1.p.x_tran
+    state.x.x = (state2.x.x - state1.x.x) / dt * dt0 + state1.x.x
+    state.x.y = (state2.x.y - state1.x.y) / dt * dt0 + state1.x.y
+    state.e.psi = (state2.e.psi - state1.e.psi) / dt * dt0 + state1.e.psi
+    return state
+
+
+
+##############################
+# Example scenario Definitions
+##############################
 
 
 '''
