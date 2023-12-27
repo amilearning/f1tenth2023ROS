@@ -102,6 +102,8 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
             dir = [dirs[i]]
             
             sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
+            if sampGen.getNumSamples() < 1:
+                continue
             covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
             
             covgp_predictor.load_model(snapshot_name)

@@ -37,11 +37,8 @@ import numpy as np
 from einops import reduce, rearrange
 import gpytorch
 import torch.nn.functional as F
+import random 
 
-def ff(x,k,s):
-    return (x-k)/s+1
-def rr(y,k,s):
-    return (y-1)*s+k
 
 
 class CovSparseGP(gpytorch.models.ApproximateGP):
@@ -142,7 +139,7 @@ class CausalConvolutionBlock(torch.nn.Module):
         ))
         # The truncation makes the convolution causal
         self.chomp1 = Chomp1d(padding)
-        self.dropout1 = nn.Dropout(0.1)
+        # self.dropout1 = nn.Dropout(0.1)
 
         # Second causal convolution
         self.conv2 = torch.nn.utils.weight_norm(torch.nn.Conv1d(
@@ -151,7 +148,7 @@ class CausalConvolutionBlock(torch.nn.Module):
             padding=padding, dilation=dilation
         ))
         self.chomp2 = Chomp1d(padding)
-        self.dropout2 = nn.Dropout(0.1)
+        # self.dropout2 = nn.Dropout(0.1)
 
         # Residual connection
         self.upordownsample = torch.nn.utils.weight_norm(torch.nn.Conv1d(
@@ -165,10 +162,12 @@ class CausalConvolutionBlock(torch.nn.Module):
        
         out_causal=self.conv1(x)
         out_causal=self.chomp1(out_causal)        
-        out_causal=self.dropout1(F.gelu(out_causal))
+        # out_causal=self.dropout1(F.gelu(out_causal))
+        out_causal=F.gelu(out_causal)
         out_causal=self.conv2(out_causal)
         out_causal=self.chomp2(out_causal)
-        out_causal=self.dropout2(F.gelu(out_causal))
+        # out_causal=self.dropout2(F.gelu(out_causal))
+        out_causal=F.gelu(out_causal)
         res = x if self.upordownsample is None else self.upordownsample(x)
         
         
@@ -233,7 +232,7 @@ class CausalCNNEncoder(torch.nn.Module):
         self.multi_cnn = nn.ModuleList(
             [nn.Conv1d(reduced_size, component_dims, k, padding=k-1) for k in kernel_list]
         )
-        self.repr_dropout = torch.nn.Dropout(p=0.1)
+        # self.repr_dropout = torch.nn.Dropout(p=0.1)
         
         
 
@@ -282,7 +281,7 @@ class CausalCNNEncoder(torch.nn.Module):
               'list b t d -> b t d', 'mean'
             )
 
-            trend_h = self.repr_dropout(trend_h)
+            # trend_h = self.repr_dropout(trend_h)
             latent_x = trend_h[:,-1,:]
           
 
@@ -290,7 +289,7 @@ class CausalCNNEncoder(torch.nn.Module):
             # self.predictor =LinearPred(component_dims,1,component_dims, int(reduced_size/2))
             # fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))
            
-            return latent_x, trend_f.detach()
+            return trend_h, latent_x, trend_f.detach()
 
         else:
             trend_h = []
@@ -310,9 +309,9 @@ class CausalCNNEncoder(torch.nn.Module):
               'list b t d -> b t d', 'mean'
             )
 
-            trend_h = self.repr_dropout(trend_h)
+            # trend_h = self.repr_dropout(trend_h)
             latent_x = trend_h[:,-1,:]
-            return latent_x, None
+            return trend_h, latent_x, None
         
 
         
@@ -331,7 +330,7 @@ class CNNModel(nn.Module):
         
         x_h = torch.randn(2, self.input_dim,self.n_time_step, requires_grad=False).cuda()
         x_f = torch.randn(2, self.input_dim,self.n_time_step, requires_grad=False).cuda()
-        latent_x, trend_f = self.net(x_h, x_f)
+        trend_h, latent_x, trend_f = self.net(x_h, x_f)
         self.latent_size = latent_x.shape[-1]
     
 
@@ -347,11 +346,11 @@ class CNNModel(nn.Module):
     #     return latent_x
 
     def forward(self, x, x_f = None):       
-        latent_x, trend_f = self.net(x, x_f)
+        trend_h, latent_x, trend_f = self.net(x, x_f)
         if x_f is None:
-            return latent_x, None
+            return trend_h, latent_x, None
         else:
-            return latent_x, trend_f
+            return trend_h, latent_x, trend_f
             
         
 
@@ -375,13 +374,13 @@ class COVGPNNModel(gpytorch.Module):
                               
         self.predictor =LinearPred(args['latent_dim'] ,1,args['latent_dim'] , int(self.seq_len))
     
-        self.scale_to_bounds = gpytorch.utils.grid.ScaleToBounds(-3., 3.)
+        # self.scale_to_bounds = gpytorch.utils.grid.ScaleToBounds(-3., 3.)
 
         if self.directGP:
             self.gp_input_dim =  self.nn_input_dim
         else: 
             # [ policy, dels, xtran, epsi, vx, cur1, cur2]  
-            self.gp_input_dim = self.covnn.latent_size + 6
+            self.gp_input_dim = self.covnn.latent_size
 
         self.gp_layer = CovSparseGP(inducing_points_num=inducing_points,
                                                         input_dim=self.gp_input_dim,
@@ -396,30 +395,40 @@ class COVGPNNModel(gpytorch.Module):
             
             
     def get_hidden(self,input_data):
-        aug_pred, _ = self.covnn(input_data)        
-        return aug_pred
+        trend_h, latent_x, _ = self.covnn(input_data)        
+        return latent_x
 
     def forward(self, x_h, x_f = None, train= False, directGP = True):    
         # current vehicle state, pred_action , RGB-D normalized image (4 channel)        
-        latent_x, trend_f = self.covnn(x_h, x_f)                
+        trend_h, latent_x, trend_f = self.covnn(x_h, x_f)                
 
-        
+        if train:
+            trend_f = trend_f.detach()            
+            # fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))            
+           
+            # rand_idx = random.randint(int(trend_h.shape[1])/2, trend_h.shape[1]-1)
+            rand_idx = -1
+            # trend_h_repr = lasts
+            trend1 = trend_h[:,rand_idx,:]
+            fcst_future_embeds = self.predictor(trend1.unsqueeze(-1))
+
+
         if self.directGP:
             gp_input = x_h[:,0:,-1]
         else:
-            latent_x = self.scale_to_bounds(latent_x).clone()        
-            if latent_x.shape[0] == 1:
-                gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,0:6,-1]])
-            else:
-                gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,0:6,-1]])
+            # latent_x = self.scale_to_bounds(latent_x).clone()        
+            gp_input = latent_x
+            # if latent_x.shape[0] == 1:
+            #     gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,0:6,-1]])
+            # else:
+            #     gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,0:6,-1]])
         
         # exp_dir_pred = dir_pred.reshape(dir_pred.shape[0],-1,5)        
         # # remap to [batch , sqeucen, feature]  -> [batch x sqeucen, feature + 1 (temporal encoding)]                        
         if train:
             pred = self.gp_layer(gp_input)
-            trend_f = trend_f.detach()            
-            fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))            
-            
+          
+
             # output_covs = []
             # for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
             #     cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")                                                
