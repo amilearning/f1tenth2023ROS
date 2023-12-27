@@ -826,8 +826,10 @@ class GPController(ABC):
         """
         ego_state_gp = torch.tensor([ego_state.p.x_tran-tv_state.p.x_tran, ego_state.p.e_psi, ego_state.v.v_long])
         tv_state_gp = torch.tensor(
-            [tv_state.p.s - ego_state.p.s, tv_state.p.x_tran, tv_state.p.e_psi, tv_state.v.v_long, tv_state.w.w_psi,
-             tv_state.lookahead.curvature[0], tv_state.lookahead.curvature[1], tv_state.lookahead.curvature[2]])
+            # [tv_state.p.s - ego_state.p.s, tv_state.p.x_tran, tv_state.p.e_psi, tv_state.v.v_long, tv_state.w.w_psi,
+            [tv_state.p.s - ego_state.p.s, tv_state.p.x_tran, tv_state.p.e_psi, tv_state.v.v_long, 0.0,
+            #  tv_state.lookahead.curvature[0], tv_state.lookahead.curvature[1], tv_state.lookahead.curvature[2]])
+             tv_state.lookahead.curvature[0], tv_state.lookahead.curvature[2], tv_state.lookahead.curvature[2]])
         return torch.cat((ego_state_gp, tv_state_gp))
 
     def state_to_tensor_vec(self, ego_state, tv_state):
@@ -836,8 +838,10 @@ class GPController(ABC):
         """
         ego_state_gp = torch.tensor([ego_state[1] - tv_state[1], ego_state[2], ego_state[3]])
         tv_state_gp = torch.tensor(
-            [tv_state[0] - ego_state[0], tv_state[1], tv_state[2], tv_state[3], tv_state[4],
-             tv_state[5], tv_state[6], tv_state[7]])
+            # [tv_state[0] - ego_state[0], tv_state[1], tv_state[2], tv_state[3], tv_state[4],
+            [tv_state[0] - ego_state[0], tv_state[1], tv_state[2], tv_state[3], 0.0,
+            #  tv_state[5], tv_state[6], tv_state[7]])
+             tv_state[5], tv_state[7], tv_state[7]])
         return torch.cat((ego_state_gp, tv_state_gp))
 
     def set_evaluation_mode(self):

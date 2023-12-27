@@ -77,9 +77,11 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
                             if pred.s[i] > track.track_length/4 and tar_st.p.s < track.track_length/4:
                                 tmp = pred.s[i] - track.track_length/2
                                 longitudinal = tmp - tar_st.p.s
-                            elif tar_st.p.s > track.track_length/4 and pred.s[i] < track.track_length/4:
+                            elif pred.s[i] < track.track_length/4 and tar_st.p.s > track.track_length/4:
                                 tmp = tar_st.p.s - track.track_length/2
                                 longitudinal = pred.s[i] - tmp
+                            else:
+                                print("NA")
                     
                         lateral = pred.x_tran[i] - tar_st.p.x_tran                    
                     longitudinal_error.append(longitudinal)
@@ -140,7 +142,7 @@ def draw_barplot_with_list(list_, policy_names, plot_name = None, value_name_ = 
         for i, pred_data in enumerate(policy_data):                
             data.append(pred_data)
         data_np = np.transpose(np.array(data))                    
-        df = pd.DataFrame(data_np, columns=['NOCOVGP', 'CAV', 'NLMPC', 'NaiveGP', 'COVGP'])
+        df = pd.DataFrame(data_np, columns=['NOSIMGP', 'CAV', 'NLMPC', 'NaiveGP', 'SIMGP'])
         df['Policy'] = str(policy_names[j])
         df_list.append(df)
 

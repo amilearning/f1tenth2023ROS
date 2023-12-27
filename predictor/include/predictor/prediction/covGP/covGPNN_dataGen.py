@@ -25,7 +25,7 @@ def states_to_encoder_input_torch(tar_st,ego_st):
                         ego_st.p.x_tran,
                         ego_st.p.e_psi, 
                         ego_st.v.v_long                       
-                        ])
+                        ]).clone()
     
     return input_data
 
@@ -63,6 +63,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.debug_t = []
         self.means_y = None
         self.stds_y = None
+        invalid_data_count = 0
         # pre_load_data_name = "preload_data"
         # if not dest_path.exists()        
         if pre_load_data_name is not None:       
@@ -100,7 +101,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
                             tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track_)                                        
                         ###################################################################
-                        if N > self.time_horizon+5:
+                        if N > self.time_horizon+1:
                             for t in range(N-1-self.time_horizon*2):                            
                                 # define empty torch with proper size 
                                 dat = torch.zeros(self.input_dim, 2*self.time_horizon)
@@ -123,7 +124,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 real_dt = next_tar_st.t - tar_st.t 
                                 valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                 if tsne:
-                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.5:
+                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.0:
                                         valid_data = False
 
                                 if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
@@ -141,7 +142,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                         ego_st = scenario_data.ego_states[i]
                                         tar_st = scenario_data.tar_states[i]
                                         ntar_orin = scenario_data.tar_states[i+1]
-                                        real_dt = ntar_orin.t - tar_st.t 
+                                        
                                     
                                         if policy_gen:
                                             scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
@@ -150,6 +151,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                         #                 tar_ey, tar_epsi, tar_cur]                                 
                                         dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
                                     self.samples.append(dat.clone())  
+                                else:
+                                    invalid_data_count+=1
                                 ### Add curvature[2] at the last dimension 
                        
                                 
@@ -327,11 +330,11 @@ class SampleGeneartorCOVGP(SampleGenerator):
         #     valid_data = False
        
 
-        if abs(tar_ey).max() > track.track_width/2 or abs(ego_ey).max() > track.track_width/2:
-            valid_data = False
+        # if abs(tar_ey).max() > track.track_width/2 or abs(ego_ey).max() > track.track_width/2:
+        #     valid_data = False
         
-        if tar_vx.min() < 0.1:
-            valid_data = False
+        # if tar_vx.min() < 0.1:
+        #     valid_data = False
             
         
 
@@ -376,8 +379,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # labels = labels[perm]
         samp_len = self.getNumSamples()            
         dataset =  torch.utils.data.TensorDataset(inputs,labels) 
-        train_size = int(0.8 * samp_len)
-        val_size = int(0.1 * samp_len)
+        train_size = int(0.839 * samp_len)
+        val_size = int(0.16 * samp_len)
         test_size = samp_len - train_size - val_size
         train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
         return train_dataset, val_dataset, test_dataset

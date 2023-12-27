@@ -99,7 +99,17 @@ class COVGPNN(GPController):
 
     def train(self,sampGen: SampleGeneartorCOVGP, args = None):
         
-        include_trace_loss= args["include_trace_loss"]
+        directGP = args['direct_gp']
+        include_simts_loss = args['include_simts_loss']
+        gp_name = 'simtsGP'
+        if directGP:
+            gp_name = 'naiveGP'
+        else:   
+            if include_simts_loss:
+                gp_name = 'simtsGP'                
+            else:
+                gp_name = 'nosimtsGP'                
+
         n_epoch = args["n_epoch"]
 
 
@@ -127,22 +137,45 @@ class COVGPNN(GPController):
         # Use the Adam optimizer
         # optimizer = torch.optim.Adam([{'params': self.model.covnn.parameters()}],lr = 0.01)
         lr_gp = 0.005
-        optimizer_gp = torch.optim.SGD([{'params': self.model.covnn.parameters(), 'lr': 0.01},
-                                         {'params': self.model.predictor.parameters(), 'lr': 0.001 * 0.01},
-                                        {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
-                                        {'params': self.model.gp_layer.variational_parameters()},
-                                        {'params': self.likelihood.parameters()},
-                                    ], lr=lr_gp)
+        # optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.001},
+        #                                  {'params': self.model.predictor.parameters(), 'lr': 0.001 * 0.001},
+        #                                 {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
+        #                                 {'params': self.model.gp_layer.variational_parameters()},
+        #                                 {'params': self.likelihood.parameters()},
+        #                             ], lr=lr_gp)
+
+
+        # optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.05},
+        #                                  {'params': self.model.predictor.parameters(), 'lr': 0.001 * 0.01},
+        #                             ], lr=lr_gp)
+        
         # optimizer_gp = torch.optim.Adam([{'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
         #                                 {'params': self.model.gp_layer.variational_parameters()},
         #                                 {'params': self.likelihood.parameters()},
         #                             ], lr=lr_gp)
-        scheduler = lr_scheduler.StepLR(optimizer_gp, step_size=1000, gamma=0.9)
-        # scheduler_gp = lr_scheduler.StepLR(optimizer_gp, step_size=300, gamma=0.99)
+        # optimizer = torch.optim.Adam([
+        #     {'params': self.model.parameters()},
+        #     {'params': self.likelihood.parameters()},
+        # {'params': self.model.gp_layer.variational_parameters()},
+        if directGP:                                                                                               
+            optimizer_gp = torch.optim.Adam([{'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},  
+                                        {'params': self.model.gp_layer.variational_parameters()},                                      
+                                        {'params': self.likelihood.parameters()},
+                                    ], lr=lr_gp)
+        else:
+            optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.001},
+                                            {'params': self.model.predictor.parameters(), 'lr': 0.001 * 0.001},
+                                            {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
+                                            {'params': self.model.gp_layer.variational_parameters()},
+                                            {'params': self.likelihood.parameters()},
+                                        ], lr=lr_gp)
+            
+        scheduler = lr_scheduler.StepLR(optimizer_gp, step_size=3000, gamma=0.9)
+        
 
         # GP marginal log likelihood
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
-        mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.gp_layer, num_data=sampGen.getNumSamples())
+        mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.gp_layer, num_data=sampGen.getNumSamples()*len(sampGen.output_data[0]))
         mseloss = nn.MSELoss()
         max_epochs = n_epoch* len(train_dataloader)
         last_loss = np.inf
@@ -192,81 +225,72 @@ class COVGPNN(GPController):
                     loss.backward()
                     optimizer.step()
                 else:
-                    optimizer_gp.zero_grad()
-                    # optimizer.zero_grad()
-                    train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):] 
-                    
-                    output, encode_future_embeds, fcst_future_embeds = self.model(train_x_h, train_x_f ,train=True)
+                    self.model.train()
+                    self.likelihood.train()            
+                    optimizer_gp.zero_grad()                    
+                    train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                     
+                    output, encode_future_embeds, fcst_future_embeds = self.model(train_x_h, train_x_f ,train=True, directGP = directGP)
+                    variational_loss = -mll(output, train_y)
+                    varloss_tag = gp_name+'/Loss/variational_loss'
+                    self.writer.add_scalar(varloss_tag, variational_loss.item(), epoch * len(train_dataloader) + step)
 
-                    cosine_loss_weight = 1e1
-                    cosine_loss = self.cosine_loss(encode_future_embeds, fcst_future_embeds) * cosine_loss_weight
+                    if directGP:
+                        loss = variational_loss
+                    else:
+                        if include_simts_loss:                            
+                            cosine_loss_weight = 1e1 # 1e1
+                            cosine_loss = self.cosine_loss(encode_future_embeds, fcst_future_embeds) * cosine_loss_weight                        
+                            varloss_tag = gp_name +'/Loss/cosine_loss'
+                            self.writer.add_scalar(varloss_tag, cosine_loss.item(), epoch * len(train_dataloader) + step)
+                            loss = variational_loss + cosine_loss
+                        else:
+                            loss = variational_loss
+                    train_loss += loss.item()                    
+
+                    loss.backward()
+                    optimizer_gp.step()
                     # cosine_loss = self.euclidean_loss(encode_future_embeds, fcst_future_embeds)* cosine_loss_weight
-                    
-                    
                     # eye_mtx = torch.eye(output_covs.shape[-1])
                     # traces = [torch.trace(cov) for cov in output_covs]
                     # trace_diff = [torch.trace(eye_mtx) - trace for trace in traces]
                     # trace_loss_weight = 1e-2                    
-                    # trace_loss = torch.sum(torch.stack(trace_diff)) * trace_loss_weight                                         
-
-                    varational_weight = 1.0                    
-                    variational_loss = -mll(output, train_y)*varational_weight
+                    # trace_loss = torch.sum(torch.stack(trace_diff)) * trace_loss_weight                                                                      
+                    ##################################################################
+                    # latent_x = self.model.get_hidden(train_x_h)                    
+                    # mse_loss = mseloss(latent_x[:,:4].double(), train_y) * 1.0
+                    # self.writer.add_scalar('Loss/mse_loss', mse_loss.item(), epoch * len(train_dataloader) + step)
                     ######## prediction + reconstruction + covariance losses ###########
-                    # loss = variational_loss +covloss + reconloss
-                    if include_trace_loss:
-                        if epoch > 1800:
-                            loss =  variational_loss + cosine_loss
-                        else:
-                            loss =  cosine_loss
-                    else:   
-                        loss = variational_loss
-                    ####################################################################
-                    train_loss += loss.item()
-                    # train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})                                    
-                    self.writer.add_scalar('Loss/variational_loss', variational_loss.item(), epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Loss/cosine_loss', cosine_loss.item(), epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Lr/learning_rate1', optimizer_gp.param_groups[0]['lr'], epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Lr/learning_rate2', optimizer_gp.param_groups[1]['lr'], epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Lr/learning_rate3', optimizer_gp.param_groups[2]['lr'], epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Lr/learning_rate4', optimizer_gp.param_groups[3]['lr'], epoch * len(train_dataloader) + step)
-                    self.writer.add_scalar('Lr/learning_rate5', optimizer_gp.param_groups[4]['lr'], epoch * len(train_dataloader) + step)
+                    # loss = variational_loss +covloss + reconloss               
+                    ####################################################################                    
+                    for i, param_group in enumerate(optimizer_gp.param_groups):
+                        lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
+                        self.writer.add_scalar(lr_tag, param_group['lr'], epoch * len(train_dataloader) + step)
                  
-                    loss.backward()
-                    optimizer_gp.step()
+                train_loss_tag = gp_name+'/Loss/total_train_loss' 
+                self.writer.add_scalar(train_loss_tag, train_loss, epoch)
             
-            # self.train_nn = not self.train_nn
-            scheduler.step()
-            # scheduler_gp.step()
+            scheduler.step()            
             if epoch % 200 ==0:
-                if self.train_nn:
-                    snapshot_name = 'traceGPNNOnly' + str(epoch)+ 'snapshot'
-                    self.set_evaluation_mode()
-                    self.save_model(snapshot_name)
-                    self.model.train()
-                    self.likelihood.train()
-                else:   
-                    if args['include_trace_loss']:
-                        snapshot_name = 'traceGP_' + str(epoch)+ 'snapshot'
-                    else:
-                        snapshot_name = 'notraceGP_' + str(epoch)+ 'snapshot'
-                    self.set_evaluation_mode()
-                    self.save_model(snapshot_name)
-                    self.model.train()
-                    self.likelihood.train()
-         
+                snapshot_name = gp_name + str(epoch)+ 'snapshot'
+                self.set_evaluation_mode()
+                self.save_model(snapshot_name)
+                self.model.train()
+                self.likelihood.train()
             
-            self.writer.add_scalar('Loss/total_train_loss', train_loss, epoch)
             for step, (train_x, train_y) in enumerate(valid_dataloader):
-                # optimizer.zero_grad()
+                optimizer_gp.zero_grad()
+                # self.set_evaluation_mode()
                 output = self.model(train_x)
                 loss = -mll(output, train_y)
                 valid_loss += loss.item()
                 c_loss = valid_loss / (step + 1)
                 valid_dataloader.set_postfix(log={'valid_loss': f'{(c_loss):.5f}'})                
-            self.writer.add_scalar('Loss/valid_loss', valid_loss, epoch)
+            
+            valid_loss_tag = gp_name+'/Loss/valid_loss'
+            self.writer.add_scalar(valid_loss_tag, valid_loss, epoch)
             if c_loss > last_loss:
                 if no_progress_epoch >= 50:
-                    if self.train_nn is False and epoch > 5000:
+                    if epoch > 1000:
                         done = True     
             else:
                 best_model = copy.copy(self.model)
@@ -383,6 +407,7 @@ class COVGPNN(GPController):
         for step, (data_x, data_y) in enumerate(dataloader):    
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
                 latent_x = self.model.get_hidden(data_x)
+                
                 
                 delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
                 vx_avg, tmp = torch.max(data_x[:,3,:],dim=1)

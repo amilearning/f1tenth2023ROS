@@ -32,22 +32,26 @@ def covGPNN_train(dirs = None, real_data = False, args = None):
             f"Directory: {dirs[0]} does not exist, need to train using `gen_training_data` first")
 
   
-    
+        
     likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=args["gp_output_dim"]) 
     covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
     
     # if args["train_nn"l] is False:
-    # snapshot_name = 'traceGP_load'
+    # snapshot_name = 'traceGP_3000snapshot'
     # covgp_predictor.load_model(snapshot_name)
+    # print(" model loaded")
     covgp_predictor.train(sampGen, args = args)
     covgp_predictor.set_evaluation_mode()
     trained_model = covgp_predictor.model, covgp_predictor.likelihood
 
     create_dir(path=model_dir)
-    if(args['include_trace_loss']):
-        gp_name = 'traceGP'
-    else:
-        gp_name = 'notraceGP'
+    if args['direct_gp'] is True:
+        gp_name = 'naiveGP'
+    else:   
+        if(args['include_simts_loss']):
+            gp_name = 'simtsGP'
+        else:
+            gp_name = 'nosimtsGP'
     covgp_predictor.save_model(gp_name)
     # covgp_predictor.load_model(gp_name)
     # covgp_predictor.evaluate()

@@ -122,24 +122,27 @@ class MultiPredPostEval:
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "traceGP")                    
-        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "notraceGP")                    
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP")                    
+        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP")                    
+        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP")                    
                                           
 
-        gp_policy_name = 'gpberkely'        
-        self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))        
+
+        # gp_policy_name = 'gpberkely'        
+        # self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))        
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
         ## NMPC based game theoretic approach 
         self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
         self.nmpc_predictor.set_warm_start()
         
+        
+        self.pred_eval(predictor_type = 0)
+        self.pred_eval(predictor_type = 1)
+        self.pred_eval(predictor_type = 2)
+        self.pred_eval(predictor_type = 3)
+        self.pred_eval(predictor_type = 4)
     
-        # self.pred_eval(predictor_type = 0)
-        # self.pred_eval(predictor_type = 1)
-        # self.pred_eval(predictor_type = 2)
-        # self.pred_eval(predictor_type = 3)
-        # self.pred_eval(predictor_type = 4)
-        self.pred_eval_parallel()
+        # self.pred_eval_parallel()
         
     def pred_eval_parallel(self):
         threads = []
@@ -148,6 +151,7 @@ class MultiPredPostEval:
             thread = threading.Thread(target=self.pred_eval, args=(i,))
             threads.append(thread)
             thread.start()
+
 
         # Wait for all threads to complete
         for thread in threads:
@@ -185,7 +189,8 @@ class MultiPredPostEval:
                     elif predictor_type == 2:
                         self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
                     elif predictor_type == 3:
-                        self.tv_pred = self.gp_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
+                        # self.tv_pred = self.gp_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
+                        self.tv_pred = self.predictor_naivegp.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)                        
                     elif predictor_type == 4:
                         self.tv_pred = self.predictor.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)
                     else: 
@@ -199,7 +204,7 @@ class MultiPredPostEval:
 
                     pred_tar_state_list.append(self.tv_pred.copy())
                     
-                    if i % 20 == 0:                         
+                    if i % 40 == 0:                         
                         print("Sample : {} out of {}".format(i, len(input_buffer_list)))    
             tmp_real_data = RealData(self.predictor.track, len(input_buffer_list),ego_state_list, tar_state_list, pred_tar_state_list)
             pickle_write(tmp_real_data, os.path.join(tmp_dir, 'predictor_'  +str(i) + '_'+ str(predictor_type) +'.pkl'))            
@@ -257,12 +262,12 @@ class MultiPredPostEval:
             
 
 
-def main():
-    rospy.init_node("MultiPredPostEval")    
-    MultiPredPostEval()
+# def main():
+    
+#     MultiPredPostEval()
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 
 
 

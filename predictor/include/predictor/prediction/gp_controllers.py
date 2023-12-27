@@ -14,7 +14,7 @@ from predictor.prediction.gpytorch_models import ExactGPModel, MultitaskGPModelA
 from predictor.prediction.abstract_gp_controller import GPController
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+from torch.utils.tensorboard import SummaryWriter
 
 class GPControllerExact(GPController):
     def __init__(self, sample_generator: SampleGenerator, model_class: Type[gpytorch.models.GP],
@@ -77,6 +77,7 @@ class GPControllerExact(GPController):
 
     
     def train(self):
+        self.writer = SummaryWriter()
         if self.enable_GPU:
             self.model = self.model.cuda()
             self.likelihood = self.likelihood.cuda()
@@ -159,6 +160,7 @@ class GPControllerApproximate(GPController):
             raise ('Model not found!')
 
     def train(self):
+        self.writer = SummaryWriter()
         if self.enable_GPU:
             self.model = self.model.cuda()
             self.likelihood = self.likelihood.cuda()
@@ -186,10 +188,17 @@ class GPControllerApproximate(GPController):
                                       shuffle=False,  # shuffle?
                                       num_workers=0 if self.enable_GPU else 8)
         # Use the Adam optimizer
-        optimizer = torch.optim.Adam([
-            {'params': self.model.parameters()},
-            {'params': self.likelihood.parameters()},
-        ], lr=0.005)  # Includes GaussianLikelihood parameters
+        # optimizer = torch.optim.Adam([
+        #     {'params': self.model.parameters()},
+        #     {'params': self.likelihood.parameters()},
+        # ], lr=0.005)  # Includes GaussianLikelihood parameters
+
+        optimizer = torch.optim.Adam([{'params': self.model.hyperparameters(), 'lr': 0.005},  
+                                {'params': self.model.variational_parameters()},                                      
+                                {'params': self.likelihood.parameters()},
+                            ], lr=0.005)
+
+                            
 
         # GP marginal log likelihood
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
@@ -217,6 +226,7 @@ class GPControllerApproximate(GPController):
                 loss = -mll(output, train_y)
                 train_loss += loss.item()
                 train_dataloader.set_postfix(log={'train_loss': f'{(train_loss / (step + 1)):.5f}'})
+                self.writer.add_scalar('GPLoss/train_loss', loss.item(), (epoch + 1))
                 loss.backward()
                 optimizer.step()
             for step, (train_x, train_y) in enumerate(valid_dataloader):
@@ -226,6 +236,7 @@ class GPControllerApproximate(GPController):
                 valid_loss += loss.item()
                 c_loss = valid_loss / (step + 1)
                 valid_dataloader.set_postfix(log={'valid_loss': f'{(c_loss):.5f}'})
+                self.writer.add_scalar('GPLoss/val_loss', c_loss, (epoch + 1))
             if c_loss > last_loss:
                 if no_progress_epoch >= 20:
                     not_done = False
@@ -236,6 +247,7 @@ class GPControllerApproximate(GPController):
                 no_progress_epoch = 0
 
             no_progress_epoch += 1
+            epoch +=1
         self.model = best_model
         self.likelihood = best_likeli
 

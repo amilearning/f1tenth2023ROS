@@ -311,6 +311,7 @@ class SampleGenerator():
         if elect_function is None:
             elect_function = self.useAll
         self.counter = 0
+        invalid_count = 0
         self.abs_path = abs_path
         self.samples = []
         for ab_p in self.abs_path:
@@ -339,22 +340,32 @@ class SampleGenerator():
                     
                     ###################################################################
                     N = scenario_data.N
-                    for i in range(N-1):
-                        # if i%3 == 0 and scenario_data.tar_states[i] is not None:
-                        if scenario_data.tar_states[i] is not None:
-                            ego_st = scenario_data.ego_states[i]
-                            tar_st = scenario_data.tar_states[i]
-                            if policy_gen:
-                                scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
-                            ntar_st = scenario_data.tar_states[i + 1]
-                            dtar = tar_st.copy()
-                            dtar.p.s = ntar_st.p.s - tar_st.p.s
-                            dtar.p.x_tran = (ntar_st.p.x_tran - tar_st.p.x_tran)
-                            dtar.p.e_psi = ntar_st.p.e_psi - tar_st.p.e_psi
-                            dtar.v.v_long = ntar_st.v.v_long - tar_st.v.v_long
-                            dtar.w.w_psi = ntar_st.w.w_psi - tar_st.w.w_psi
-                            if elect_function(ego_st, tar_st) and abs(dtar.p.s) < track.track_length/4:
-                                self.samples.append(Sample((ego_st, tar_st), dtar, tar_st.lookahead.curvature[0]))
+                    self.time_horizon = 0
+                    if N > self.time_horizon+1:
+                        for i in range(N-1-self.time_horizon*2):
+                            if i%2 == 0 and scenario_data.tar_states[i] is not None:
+                            # if scenario_data.tar_states[i] is not None:
+                                ego_st = scenario_data.ego_states[i]
+                                tar_st = scenario_data.tar_states[i]
+                                if policy_gen:
+                                    scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
+                                ntar_st = scenario_data.tar_states[i + 1]
+                                dtar = tar_st.copy()
+                                dtar.p.s = ntar_st.p.s - tar_st.p.s
+                                dtar.p.x_tran = (ntar_st.p.x_tran - tar_st.p.x_tran)
+                                dtar.p.e_psi = ntar_st.p.e_psi - tar_st.p.e_psi
+                                dtar.v.v_long = ntar_st.v.v_long - tar_st.v.v_long
+                                dtar.w.w_psi = ntar_st.w.w_psi - tar_st.w.w_psi
+                                
+                                valid_data = False
+                                real_dt = ntar_st.t - tar_st.t 
+                                if (real_dt > 0.05 and real_dt < 0.2):
+                                    valid_data = True
+
+                                if valid_data and elect_function(ego_st, tar_st) and abs(dtar.p.s) < track.track_length/4:
+                                    self.samples.append(Sample((ego_st, tar_st), dtar, tar_st.lookahead.curvature[0]))
+                                else:
+                                    invalid_count +=1
                     dbfile.close()
         print('Generated Dataset with', len(self.samples), 'samples!')
         if randomize:
@@ -362,7 +373,6 @@ class SampleGenerator():
 
     
     
-
         
 
 
