@@ -83,12 +83,15 @@ def gen_eval_data(eval_policy_names):
 def run_eval(eval_policy_names):
     predtype_lateral_errors_list= []
     predtype_longitudinal_errors_list= []
+    predtype_errors_list= []
     predtype_pred_covs_list= []
     filted_train_policy_names = []
     for j in range(len(eval_policy_names)):                
         lateral_errors_list= []
         longitudinal_errors_list= []
+        errors_list =[]
         pred_covs_list= []        
+
         for i in range(0,5):    
             # i is in predictor type  0 nosimtsgp, 1- cav, 2- nmpc, 3 - naivegp , 4 - simtsgp
             lateral_errors, longitudinal_errors, pred_covs = get_process(eval_policy_names[j], predictor_type = i)            
@@ -98,21 +101,26 @@ def run_eval(eval_policy_names):
             print(str(i) + "th predictor,  mse combined = " + str(rmse_combined))
             # print(str(i) + "th predictor,  long_eror = " + str(np.mean(longitudinal_errors)))
             # print(str(i) + "th predictor,  lat_eror = " + str(np.mean(lateral_errors)))            
-            lateral_errors_list.append(lateral_errors)
-            longitudinal_errors_list.append(longitudinal_errors)
+            lateral_errors_list.append(abs(lateral_errors))
+            longitudinal_errors_list.append(abs(longitudinal_errors))
             pred_covs_list.append(pred_covs)
+            errors_list.append( abs(longitudinal_errors) + abs(lateral_errors))
          
         
         predtype_lateral_errors_list.append(lateral_errors_list)
         predtype_longitudinal_errors_list.append(longitudinal_errors_list)
+        predtype_errors_list.append(errors_list)
         predtype_pred_covs_list.append(pred_covs_list)
+        
            
         
 
-
-    draw_barplot_with_list(predtype_lateral_errors_list, 'later', value_name_ = 'Lateral_error')
-    draw_barplot_with_list(predtype_longitudinal_errors_list, 'long', value_name_ = 'Long_error')
-    draw_barplot_with_list(predtype_pred_covs_list, 'covs', value_name_ = 'COV')
+    
+    
+    draw_barplot_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
+    draw_barplot_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
+    draw_barplot_with_list(predtype_errors_list, eval_policy_names, value_name_ = 'Error')
+    draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
 
 
 
@@ -121,18 +129,23 @@ def main():
     train_policy_names = ['centerline_1220',
                         'blocking_1220',
                         'highspeed_aggresive_1221',
-                        'highspeed_centerlin_1221',
-                        'highspeed_centerline2_1221',
                         'highspeed_hjpolicy_1221',
-                        'highspeed_reverse_1221',
-                        'hjpolicy_1220',
-                        'nonblocking_yet_racing_1220',
-                        'reverse_1220',
-                        'wall']    
+                        'hjpolicy_1220']    
+    # train_policy_names = ['centerline_1220',
+    #                     'blocking_1220',
+    #                     'highspeed_aggresive_1221',
+    #                     'highspeed_centerlin_1221',
+    #                     'highspeed_centerline2_1221',
+    #                     'highspeed_hjpolicy_1221',
+    #                     'highspeed_reverse_1221',
+    #                     'hjpolicy_1220',
+    #                     'nonblocking_yet_racing_1220',
+    #                     'reverse_1220',
+    #                     'wall']    
                     #  'nonsense_reverse',
                         
     ####################################################
-    # main_train(train_policy_names)
+    main_train(train_policy_names)
     ####################################################
 
     ############ TSNE ##################################
@@ -144,9 +157,10 @@ def main():
     ####################################################
     eval_policy_names = ['eval_centerline_1220',
                         'eval_blocking_1220',
-                        'eval_hjpolicy_1220',
-                        'eval_highspeed_aggresive_1221',
-                        'eval_highspeed_hjpolicy_1221'] 
+                        'eval_highspeed_aggresive_1221']
+    # ,
+    #                     'eval_highspeed_aggresive_1221',
+    #                     'eval_highspeed_hjpolicy_1221'] 
 
     ####################################################
     gen_eval_data(eval_policy_names)

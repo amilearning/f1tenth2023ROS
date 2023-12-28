@@ -132,6 +132,64 @@ def get_process(policy_name, predictor_type = 0):
 
 
 
+def draw_bar_with_list(list_, policy_names, plot_name = None, value_name_ = None):
+
+    df_list = []
+    for j, policy_data in enumerate(list_):
+        data = []
+        for i, pred_data in enumerate(policy_data):                
+            data.append(pred_data)
+        data_np = np.transpose(np.array(data))                    
+        df = pd.DataFrame(data_np, columns=['NOSIMGP', 'CAV', 'NLMPC', 'NaiveGP', 'SIMGP'])
+        df['Policy'] = str(policy_names[j])
+        df_list.append(df)
+
+    cat_df = pd.concat(df_list)
+    cat_df_melted = pd.melt(cat_df, id_vars='Policy', var_name='Policy_Name', value_name=value_name_)
+
+    # Plot bar plot
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='Policy', y=value_name_, hue='Policy_Name', data=cat_df_melted)
+
+    # Draw a horizontal line at y=0
+    plt.axhline(0, color='gray', linestyle='--')
+
+    plt.xlabel('Policy')
+    plt.ylabel(value_name_)
+
+    # Save the figure
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_path = os.path.join(fig_dir, f"{value_name_}_bar_{current_time}.png")
+    plt.savefig(file_path)        
+
+
+
+def draw_histo_with_list(list_, policy_names, plot_name = None, value_name_ = None):
+        
+    df_list = []
+    for j, policy_data in enumerate(list_):
+        data = []
+        for i, pred_data in enumerate(policy_data):                
+            data.append(pred_data)
+        data_np = np.transpose(np.array(data))                    
+        df = pd.DataFrame(data_np, columns=['NOSIMGP', 'CAV', 'NLMPC', 'NaiveGP', 'SIMGP'])
+        df['Policy'] = str(policy_names[j])
+        df_list.append(df)
+
+    cat_df = pd.concat(df_list)
+    cat_df_melted = pd.melt(cat_df, id_vars='Policy', var_name='Policy_Name', value_name=value_name_)
+
+    # Plot histograms for each policy
+    g = sns.FacetGrid(cat_df_melted, col='Policy', hue='Policy_Name', sharey=False)
+    g.map(sns.histplot, value_name_)
+
+    # Draw a horizontal line at y=0
+    plt.axhline(0, color='gray', linestyle='--')
+
+    # Save the figure
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_path = os.path.join(fig_dir, f"{value_name_}_hist_{current_time}.png")
+    plt.savefig(file_path)
 
 
 def draw_barplot_with_list(list_, policy_names, plot_name = None, value_name_ = None):
@@ -148,8 +206,8 @@ def draw_barplot_with_list(list_, policy_names, plot_name = None, value_name_ = 
 
     cat_df = pd.concat(df_list)
     cat_df_melted = pd.melt(cat_df, id_vars='Policy', var_name='Policy_Name', value_name=value_name_)
-    error_plt= sns.catplot(x='Policy', y=value_name_, hue='Policy_Name', kind='box', data=cat_df_melted,showfliers = False)
-    
+    error_plt= sns.catplot(x='Policy', y=value_name_, hue='Policy_Name', kind='box', data=cat_df_melted,showfliers = False)    
+    plt.axhline(0, color='gray', linestyle='--')
     plt.xlabel('Policy')
     plt.ylabel(value_name_)        
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")

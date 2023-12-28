@@ -212,7 +212,7 @@ class COVGPNN(GPController):
 
                 ############# Compute Variational LOSS ####################
                 variational_loss = -mll(output, train_y)                
-                variational_loss_sum += variational_loss_sum.item()
+                variational_loss_sum += variational_loss.item()
 
                 ############# Compute Reconstruction LOSS ####################
                 reconloss_weight = 1.0
