@@ -78,7 +78,7 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 # pkg_dir = rospack.get_path('predictor')
 
 class MultiPredPostEval:
-    def __init__(self, dirs):
+    def __init__(self, dirs, args = None):
         self.dirs = dirs
         self.visualize = True
         self.n_nodes = rospy.get_param('~n_nodes', default=10)
@@ -122,9 +122,12 @@ class MultiPredPostEval:
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP")                    
-        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP")                    
-        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP")                    
+        args['model_name'] = 'simtsGP'
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
+        args['model_name'] = 'nosimtsGP'
+        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= args.copy())                    
+        args['model_name'] = 'naiveGP'
+        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                    
                                           
 
 

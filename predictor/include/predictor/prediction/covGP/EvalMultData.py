@@ -182,10 +182,10 @@ def draw_histo_with_list(list_, policy_names, plot_name = None, value_name_ = No
     # Plot histograms for each policy
     g = sns.FacetGrid(cat_df_melted, col='Policy', hue='Policy_Name', sharey=False)
     g.map(sns.histplot, value_name_)
-
+    plt.xlim((-1,1))
     # Draw a horizontal line at y=0
     plt.axhline(0, color='gray', linestyle='--')
-
+    plt.legend()
     # Save the figure
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_path = os.path.join(fig_dir, f"{value_name_}_hist_{current_time}.png")

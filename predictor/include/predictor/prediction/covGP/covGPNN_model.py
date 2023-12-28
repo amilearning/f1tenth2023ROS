@@ -230,32 +230,38 @@ class COVGPNN(GPController):
                 if directGP:
                     loss = variational_loss
                 else:
-                    if include_simts_loss:                                                    
-                        ############# Compute Latent Distance LOSS ####################
-                        latent_dist_loss = 0.0
-                        for i in range(self.model.gp_layer.covar_module.base_kernel.batch_shape[0]):
-                            cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                            cov.base_kernel.lengthscale =  (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
-                            latent_dist= cov.base_kernel(latent_x,latent_x).evaluate().clone()                
-                            out_dist= cov.base_kernel(train_y[:,i],train_y[:,i]).evaluate().clone()                
-                            latent_dist_loss += mseloss(latent_dist,out_dist)
+                    ############# Compute Latent Distance LOSS ####################
+                    latent_dist_loss = 0.0
+                    for i in range(self.model.gp_layer.covar_module.base_kernel.batch_shape[0]):
+                        cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
+                        lengthscale_tmp =  min(max(epoch * 0.005 + 0.68, 0.2), 1e3)
+                        cov.base_kernel.lengthscale =  lengthscale_tmp # (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
+                        latent_dist= cov.base_kernel(latent_x,latent_x).evaluate().clone()     
+                        jitter = torch.eye(latent_dist.shape[0]).cuda()*1e-11
+                        yinvKy = (train_y[:,i].unsqueeze(dim=0) @ torch.cholesky_inverse(latent_dist + jitter) @ train_y[:,i].unsqueeze(dim=1))/latent_dist.shape[0]
                         
-                        latent_dist_loss_weight = 1.0
-                        latent_dist_loss = (latent_dist_loss * latent_dist_loss_weight)
-                        latent_dist_loss_sum +=latent_dist_loss.item()                    
+                        latent_dist_loss += yinvKy[0][0]/self.model.gp_layer.covar_module.base_kernel.batch_shape[0]  # mseloss(latent_dist,out_dist)
+                    
+                    
+                    latent_dist_loss_weight = 0.5
+                    latent_dist_loss = (latent_dist_loss * latent_dist_loss_weight)
+                    latent_dist_loss_sum +=latent_dist_loss.item()                    
 
-                        if latent_dist_loss > best_dist_loss:
-                            best_dist_loss = latent_dist_loss.item()
-                            no_progress_best_dist = 0
-                        else:
-                            no_progress_best_dist += 1
-                            if no_progress_best_dist > 20:
-                                dist_loss_cerverged = True
-
-                        if recon_loss_cerverged and dist_loss_cerverged:
-                            loss =  variational_loss
+                    if latent_dist_loss > best_dist_loss:
+                        best_dist_loss = latent_dist_loss.item()
+                        no_progress_best_dist = 0
+                    else:
+                        no_progress_best_dist += 1
+                        if no_progress_best_dist > 20:
+                            dist_loss_cerverged = True
+                            
+                    
+                    if include_simts_loss:                                                    
+                        
+                        if recon_loss_cerverged and dist_loss_cerverged and epoch > 600:
+                            loss =  variational_loss + latent_dist_loss + reconloss
                         else:                        
-                            loss = reconloss  + latent_dist_loss + variational_loss
+                            loss =  latent_dist_loss #+ reconloss
                             no_progress_epoch = 0                        
                     else:
                         loss = variational_loss 
@@ -263,7 +269,10 @@ class COVGPNN(GPController):
                 loss.backward()
                 optimizer_gp.step()
 
-                                
+            if directGP is False:
+                tag = gp_name+'/Lengthscale'
+                self.writer.add_scalar(tag, lengthscale_tmp, epoch)                    
+
             for i, param_group in enumerate(optimizer_gp.param_groups):
                 lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
                 self.writer.add_scalar(lr_tag, param_group['lr'], epoch )                
@@ -297,8 +306,9 @@ class COVGPNN(GPController):
             if c_loss > last_loss:
                 if no_progress_epoch >= 20:
                     if include_simts_loss:
-                        if recon_loss_cerverged and dist_loss_cerverged: 
-                            done = True     
+                        if recon_loss_cerverged and dist_loss_cerverged and epoch > 800: 
+                            if no_progress_epoch > 100:
+                                done = True   
                     else:
                         done = True 
             else:
@@ -443,7 +453,7 @@ class COVGPNNTrained(GPController):
             self.load_model(name)
         self.enable_GPU = enable_GPU
         
-        self.load_normalizing_consant()
+        self.load_normalizing_consant(name= name)
         if self.enable_GPU:
             self.model = self.model.cuda()
             self.likelihood = self.likelihood.cuda()
@@ -476,7 +486,8 @@ class COVGPNNTrained(GPController):
             
 
     def load_normalizing_consant(self, name ='normalizing'):        
-        model = pickle_read(os.path.join(model_dir, name + '.pkl'))        
+        
+        model = pickle_read(os.path.join(model_dir, name + '_normconstant.pkl'))        
         self.means_x = model['mean_sample'].cuda()
         self.means_x = self.means_x[:,:int(self.means_x.shape[1]/2)]
         self.means_y = model['mean_output'].cuda()

@@ -281,16 +281,23 @@ class Sample():
 
 def policy_generator(dynamics_sim : DynamicsSimulator, state : VehicleState):                        
     ## epsi weight 
-    steering = -0.5*state.p.e_psi
-    # state.u.u_steer = 
     tmp_state = state.copy()
-    tmp_state.u.u_steer = steering
-    dynamics_sim.step(tmp_state)               
-    if dynamics_sim.model.track.track_width - abs(tmp_state.p.x_tran) < 0.2:            
-        return state
-    else:
-        dynamics_sim.model.track.update_curvature(tmp_state)                    
-        return tmp_state
+    # steering = -0.5*state.p.e_psi
+    for i in range(3):
+        steering_val = (dynamics_sim.model.track.track_width - abs(tmp_state.p.x_tran) )/ dynamics_sim.model.track.track_width * 0.43
+        if tmp_state.p.x_tran > 0:
+            steering = abs(steering_val)
+        else:
+            steering = -1*abs(steering_val)
+        
+        tmp_state.u.u_steer = steering
+        if dynamics_sim.model.track.track_width < abs(tmp_state.p.x_tran)+0.1:            
+            tmp_state.u.u_a = -1.5
+        else:
+            tmp_state.u.u_a = 1.5    
+        dynamics_sim.step(tmp_state)               
+    dynamics_sim.model.track.update_curvature(tmp_state)                    
+    return tmp_state
     
 
 class SampleGenerator():

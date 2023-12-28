@@ -464,7 +464,7 @@ class COVGPNNModel(gpytorch.Module):
             self.gp_input_dim =  self.nn_input_dim
         else: 
             # [ policy, dels, xtran, epsi, vx, cur1, cur2]  
-            self.gp_input_dim = self.encdecnn.latent_size
+            self.gp_input_dim = self.encdecnn.latent_size + 5
 
         self.gp_layer = CovSparseGP(inducing_points_num=inducing_points,
                                                         input_dim=self.gp_input_dim,
@@ -495,11 +495,11 @@ class COVGPNNModel(gpytorch.Module):
             gp_input = x_h[:,0:,-1]
         else:
             # latent_x = self.scale_to_bounds(latent_x).clone()        
-            gp_input = latent_x
-            # if latent_x.shape[0] == 1:
-            #     gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,0:6,-1]])
-            # else:
-            #     gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,0:6,-1]])
+            
+            if latent_x.shape[0] == 1:
+                gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:5,-1]])
+            else:
+                gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,:5,-1]])
         
         # exp_dir_pred = dir_pred.reshape(dir_pred.shape[0],-1,5)        
         # # remap to [batch , sqeucen, feature]  -> [batch x sqeucen, feature + 1 (temporal encoding)]                        

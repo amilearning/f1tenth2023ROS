@@ -52,6 +52,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.normalized_output = None
         self.input_dim = args["input_dim"]        
         self.time_horizon = args["n_time_step"]
+        self.add_noise_data = args["add_noise_data"]
         
         if elect_function is None:
             elect_function = self.useAll
@@ -95,7 +96,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                         else:
                             policy_name = ab_p.split('/')[-2]
                         policy_gen = False
-                        if policy_name == 'wall':
+                        if policy_name == 'wall' :
                             policy_gen = True
                             # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                    
                             # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
@@ -112,7 +113,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     ntar_orin = scenario_data.tar_states[i+1]
                                     real_dt = ntar_orin.t - tar_st.t 
                                    
-                                    if policy_gen:
+                                    if policy_gen and i < t+self.time_horizon-3:
                                         scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
                                         ntar_orin = scenario_data.tar_states[i+1]
                                     # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
@@ -124,7 +125,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 real_dt = next_tar_st.t - tar_st.t 
                                 valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                 if tsne:
-                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.4:
+                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.3:
                                         valid_data = False
 
                                 if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
@@ -133,10 +134,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
                                     delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long
                                     
+
                                     self.debug_t.append(real_dt)
-                                    gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                
-                                    # gp_output = torch.tensor(del_state)                                                                    
-                                    self.output_data.append(gp_output.clone())    
+                                    
                                         
                                     for i in range(t+self.time_horizon, t+self.time_horizon*2):
                                         ego_st = scenario_data.ego_states[i]
@@ -144,12 +144,18 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                         ntar_orin = scenario_data.tar_states[i+1]
                                         
                                     
-                                        if policy_gen:
-                                            scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
-                                            ntar_orin = scenario_data.tar_states[i+1]
                                         # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
                                         #                 tar_ey, tar_epsi, tar_cur]                                 
                                         dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
+
+                                    gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                                                                                                               
+
+                                    if self.add_noise_data:
+                                        # if np.random.randint(10) < 8:
+                                        noisy_dat, noisy_output = self.add_noise(dat, gp_output)
+                                        self.output_data.append(noisy_output.clone())    
+                                        self.samples.append(noisy_dat.clone())  
+                                    self.output_data.append(gp_output.clone())    
                                     self.samples.append(dat.clone())  
                                 else:
                                     invalid_data_count+=1
@@ -161,15 +167,29 @@ class SampleGeneartorCOVGP(SampleGenerator):
                         dbfile.close()
             self.save_pre_data(pre_data_dir)
         
+        # self.plotStatistics()
         if len(self.samples) < 1 or self.samples is None:
             return 
-        self.input_output_normalizing(load_constants=load_normalization_constant)
+        self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
         print('Generated Dataset with', len(self.samples), 'samples!')
-        
+       
         # if randomize:
         #     random.shuffle(self.samples)
     
-    
+    def add_noise(self, input, output):
+        # measurement noise level
+                    # delta_s, tar_xtran, tar_epsi,      tar_vx, 
+        input_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
+        output_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
+        noisy_input = input.clone()
+        noisy_output = output.clone()
+        for i in range(4):
+            noisy_input[i,:8] += np.random.uniform(-input_noise_level[i], input_noise_level[i], (8))
+        for i in range(4):
+            noisy_output[i] += np.random.uniform(-output_noise_level[i], output_noise_level[i], 1)
+
+        return noisy_input, noisy_output
+
     def get_eval_data(self,abs_path,pred_horizon = 10, real_data = True):
         # pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
         # create_dir(pre_data_dir)        
@@ -246,7 +266,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
 
     def load_normalizing_consant(self, tensor_sample, tensor_output, name ='normalizing'):        
-        model = pickle_read(os.path.join(model_dir, name + '.pkl'))        
+        model = pickle_read(os.path.join(model_dir, name + '_normconstant.pkl'))        
         means_x = model['mean_sample']
         means_y = model['mean_output']
         stds_x = model['std_sample']
@@ -275,7 +295,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         tensor_output = torch.stack(self.output_data)
         
         if load_constants:
-            self.load_normalizing_consant(x_tensor, tensor_output)
+            self.load_normalizing_consant(x_tensor, tensor_output, name=name)
         else:
             self.normalized_sample, mean_sample, std_sample= self.normalize(x_tensor)
             self.normalized_output, mean_output, std_output = self.normalize(tensor_output)        
@@ -284,7 +304,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
             model_to_save['std_sample'] = std_sample
             model_to_save['mean_output'] = mean_output
             model_to_save['std_output'] = std_output
-            pickle_write(model_to_save, os.path.join(model_dir, name + '.pkl'))
+            pickle_write(model_to_save, os.path.join(model_dir, name + '_normconstant.pkl'))
             print('Successfully saved normalizing constnats', name)
         
     

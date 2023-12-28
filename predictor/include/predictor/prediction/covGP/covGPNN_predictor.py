@@ -11,20 +11,24 @@ from predictor.prediction.covGP.covGPNN_model import COVGPNNTrained
 from predictor.prediction.covGP.covGPNN_dataGen import states_to_encoder_input_torch
 
 class CovGPPredictor(BasePredictor):
-    def __init__(self,  N: int, track : RadiusArclengthTrack, use_GPU: bool, M: int, cov_factor: float = 1, input_predict_model = "covGP",):
+    def __init__(self,  N: int, track : RadiusArclengthTrack, use_GPU: bool, M: int, cov_factor: float = 1, input_predict_model = "covGP", args = None):
         super(CovGPPredictor, self).__init__(N, track)
         gc.collect()
         torch.cuda.empty_cache()        
-        
-        self.args = {                    
-            "batch_size": 150,
-            "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-            "input_dim": 9,
-            "n_time_step": 10, ## how much we see the past history 
-            "latent_dim": 9,
-            "gp_output_dim": 4,            
-            "inducing_points" : 200                
-            }
+        if args is None:
+            self.args = {                    
+                "batch_size": 150,
+                "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+                "input_dim": 9,
+                "n_time_step": 10, ## how much we see the past history 
+                "latent_dim": 9,
+                "gp_output_dim": 4,            
+                "inducing_points" : 200,
+                "add_noise_data" : False,
+                'model_name' : None
+                }
+        else:
+            self.args = args
 
         ######### Input prediction for Gaussian Processes regression ######### 
         # input_predict_model = "covGP"

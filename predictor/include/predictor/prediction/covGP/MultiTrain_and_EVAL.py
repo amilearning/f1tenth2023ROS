@@ -19,7 +19,9 @@ args_ = {
     "train_nn" : False,
     "include_simts_loss" : True,
     "direct_gp" : False,
-    "n_epoch" : 10000
+    "n_epoch" : 10000,
+    'add_noise_data': True,
+    'model_name' : None
     }
 
 
@@ -43,7 +45,8 @@ def main_train(train_policy_names = None):
     print("Direct GP init")
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
-    covGPNN_train(train_dirs, real_data = True, args= args_)
+    args_['model_name'] = 'naiveGP'
+    # covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -51,7 +54,8 @@ def main_train(train_policy_names = None):
     print("No simtsGPNN_train  init")
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
-    covGPNN_train(train_dirs, real_data = True, args= args_)
+    args_['model_name'] = 'nosimtsGP'
+    # covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -60,6 +64,7 @@ def main_train(train_policy_names = None):
     print("simtsGPNN_train  init")
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
+    args_['model_name'] = 'simtsGP'
     covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -70,7 +75,6 @@ def main_train(train_policy_names = None):
 
 def gen_eval_data(eval_policy_names):
 
-    
     eval_dirs = []
     for i in range(len(eval_policy_names)):
         eval_folder = os.path.join(real_dir, eval_policy_names[i])
@@ -78,7 +82,7 @@ def gen_eval_data(eval_policy_names):
 
     ########## Generate Prediction data for each predictor ########   
     rospy.init_node("MultiPredPostEval") 
-    MultiPredPostEval(eval_dirs)
+    MultiPredPostEval(eval_dirs, args_)
 
 def run_eval(eval_policy_names):
     predtype_lateral_errors_list= []
@@ -101,8 +105,8 @@ def run_eval(eval_policy_names):
             print(str(i) + "th predictor,  mse combined = " + str(rmse_combined))
             # print(str(i) + "th predictor,  long_eror = " + str(np.mean(longitudinal_errors)))
             # print(str(i) + "th predictor,  lat_eror = " + str(np.mean(lateral_errors)))            
-            lateral_errors_list.append(abs(lateral_errors))
-            longitudinal_errors_list.append(abs(longitudinal_errors))
+            lateral_errors_list.append((lateral_errors))
+            longitudinal_errors_list.append((longitudinal_errors))
             pred_covs_list.append(pred_covs)
             errors_list.append( abs(longitudinal_errors) + abs(lateral_errors))
          
@@ -118,7 +122,7 @@ def run_eval(eval_policy_names):
     
     
     draw_barplot_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
-    draw_barplot_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
+    draw_bar_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
     draw_barplot_with_list(predtype_errors_list, eval_policy_names, value_name_ = 'Error')
     draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
 
@@ -128,9 +132,10 @@ def main():
     ####################################################
     train_policy_names = ['centerline_1220',
                         'blocking_1220',
+                        'hjpolicy_1220',
+                        'highspeed_centerlin_1221',
                         'highspeed_aggresive_1221',
-                        'highspeed_hjpolicy_1221',
-                        'hjpolicy_1220']    
+                        'highspeed_hjpolicy_1221']    
     # train_policy_names = ['centerline_1220',
     #                     'blocking_1220',
     #                     'highspeed_aggresive_1221',
@@ -147,13 +152,17 @@ def main():
     ####################################################
     main_train(train_policy_names)
     ####################################################
-
+    args_['add_noise_data'] = False
     ############ TSNE ##################################
     eval_policy_names = ['eval_centerline_1220',  
+                          'eval_blocking_1220',
                          'eval_highspeed_aggresive_1221'] 
     # eval_policy_names = ['blocking_1220']
+    args_['model_name'] ='simtsGP'
     tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    args_['model_name'] ='nosimtsGP'
     tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    
     ####################################################
     eval_policy_names = ['eval_centerline_1220',
                         'eval_blocking_1220',
