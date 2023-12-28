@@ -198,7 +198,11 @@ class COVGPNN(GPController):
                 optimizer_gp.zero_grad()    
                 #####################
     
-                
+                # reconloss_weight = 1.0
+                # covloss_weight = 1.0
+                # # varational_weight = 0.001
+                # covloss = mseloss(input_covs, output_covs)* covloss_weight
+                # reconloss = mseloss(recons,train_x)* reconloss_weight
 
                 ############3                
                 train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                     

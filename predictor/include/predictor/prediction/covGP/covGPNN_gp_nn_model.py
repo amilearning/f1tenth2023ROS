@@ -40,6 +40,10 @@ import torch.nn.functional as F
 import random 
 
 
+def ff(x,k,s):
+    return (x-k)/s+1
+def rr(y,k,s):
+    return (y-1)*s+k
 
 class CovSparseGP(gpytorch.models.ApproximateGP):
     def __init__(self, inducing_points_num, input_dim, num_tasks):
@@ -353,7 +357,86 @@ class CNNModel(nn.Module):
             return trend_h, latent_x, trend_f
             
         
+class ENCDECModel(nn.Module):    
+    def __init__(self, args):
+        super(ENCDECModel, self).__init__()
+        
+        self.input_dim = args['input_dim']        
+        self.output_dim = args['latent_dim'] 
+        self.n_time_step = args['n_time_step']        
+        
+        self.seq_conv = nn.Sequential(
+        nn.Conv1d(in_channels=self.input_dim, out_channels=16, kernel_size=3),        
+        nn.LeakyReLU(),        
+         nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3),        
+         nn.LeakyReLU(),        
+         nn.Conv1d(in_channels=32, out_channels=16, kernel_size=3),    
+         nn.LeakyReLU(),       
+        nn.Conv1d(in_channels=16, out_channels=6, kernel_size=3)     
+        ) 
+        a = torch.randn(1, self.input_dim,self.n_time_step, requires_grad=False)
+        
+        self.auc_conv_out_size = self._get_conv_out_size(self.seq_conv,self.input_dim,self.n_time_step)        
+        
+        self.encoder_fc = nn.Sequential(
+                # nn.utils.spectral_norm(nn.Linear(self.auc_conv_out_size, 12)),        
+                nn.Linear(self.auc_conv_out_size, 12),        
+                nn.LeakyReLU(),                                    
+                nn.Linear(12, 8),        
+                nn.LeakyReLU(),                                    
+                nn.Linear(8, self.output_dim)                               
+        )
+        self.latent_size = self.output_dim
+        self.decoder_fc = nn.Sequential(
+                nn.Linear(self.output_dim, 12),        
+                nn.LeakyReLU(),                                    
+                nn.Linear(12, 8),        
+                nn.LeakyReLU(),                                    
+                nn.Linear(8, self.auc_conv_out_size)                               
+        )
 
+        self.seq_deconv = nn.Sequential(
+            nn.ConvTranspose1d(in_channels=6, out_channels=16, kernel_size=3),
+            nn.LeakyReLU(),
+            nn.ConvTranspose1d(in_channels=16, out_channels=16, kernel_size=3),
+            nn.LeakyReLU(),
+            nn.ConvTranspose1d(in_channels=16, out_channels=16, kernel_size=3),
+            nn.LeakyReLU(),
+            nn.ConvTranspose1d(in_channels=16, out_channels=self.input_dim, kernel_size=3)
+        )   
+        
+        # dummy_input = torch.randn(1, self.input_dim,self.n_time_step, requires_grad=False)
+        # # dummy_ou_dim = self.seq_deconv(self.decoder_fc(self.encoder_fc(self.seq_conv(dummy_input)))).view(-1).size(0)
+        # self.post_fc = nn.Sequential(
+        #         nn.Linear(dummy_ou_dim, 12),        
+        #         nn.LeakyReLU(),                                    
+        #         nn.Linear(12, 12),        
+        #         nn.LeakyReLU(),                          
+        #         nn.Linear(12, self.input_dim *self.n_time_step)                               
+        # )   
+       
+
+    def _get_conv_out_size(self, model, input_dim, seq_dim):
+        # dummy_input = torch.randn(1, input_dim, seq_dim, requires_grad=False).to(self.gpu_id).float()         
+        dummy_input = torch.randn(1, input_dim, seq_dim, requires_grad=False)
+        conv_output = model(dummy_input)
+        return conv_output.view(-1).size(0)
+    
+    def get_latent(self,x):
+        x = self.seq_conv(x)
+        self.seq_conv_shape1 = x.shape[1]
+        self.seq_conv_shape2 = x.shape[2]
+        x = self.encoder_fc(x.view(x.shape[0],-1))
+        return x
+
+    def forward(self, x):       
+        latent = self.get_latent(x) 
+        z = self.decoder_fc(latent)        
+        y = self.seq_deconv(z.view(z.shape[0],self.seq_conv_shape1, self.seq_conv_shape2))
+        # z = self.post_fc(y.view(y.shape[0],-1))
+        # z = z.view(z.shape[0],x.shape[1],x.shape[2])
+        return y, latent
+    
 
 class COVGPNNModel(gpytorch.Module):        
     def __init__(
@@ -371,8 +454,11 @@ class COVGPNNModel(gpytorch.Module):
         self.include_simts_loss = args['include_simts_loss']
         
         self.covnn = CNNModel(args)   
-                              
         self.predictor =LinearPred(args['latent_dim'] ,1,args['latent_dim'] , int(self.seq_len))
+        
+        self.encdecnn = ENCDECModel(args)
+                              
+        
     
         # self.scale_to_bounds = gpytorch.utils.grid.ScaleToBounds(-3., 3.)
 
@@ -395,7 +481,8 @@ class COVGPNNModel(gpytorch.Module):
             
             
     def get_hidden(self,input_data):
-        trend_h, latent_x, _ = self.covnn(input_data)        
+        trend_h, latent_x, _ = self.covnn(input_data)  
+        # aug_pred = self.covnn.get_latent(input_data)              
         return latent_x
 
     def forward(self, x_h, x_f = None, train= False, directGP = True):    
