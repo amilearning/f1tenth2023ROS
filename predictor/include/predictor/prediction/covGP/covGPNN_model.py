@@ -158,8 +158,7 @@ class COVGPNN(GPController):
                                         {'params': self.likelihood.parameters()},
                                     ], lr=lr_gp)
         else:
-            optimizer_gp = torch.optim.Adam([{'params': self.model.covnn.parameters(), 'lr': 0.001, 'weight_decay':1e-4},
-                                            {'params': self.model.predictor.parameters(), 'lr': 0.0001 * 0.001, 'weight_decay': 1e-8},
+            optimizer_gp = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.002, 'weight_decay':1e-9},                                            
                                             {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                             {'params': self.model.gp_layer.variational_parameters()},
                                             {'params': self.likelihood.parameters()},
@@ -174,7 +173,7 @@ class COVGPNN(GPController):
         # GP marginal log likelihood
         # p(y | x, X, Y) = ∫p(y|x, f)p(f|X, Y)df
         mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.gp_layer, num_data=sampGen.getNumSamples()*len(sampGen.output_data[0]))
-        # mseloss = nn.MSELoss()
+        mseloss = nn.MSELoss()
         max_epochs = n_epoch* len(train_dataloader)
         last_loss = np.inf
         no_progress_epoch = 0
@@ -198,17 +197,20 @@ class COVGPNN(GPController):
                 optimizer_gp.zero_grad()    
                 #####################
     
-                # reconloss_weight = 1.0
-                # covloss_weight = 1.0
-                # # varational_weight = 0.001
-                # covloss = mseloss(input_covs, output_covs)* covloss_weight
-                # reconloss = mseloss(recons,train_x)* reconloss_weight
-
+          
                 ############3                
                 train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                     
-                output, encode_future_embeds, fcst_future_embeds = self.model(train_x_h, train_x_f ,train=True, directGP = directGP)
-                fugure_latent = encode_future_embeds.transpose(1,2)[:,:,0].detach()
-                predicted_latent = fcst_future_embeds.transpose(1,2)[:,:,0]
+                output, recon_data, latent_x = self.model(train_x_h,train=True)
+
+                
+                
+                # varational_weight = 0.001
+                # covloss = mseloss(input_covs, output_covs)* covloss_weight
+                reconloss_weight = 1.0
+                reconloss = (mseloss(recon_data,train_x_f)* reconloss_weight)
+                reconloss_tag = gp_name +'/Loss/reconloss'
+                self.writer.add_scalar(reconloss_tag, reconloss.item(), epoch * len(train_dataloader) + step)
+
                 variational_loss = -mll(output, train_y)
                 varloss_tag = gp_name+'/Loss/variational_loss'
                 self.writer.add_scalar(varloss_tag, variational_loss.item(), epoch * len(train_dataloader) + step)
@@ -217,18 +219,30 @@ class COVGPNN(GPController):
                     loss = variational_loss
                 else:
                     if include_simts_loss:                            
-                        cosine_loss_weight = 1.0 # 1e1
+                        
+                        latent_dist_loss = 0.0
+                        for i in range(self.model.gp_layer.covar_module.base_kernel.batch_shape[0]):
+                            cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
+                            cov.base_kernel.lengthscale =  (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
+                            latent_dist= cov.base_kernel(latent_x,latent_x).evaluate().clone()                
+                            out_dist= cov.base_kernel(train_y[:,i],train_y[:,i]).evaluate().clone()                
+                            latent_dist_loss += mseloss(latent_dist,out_dist)
+                        
+                        latent_dist_loss_weight = 1.0
+                        latent_dist_loss = (latent_dist_loss * latent_dist_loss_weight)
+                        latent_dist_loss_tag = gp_name+'/Loss/latent_dist_loss'
+                        self.writer.add_scalar(latent_dist_loss_tag, latent_dist_loss.item(), epoch * len(train_dataloader) + step)
+                        ########################################
                         # cosine_loss = self.cosine_loss(encode_future_embeds, fcst_future_embeds) * cosine_loss_weight       
-                        cosine_loss = self.cosine_loss(predicted_latent, fugure_latent)* cosine_loss_weight                 
-                        varloss_tag = gp_name +'/Loss/cosine_loss'
-                        self.writer.add_scalar(varloss_tag, cosine_loss.item(), epoch * len(train_dataloader) + step)
-                        if cosine_loss.item() > -8.0:
-                            loss = cosine_loss
+                        # cosine_loss = self.cosine_loss(predicted_latent, fugure_latent)* cosine_loss_weight                 
+
+                        if epoch < 1000:
+                            loss = reconloss  + latent_dist_loss 
                             no_progress_epoch = 0
                         else:
-                            loss = cosine_loss + variational_loss
+                            loss =  variational_loss
                     else:
-                        loss = variational_loss
+                        loss = variational_loss 
                 train_loss += loss.item()    
                 loss.backward()
                 optimizer_gp.step()
@@ -449,7 +463,7 @@ class COVGPNNTrained(GPController):
         
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.model.eval()
-            test_x = torch.randn(25,9,15).cuda()
+            test_x = torch.randn(25,9,10).cuda()
             pred = self.model(test_x)  # Do precomputation
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.trace_model = torch.jit.trace(COVGPNNModelWrapper(self.model), test_x)

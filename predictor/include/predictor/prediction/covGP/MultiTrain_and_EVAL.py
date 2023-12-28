@@ -43,7 +43,7 @@ def main_train(train_policy_names = None):
     print("Direct GP init")
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -51,7 +51,7 @@ def main_train(train_policy_names = None):
     print("No simtsGPNN_train  init")
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -121,27 +121,31 @@ def main():
     train_policy_names = ['centerline_1220',
                         'blocking_1220',
                         'highspeed_aggresive_1221',
-                         'highspeed_centerlin_1221',
-                          'highspeed_centerline2_1221',
-                          'highspeed_hjpolicy_1221',
-                          'highspeed_reverse_1221',
-                          'hjpolicy_1220',
-                          'nonblocking_yet_racing_1220',
-                            'reverse_1220']    
-                        #  'nonsense_reverse',
+                        'highspeed_centerlin_1221',
+                        'highspeed_centerline2_1221',
+                        'highspeed_hjpolicy_1221',
+                        'highspeed_reverse_1221',
+                        'hjpolicy_1220',
+                        'nonblocking_yet_racing_1220',
+                        'reverse_1220',
+                        'wall']    
+                    #  'nonsense_reverse',
                         
     ####################################################
-    # main_train(train_policy_names)
+    main_train(train_policy_names)
     ####################################################
 
     ############ TSNE ##################################
-    eval_policy_names = ['centerline_1220',
-                         'highspeed_aggresive_1221'] 
+    eval_policy_names = ['eval_centerline_1220',
+                         'eval_blocking_1220',
+                         'eval_hjpolicy_1220',
+                         'eval_highspeed_aggresive_1221',
+                         'eval_highspeed_hjpolicy_1221'] 
     # eval_policy_names = ['blocking_1220']
     tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
-    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     ####################################################
-    return
+    
 
     # eval_policy_names = ['centerline_1220',
     eval_policy_names = ['eval_centerline_1220',

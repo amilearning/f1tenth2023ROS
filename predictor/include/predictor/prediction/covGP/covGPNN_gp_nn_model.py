@@ -432,10 +432,10 @@ class ENCDECModel(nn.Module):
     def forward(self, x):       
         latent = self.get_latent(x) 
         z = self.decoder_fc(latent)        
-        y = self.seq_deconv(z.view(z.shape[0],self.seq_conv_shape1, self.seq_conv_shape2))
+        recon_data = self.seq_deconv(z.view(z.shape[0],self.seq_conv_shape1, self.seq_conv_shape2))
         # z = self.post_fc(y.view(y.shape[0],-1))
         # z = z.view(z.shape[0],x.shape[1],x.shape[2])
-        return y, latent
+        return recon_data, latent
     
 
 class COVGPNNModel(gpytorch.Module):        
@@ -453,9 +453,7 @@ class COVGPNNModel(gpytorch.Module):
         self.directGP = args['direct_gp']
         self.include_simts_loss = args['include_simts_loss']
         
-        self.covnn = CNNModel(args)   
-        self.predictor =LinearPred(args['latent_dim'] ,1,args['latent_dim'] , int(self.seq_len))
-        
+
         self.encdecnn = ENCDECModel(args)
                               
         
@@ -466,7 +464,7 @@ class COVGPNNModel(gpytorch.Module):
             self.gp_input_dim =  self.nn_input_dim
         else: 
             # [ policy, dels, xtran, epsi, vx, cur1, cur2]  
-            self.gp_input_dim = self.covnn.latent_size
+            self.gp_input_dim = self.encdecnn.latent_size
 
         self.gp_layer = CovSparseGP(inducing_points_num=inducing_points,
                                                         input_dim=self.gp_input_dim,
@@ -481,24 +479,17 @@ class COVGPNNModel(gpytorch.Module):
             
             
     def get_hidden(self,input_data):
-        trend_h, latent_x, _ = self.covnn(input_data)  
+        if input_data.shape[-1] > self.n_time_step:
+            input_data = input_data[:,:,:int(input_data.shape[-1]/2)]
+        recon_data, latent_x = self.encdecnn(input_data)  
         # aug_pred = self.covnn.get_latent(input_data)              
         return latent_x
 
-    def forward(self, x_h, x_f = None, train= False, directGP = True):    
+    def forward(self, x_h, x_f = None, train= False):    
         # current vehicle state, pred_action , RGB-D normalized image (4 channel)        
-        trend_h, latent_x, trend_f = self.covnn(x_h, x_f)                
-
-        if train:
-            trend_f = trend_f.detach()            
-            # fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))            
-           
-            # rand_idx = random.randint(int(trend_h.shape[1])/2, trend_h.shape[1]-1)
-            rand_idx = -1
-            # trend_h_repr = lasts
-            trend1 = trend_h[:,rand_idx,:]
-            fcst_future_embeds = self.predictor(trend1.unsqueeze(-1))
-
+        if x_h.shape[-1] > self.n_time_step:
+            x_h = x_h[:,:,:int(x_h.shape[-1]/2)]
+        recon_data, latent_x = self.encdecnn(x_h)                
 
         if self.directGP:
             gp_input = x_h[:,0:,-1]
@@ -520,13 +511,13 @@ class COVGPNNModel(gpytorch.Module):
             # for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
             #     cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")                                                
             #     cov.base_kernel.lengthscale =  (self.gp_layer.covar_module.base_kernel.lengthscale[i])                   
-            #     cout = cov.base_kernel(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),trend_f.view(trend_f.shape[0],-1)).evaluate().clone()                
+            #     cout = cov.base_kernel(latent_x,latent_x).evaluate().clone()                
             #     # a = cov(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),fcst_future_embeds.view(trend_f.shape[0],-1)).evaluate().clone() /cov.base_kernel.lengthscale
             #     # cout = torch.log(cout)
             #     output_covs.append(cout.clone())                
             # output_covs = torch.stack(output_covs)
             
-            return pred, trend_f.detach(), fcst_future_embeds
+            return pred, recon_data, latent_x
         else:
             pred = self.gp_layer(gp_input)
             return pred
