@@ -207,10 +207,10 @@ nl_mpc_params = NLMPCParams(
 
         x_tran_max=width/2,
         x_tran_min=-width/2,
-        u_steer_max=0.3,
-        u_steer_min=-0.3,
-        u_a_max=1.0,
-        u_a_min=-2.2,
+        u_steer_max=0.4, # 0.3
+        u_steer_min=-0.4, # -0.3
+        u_a_max=3.0, # 1.0
+        u_a_min=-3.2, #-2.2
         u_steer_rate_max=2,
         u_steer_rate_min=-2,
         u_a_rate_max=1.0,

@@ -374,6 +374,10 @@ class ENCDECModel(nn.Module):
          nn.LeakyReLU(),       
         nn.Conv1d(in_channels=16, out_channels=6, kernel_size=3)     
         ) 
+
+        self.conv = CausalConvolutionBlock(self.input_dim, 6, 1, 1)
+
+
         a = torch.randn(1, self.input_dim,self.n_time_step, requires_grad=False)
         
         self.auc_conv_out_size = self._get_conv_out_size(self.seq_conv,self.input_dim,self.n_time_step)        
@@ -488,38 +492,25 @@ class COVGPNNModel(gpytorch.Module):
     def forward(self, x_h, x_f = None, train= False):    
         # current vehicle state, pred_action , RGB-D normalized image (4 channel)        
         if x_h.shape[-1] > self.n_time_step:
-            x_h = x_h[:,:,:int(x_h.shape[-1]/2)]
-        recon_data, latent_x = self.encdecnn(x_h)                
-
-        if self.directGP:
-            gp_input = x_h[:,0:,-1]
-        else:
-            # latent_x = self.scale_to_bounds(latent_x).clone()        
-            
+            x_h = x_h[:,:,:int(x_h.shape[-1]/2)]        
+        if self.directGP: 
+            gp_input = x_h[:,0:,-1].float()
+            recon_data = x_h
+            latent_x = gp_input
+        else: 
+            recon_data, latent_x = self.encdecnn(x_h)          
+            # latent_x = self.scale_to_bounds(latent_x).clone()  
             if latent_x.shape[0] == 1:
                 gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:5,-1]])
             else:
                 gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,:5,-1]])
         
+        pred = self.gp_layer(gp_input)
         # exp_dir_pred = dir_pred.reshape(dir_pred.shape[0],-1,5)        
         # # remap to [batch , sqeucen, feature]  -> [batch x sqeucen, feature + 1 (temporal encoding)]                        
         if train:
-            pred = self.gp_layer(gp_input)
-          
-
-            # output_covs = []
-            # for i in range(self.gp_layer.covar_module.base_kernel.batch_shape[0]):
-            #     cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda")                                                
-            #     cov.base_kernel.lengthscale =  (self.gp_layer.covar_module.base_kernel.lengthscale[i])                   
-            #     cout = cov.base_kernel(latent_x,latent_x).evaluate().clone()                
-            #     # a = cov(fcst_future_embeds.view(fcst_future_embeds.shape[0],-1),fcst_future_embeds.view(trend_f.shape[0],-1)).evaluate().clone() /cov.base_kernel.lengthscale
-            #     # cout = torch.log(cout)
-            #     output_covs.append(cout.clone())                
-            # output_covs = torch.stack(output_covs)
-            
             return pred, recon_data, latent_x
         else:
-            pred = self.gp_layer(gp_input)
             return pred
                 
 

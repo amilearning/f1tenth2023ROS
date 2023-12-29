@@ -11,6 +11,7 @@ from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import EvalData, PostprocessData, RealData
 
 from predictor.h2h_configs import *
+from predictor.common.utils.scenario_utils import wrap_del_s
 
 
 
@@ -47,8 +48,9 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
         # if ego_states.p.s > 15.0 or ego_states.p.s < 3.0:
         #     data_skip = False
         
-            
-        
+        del_s  = wrap_del_s(tar_states.p.s, ego_states.p.s, track)
+        if abs(del_s) > 3.0:
+            continue
         
         # if (tar_states.p.s - ego_states.p.s) < 3.0 and  (tar_states.p.s - ego_states.p.s) > 0.0:
         # # if abs(tar_states.p.s - ego_states.p.s) < track.track_length/2-0.2:
@@ -72,7 +74,7 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
                         longitudinal = dx * np.cos(angle) + dy * np.sin(angle)
                         lateral = -dx * np.sin(angle) + dy * np.cos(angle)
                     else:
-                        longitudinal = pred.s[i] - tar_st.p.s
+                        longitudinal = wrap_del_s(pred.s[i], tar_st.p.s, track)
                         if abs(longitudinal) > track.track_length/4:
                             if pred.s[i] > track.track_length/4 and tar_st.p.s < track.track_length/4:
                                 tmp = pred.s[i] - track.track_length/2

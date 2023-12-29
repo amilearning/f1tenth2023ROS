@@ -2,7 +2,7 @@ import torch
 from predictor.common.utils.scenario_utils import *
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.h2h_configs import *    
-from predictor.common.utils.scenario_utils import policy_generator
+from predictor.common.utils.scenario_utils import policy_generator, wrap_del_s
 from predictor.common.utils.file_utils import *
 def states_to_encoder_input_torch(tar_st,ego_st):
     tar_s = tar_st.p.s
@@ -15,7 +15,7 @@ def states_to_encoder_input_torch(tar_st,ego_st):
 
     delta_s = tar_s - ego_s
         
-
+    
     input_data=torch.tensor([ delta_s,                        
                         tar_st.p.x_tran,
                         tar_st.p.e_psi,
@@ -28,7 +28,6 @@ def states_to_encoder_input_torch(tar_st,ego_st):
                         ]).clone()
     
     return input_data
-
 
 
 
@@ -53,7 +52,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.input_dim = args["input_dim"]        
         self.time_horizon = args["n_time_step"]
         self.add_noise_data = args["add_noise_data"]
-        
+        model_name = args["model_name"]
         if elect_function is None:
             elect_function = self.useAll
         self.counter = 0
@@ -71,10 +70,29 @@ class SampleGeneartorCOVGP(SampleGenerator):
             pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')              
             pre_data_dir =os.path.join(pre_data_dir,pre_load_data_name+'.pkl')
             self.load_pre_data(pre_data_dir)            
-        else:
+        else:            
             pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
             create_dir(pre_data_dir)        
-            pre_data_dir =os.path.join(pre_data_dir,"preload_data.pkl")                        
+            pre_data_dir =os.path.join(pre_data_dir,"preload_data.pkl")        
+            if model_name == 'naiveGP':
+                self.gen_samples(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
+            else:
+                self.gen_samples_with_buffer(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
+
+        
+        
+        if len(self.samples) < 1 or self.samples is None:
+            return 
+        # self.plotStatistics()
+        self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
+        print('Generated Dataset with', len(self.samples), 'samples!')
+       
+        # if randomize:
+        #     random.shuffle(self.samples)
+    
+
+    def gen_samples_with_buffer(self, real_data = False, tsne = False, pre_data_dir = None):
+            invalid_data_count = 0
             for ab_p in self.abs_path:
                 for filename in os.listdir(ab_p):
                     if filename.endswith(".pkl"):
@@ -86,10 +104,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             scenario_data: RealData = pickle.load(dbfile)                                                            
                             track_ = scenario_data.scenario_def.track
 
-                        
                         # scenario_data: RealData = pickle.load(dbfile)                        
-                        N = scenario_data.N                       
-                        
+                        N = scenario_data.N              
                         ######################## random Policy ############################
                         if real_data:
                             policy_name = ab_p.split('/')[-1]
@@ -112,15 +128,17 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     tar_st = scenario_data.tar_states[i]
                                     ntar_orin = scenario_data.tar_states[i+1]
                                     real_dt = ntar_orin.t - tar_st.t 
-                                   
+                                
                                     if policy_gen and i < t+self.time_horizon-3:
                                         scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
                                         ntar_orin = scenario_data.tar_states[i+1]
                                     # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
-                                    #                 tar_ey, tar_epsi, tar_cur]                                 
-                                    dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)      
+                                    #                 tar_ey, tar_epsi, tar_cur]      
+                                                               
+                                    dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)                                          
+                                    dat[0,i-t] = wrap_del_s(tar_st.p.s,ego_st.p.s , track_)
 
-                                                                         
+                                                                        
                                 next_tar_st = ntar_orin.copy()
                                 real_dt = next_tar_st.t - tar_st.t 
                                 valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
@@ -129,7 +147,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                         valid_data = False
 
                                 if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
-                                    delta_s = next_tar_st.p.s-tar_st.p.s
+                                    # delta_s = next_tar_st.p.s-tar_st.p.s
+                                    delta_s = wrap_del_s(next_tar_st.p.s,tar_st.p.s, track_)                                    
                                     delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
                                     delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
                                     delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long
@@ -146,7 +165,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     
                                         # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
                                         #                 tar_ey, tar_epsi, tar_cur]                                 
-                                        dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
+                                        dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)                                        
+                                        dat[0,i-t] = wrap_del_s(tar_st.p.s,ego_st.p.s , track_)
 
                                     gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                                                                                                               
 
@@ -160,37 +180,95 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 else:
                                     invalid_data_count+=1
                                 ### Add curvature[2] at the last dimension 
-                       
-                                
+                    
+                        dbfile.close()
+            self.save_pre_data(pre_data_dir)
+
+
+    def gen_samples(self, real_data = False, tsne = False, pre_data_dir = None):
+            invalid_data_count = 0
+            for ab_p in self.abs_path:
+                for filename in os.listdir(ab_p):
+                    if filename.endswith(".pkl"):
+                        dbfile = open(os.path.join(ab_p, filename), 'rb')
+                        if real_data:
+                            scenario_data: SimData = pickle.load(dbfile)                                
+                            track_ = scenario_data.track
+                        else:
+                            scenario_data: RealData = pickle.load(dbfile)                                                            
+                            track_ = scenario_data.scenario_def.track
+                        # scenario_data: RealData = pickle.load(dbfile)                        
+                        N = scenario_data.N              
+                        ######################## random Policy ############################
+                        if real_data:
+                            policy_name = ab_p.split('/')[-1]
+                        else:
+                            policy_name = ab_p.split('/')[-2]
+                                                            
+                        ###################################################################
+                        if N > self.time_horizon+1:
                             
+                            for t in range(N-1-self.time_horizon*2):                            
+                                # define empty torch with proper size 
+                                dat = torch.zeros(self.input_dim, 1)
+                                # fdat = torch.zeros(self.input_dim, self.time_horizon)                                                                
+                                ego_st = scenario_data.ego_states[t]
+                                tar_st = scenario_data.tar_states[t]
+                                ntar_orin = scenario_data.tar_states[t+1]
+                                real_dt = ntar_orin.t - tar_st.t 
+                                dat=states_to_encoder_input_torch(tar_st, ego_st).unsqueeze(dim=1)      
+                                
+                                next_tar_st = ntar_orin.copy()
+                                real_dt = next_tar_st.t - tar_st.t 
+                                valid_data = self.data_validation(dat,tar_st,next_tar_st,track_)                                                        
+                                if tsne:
+                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.3:
+                                        valid_data = False
+
+                                if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
+                                    delta_s = wrap_del_s(next_tar_st.p.s, tar_st.p.s, track_)                                    
+                                    delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
+                                    delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
+                                    delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long                                    
+                                    self.debug_t.append(real_dt)
+                                    gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                                                                                                               
+
+                                    if self.add_noise_data:
+                                        # if np.random.randint(10) < 8:
+                                        for i in range(4):
+                                            noisy_dat, noisy_output = self.add_noise(dat, gp_output)
+                                            self.output_data.append(noisy_output.clone())    
+                                            self.samples.append(noisy_dat.clone())  
+                                    self.output_data.append(gp_output.clone())    
+                                    self.samples.append(dat.clone())  
+                                else:
+                                    invalid_data_count+=1
+                                ### Add curvature[2] at the last dimension 
                         
                         dbfile.close()
             self.save_pre_data(pre_data_dir)
-        
-        # self.plotStatistics()
-        if len(self.samples) < 1 or self.samples is None:
-            return 
-        self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
-        print('Generated Dataset with', len(self.samples), 'samples!')
-       
-        # if randomize:
-        #     random.shuffle(self.samples)
-    
-    def add_noise(self, input, output):
+
+
+    def add_noise(self, input, output, input_noise_level = None):
         # measurement noise level
                     # delta_s, tar_xtran, tar_epsi,      tar_vx, 
-        input_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
+        if input_noise_level is None:
+            input_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
         output_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
+        
         noisy_input = input.clone()
         noisy_output = output.clone()
         for i in range(4):
-            noisy_input[i,:8] += np.random.uniform(-input_noise_level[i], input_noise_level[i], (8))
+            if noisy_input.shape[1] > 1:            
+                    noisy_input[i,:8] += np.random.uniform(-input_noise_level[i], input_noise_level[i], (8))
+            else:
+                noisy_input[i] += np.random.uniform(-input_noise_level[i], input_noise_level[i], 1)
         for i in range(4):
             noisy_output[i] += np.random.uniform(-output_noise_level[i], output_noise_level[i], 1)
 
         return noisy_input, noisy_output
 
-    def get_eval_data(self,abs_path,pred_horizon = 10, real_data = True):
+    def get_eval_data(self,abs_path,pred_horizon = 10, real_data = True, noise = False):
         # pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
         # create_dir(pre_data_dir)        
         # pre_data_dir =os.path.join(pre_data_dir,"eval_preload_data.pkl")                        
@@ -220,6 +298,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 ego_st = scenario_data.ego_states[i]
                                 tar_st = scenario_data.tar_states[i]
                                 encoder_input[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st)
+                                encoder_input[0,i-t] = wrap_del_s(tar_st.p.s,ego_st.p.s , track_)
                                 
                             ego_state =  scenario_data.ego_states[i]
                             tar_state =  scenario_data.tar_states[i]                            
@@ -235,6 +314,20 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 tar_pred.e_psi.append(scenario_data.tar_states[i].p.e_psi)
                                 tar_pred.v_long.append(scenario_data.tar_states[i].v.v_long)
                             
+                            if noise:                                
+                                input_noise_level = torch.tensor([0.1,       0.1,     10*np.pi/180,  0.1])
+                                noisy_encoder_input , _ = self.add_noise(encoder_input,encoder_input, input_noise_level = input_noise_level)
+                                
+                                tar_state.p.x_tran = noisy_encoder_input[1,-1]
+                                tar_state.p.e_psi = noisy_encoder_input[2,-1]
+                                tar_state.v.v_long = noisy_encoder_input[3,-1]
+
+                                ego_state.p.x_tran = noisy_encoder_input[6,-1]
+                                ego_state.p.e_psi = noisy_encoder_input[7,-1]
+                                ego_state.v.v_long = noisy_encoder_input[8,-1]
+                                
+                                
+
                             input_buffer_list.append(encoder_input)
                             ego_state_list.append(ego_state)
                             tar_state_list.append(tar_state)
@@ -360,8 +453,10 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
         # if abs(ntar_st.p.x_tran) > track.track_width/2:
         #     valid_data = False
-
-        if abs(ntar_st.p.s - tar_st.p.s) > track.track_length/4:
+        del_s = wrap_del_s(ntar_st.p.s, tar_st.p.s, track)        
+        if del_s is None:
+            print("NA")
+        if abs(del_s) > 0.8: #track.track_length/4:
             valid_data = False
 
         return valid_data

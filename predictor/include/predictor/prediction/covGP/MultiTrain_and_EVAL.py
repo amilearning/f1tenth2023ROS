@@ -65,7 +65,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
     args_['model_name'] = 'simtsGP'
-    covGPNN_train(train_dirs, real_data = True, args= args_)
+    # covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -122,7 +122,7 @@ def run_eval(eval_policy_names):
     
     
     draw_barplot_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
-    draw_bar_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
+    draw_barplot_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
     draw_barplot_with_list(predtype_errors_list, eval_policy_names, value_name_ = 'Error')
     draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
 
@@ -154,8 +154,9 @@ def main():
     ####################################################
     args_['add_noise_data'] = False
     ############ TSNE ##################################
-    eval_policy_names = ['eval_centerline_1220',  
-                          'eval_blocking_1220',
+    eval_policy_names = ['eval_centerline_1220',
+                         'centerline_1220',
+                         'highspeed_aggresive_1221',
                          'eval_highspeed_aggresive_1221'] 
     # eval_policy_names = ['blocking_1220']
     args_['model_name'] ='simtsGP'

@@ -124,26 +124,27 @@ class MultiPredPostEval:
         self.ego_warm_start()
         args['model_name'] = 'simtsGP'
         self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
+        self.pred_eval(args = args, predictor_type = 4)
+
         args['model_name'] = 'nosimtsGP'
         self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= args.copy())                    
+        self.pred_eval(args = args, predictor_type = 0)
+
         args['model_name'] = 'naiveGP'
-        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                    
-                                          
+        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
+        self.pred_eval(args= args, predictor_type = 3)
 
 
         # gp_policy_name = 'gpberkely'        
         # self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))        
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
+        self.pred_eval(args = args, predictor_type = 1)
         ## NMPC based game theoretic approach 
         self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
         self.nmpc_predictor.set_warm_start()
+        self.pred_eval(args = args, predictor_type = 2)
         
         
-        self.pred_eval(predictor_type = 0)
-        self.pred_eval(predictor_type = 1)
-        self.pred_eval(predictor_type = 2)
-        self.pred_eval(predictor_type = 3)
-        self.pred_eval(predictor_type = 4)
     
         # self.pred_eval_parallel()
         
@@ -160,18 +161,19 @@ class MultiPredPostEval:
         for thread in threads:
             thread.join()
 
+    # def add_noise(self, ego_state, tar_state):
 
-    def pred_eval(self, predictor_type = 0, snapshot_name = None, load_data = False):
+    def pred_eval(self, args = None, predictor_type = 0, snapshot_name = None, load_data = False):
         
         for j in range(len(self.dirs)):
             tmp_dir = os.path.join(multiEval_dir,self.dirs[j].split('/')[-1])
             create_dir(path=tmp_dir)   
             dir = [self.dirs[j]]                        
            
-            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = self.predictor.args, randomize=True, real_data = True, tsne = True)
+            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
             if len(sampGen.samples) < 1: 
                 return
-            input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list = sampGen.get_eval_data(dir,real_data = True)            
+            input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list = sampGen.get_eval_data(dir,real_data = True, noise = False)            
             pred_tar_state_list = []
             self.tv_pred = None ## Assume each directory contains single time race
             self.ego_warm_start()
@@ -207,7 +209,7 @@ class MultiPredPostEval:
 
                     pred_tar_state_list.append(self.tv_pred.copy())
                     
-                    if i % 40 == 0:                         
+                    if i % 60 == 0:                         
                         print("Sample : {} out of {}".format(i, len(input_buffer_list)))    
             tmp_real_data = RealData(self.predictor.track, len(input_buffer_list),ego_state_list, tar_state_list, pred_tar_state_list)
             pickle_write(tmp_real_data, os.path.join(tmp_dir, 'predictor_'  +str(i) + '_'+ str(predictor_type) +'.pkl'))            
