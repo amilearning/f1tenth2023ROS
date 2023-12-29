@@ -375,7 +375,7 @@ class ENCDECModel(nn.Module):
         nn.Conv1d(in_channels=16, out_channels=6, kernel_size=3)     
         ) 
 
-        self.conv = CausalConvolutionBlock(self.input_dim, 6, 1, 1)
+        self.causal_conv = CausalConvolutionBlock(self.input_dim, self.output_dim, 1, 1)
 
 
         a = torch.randn(1, self.input_dim,self.n_time_step, requires_grad=False)
@@ -383,8 +383,9 @@ class ENCDECModel(nn.Module):
         self.auc_conv_out_size = self._get_conv_out_size(self.seq_conv,self.input_dim,self.n_time_step)        
         
         self.encoder_fc = nn.Sequential(
-                # nn.utils.spectral_norm(nn.Linear(self.auc_conv_out_size, 12)),        
-                nn.Linear(self.auc_conv_out_size, 12),        
+                # nn.utils.spectral_norm(nn.Linear(self.auc_conv_out_size, 12)),                    
+                nn.Linear(self.output_dim, 12),        
+                # nn.Linear(self.auc_conv_out_size, 12),        
                 nn.LeakyReLU(),                                    
                 nn.Linear(12, 8),        
                 nn.LeakyReLU(),                                    
@@ -427,19 +428,33 @@ class ENCDECModel(nn.Module):
         return conv_output.view(-1).size(0)
     
     def get_latent(self,x):
-        x = self.seq_conv(x)
+        # x = self.seq_conv(x)
+        out = self.causal_conv(x)
+        latent = out[:,:,-1]
+        # 
         self.seq_conv_shape1 = x.shape[1]
         self.seq_conv_shape2 = x.shape[2]
-        x = self.encoder_fc(x.view(x.shape[0],-1))
-        return x
+        # x = self.encoder_fc(x.view(x.shape[0],-1))
+        latent = self.encoder_fc(latent)
+        return latent
 
     def forward(self, x):       
         latent = self.get_latent(x) 
         z = self.decoder_fc(latent)        
-        recon_data = self.seq_deconv(z.view(z.shape[0],self.seq_conv_shape1, self.seq_conv_shape2))
+        # recon_data = self.seq_deconv(z.view(z.shape[0],x.shape, self.seq_conv_shape2))
         # z = self.post_fc(y.view(y.shape[0],-1))
         # z = z.view(z.shape[0],x.shape[1],x.shape[2])
-        return recon_data, latent
+
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        ###### TODO Need to remove recon_data from the SCRIPT ##################
+        
+        return latent
     
 
 class COVGPNNModel(gpytorch.Module):        

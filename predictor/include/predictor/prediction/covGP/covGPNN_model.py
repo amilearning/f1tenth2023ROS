@@ -282,7 +282,7 @@ class COVGPNN(GPController):
                         if epoch > 150:
                             loss =    variational_loss 
                         else:                        
-                            loss =   latent_dist_loss# + reconloss
+                            loss =   latent_dist_loss + reconloss
                             no_progress_epoch = 0                        
                     else:
                         loss = variational_loss 

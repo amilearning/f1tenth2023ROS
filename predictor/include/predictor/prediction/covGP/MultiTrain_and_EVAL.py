@@ -65,7 +65,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
     args_['model_name'] = 'simtsGP'
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
