@@ -156,10 +156,10 @@ class COVGPNN(GPController):
                                     {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
 
-        optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.05, 'weight_decay':1e-9}])
+        optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.05}])
                     
         # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.002, 'weight_decay':1e-9},                                            
-        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.002, 'weight_decay':1e-9},                                            
+        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005, 'weight_decay':1e-9},                                            
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
@@ -211,8 +211,14 @@ class COVGPNN(GPController):
                     train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                 
                 else:    
                     train_x_h , train_x_f = train_x, train_x                
-                output, recon_data, latent_x = self.model(train_x_h,train=True)
+                output, trend_h, latent_x = self.model(train_x_h,train=True)                
 
+                # TODO: not used 
+                recon_data = trend_h.transpose(1,2)
+
+                self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
+                self.writer.add_scalar(gp_name+'/stat/latent_min', torch.min(latent_x), epoch*len(train_dataloader) + step)
+                self.writer.add_scalar(gp_name+'/stat/latent_std', torch.std(latent_x), epoch*len(train_dataloader) + step)
                 ############# Compute Variational LOSS ####################
                 variational_loss = -mll(output, train_y)                
                 variational_loss_sum += variational_loss.item()
@@ -229,7 +235,6 @@ class COVGPNN(GPController):
                     if no_progress_best_recon > 20:
                         recon_loss_cerverged = True
                 
-                
                 if directGP:
                     loss = variational_loss
                 else:
@@ -241,25 +246,22 @@ class COVGPNN(GPController):
                     # out_cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
                     # out_cov.base_kernel.lengthscale =  0.67 # (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
                     
-                    out_dist= torch.cov(train_y).float()
-                        # lengthscale_tmp =  min(max(epoch * 0.005 + 0.68, 0.2), 1e3)
-                    
                     yinvKy_loss = 0
                     for i in range(self.model.gp_layer.covar_module.base_kernel.batch_shape[0]):
                         jitter = torch.eye(train_y.shape[0]).cuda()*1e-11
                         cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                        cov.base_kernel.lengthscale =  (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
+                        cov.base_kernel.lengthscale = 5.0 #  (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
                         latent_dist= cov.base_kernel(latent_x,latent_x).evaluate()
 
                         outcov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                        outcov.base_kernel.lengthscale =  (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])*0.9                  
+                        outcov.base_kernel.lengthscale = 0.5 # (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])*0.9                  
                         out_dist = outcov.base_kernel(train_y[:,i], train_y[:,i]).evaluate()
 
                         yinvKy = (train_y[:,i].unsqueeze(dim=0) @ torch.cholesky_inverse(latent_dist + jitter) @ train_y[:,i].unsqueeze(dim=1))/latent_dist.shape[0]
                         yinvKy_loss += yinvKy[0][0]/self.model.gp_layer.covar_module.base_kernel.batch_shape[0]  # mseloss(latent_dist,out_dist)                    
                         
                         mse = mseloss(latent_dist,out_dist)
-                        cos = self.cosine_loss(latent_dist, out_dist)
+                        # cos = self.cosine_loss(latent_dist, out_dist)
                         
 
                         latent_dist_loss += mse
@@ -279,7 +281,7 @@ class COVGPNN(GPController):
                             
                     
                     if include_simts_loss:    
-                        if epoch > 150:
+                        if epoch > 200:
                             loss =    variational_loss 
                         else:                        
                             loss =   latent_dist_loss + reconloss
@@ -294,10 +296,10 @@ class COVGPNN(GPController):
                 else:
                     if include_simts_loss:
                         # if recon_loss_cerverged and dist_loss_cerverged and epoch > 500:
-                        if epoch > 150:
+                        if epoch > 200:
                             optimizer_gp.step()
                         else:
-                            optimizer_all.step()
+                            optimizer_nn.step()
                     else:
                         optimizer_all.step()
                                     
