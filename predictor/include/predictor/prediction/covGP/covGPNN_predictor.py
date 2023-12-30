@@ -32,7 +32,7 @@ class CovGPPredictor(BasePredictor):
 
         ######### Input prediction for Gaussian Processes regression ######### 
         # input_predict_model = "covGP"
-        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = True)
+        self.covgpnn_predict = COVGPNNTrained(input_predict_model, use_GPU, load_trace = True, args = self.args, sample_num = M)
         print("input predict_gp loaded")
     
         self.M = M  # number of samples

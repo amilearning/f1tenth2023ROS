@@ -931,15 +931,20 @@ def interp_state(state1, state2, t):
     return state
 
 
-def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
-                        
+def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack, sim = False):
+    if sim:
+        half_track = track.track_length/2
+        full_track = track.track_length
+    else:
+        half_track = track.track_length/4
+        full_track = track.track_length/2
     del_s = tar_s - ego_s    
-    if abs(del_s) > track.track_length/4:
-        if tar_s > track.track_length/4 and ego_s < track.track_length/4:
-            tmp = tar_s - track.track_length/2
+    if abs(del_s) > half_track:
+        if tar_s > half_track and ego_s < half_track:
+            tmp = tar_s - full_track
             del_s = tmp - ego_s
-        elif tar_s < track.track_length/4 and ego_s > track.track_length/4:
-            tmp = ego_s - track.track_length/2
+        elif tar_s < half_track and ego_s > half_track:
+            tmp = ego_s - full_track
             del_s = tar_s - tmp
         else:
             print("NA")
@@ -947,14 +952,26 @@ def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
     return del_s
 
 
+# if abs((tv_state.p.s + self.track_length) - ego_state.p.s) < abs(tv_state.p.s - ego_state.p.s):
+#     tv_state.p.s += self.track_length
+# elif abs((tv_state.p.s - self.track_length) - ego_state.p.s) < abs(tv_state.p.s - ego_state.p.s):
+#     tv_state.p.s -= self.track_length
 
-def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack):                        
+
+def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack, sim=False):                        
+    if sim:
+        half_track = track.track_length/2
+        full_track = track.track_length
+    else:
+        half_track = track.track_length/4
+        full_track = track.track_length/2
+    
     if len(tar_s.shape)  < 1:
         tar_s = tar_s.unsqueeze(dim=1)
         ego_s = ego_s.unsqueeze(dim=1)
     del_s = tar_s - ego_s    
-    del_s[del_s > track.track_length/4] -= track.track_length/2
-    del_s[del_s < -track.track_length/4] += track.track_length/2
+    del_s[del_s > half_track] -= full_track
+    del_s[del_s < -half_track] += full_track
    
     return del_s
 

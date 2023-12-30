@@ -84,7 +84,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         if len(self.samples) < 1 or self.samples is None:
             return 
         # self.plotStatistics()
-        self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
+        if args['model_name'] is not None:
+            self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
         print('Generated Dataset with', len(self.samples), 'samples!')
        
         # if randomize:

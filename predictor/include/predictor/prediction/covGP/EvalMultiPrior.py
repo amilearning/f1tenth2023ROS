@@ -41,7 +41,7 @@ from predictor.common.utils.scenario_utils import EvalData, PostprocessData, Rea
 from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
 from predictor.path_generator import PathGenerator
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
-from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor
+from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor, GPPredictor, MPCCPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
@@ -111,7 +111,10 @@ class MultiPredPostEval:
                                       p=ParametricPose(s=0.1, x_tran=0.2, e_psi=0.0),
                                       v=BodyLinearVelocity(v_long=0.5),
                                       u=VehicleActuation(t=0.0, u_a=0.0, u_steer = 0.0))
-        self.cur_tar_state = VehicleState()
+        self.cur_tar_state = VehicleState(t=0.0,
+                                      p=ParametricPose(s=1.0, x_tran=0.0, e_psi=0.0),
+                                      v=BodyLinearVelocity(v_long=0.5),
+                                      u=VehicleActuation(t=0.0, u_a=0.0, u_steer = 0.0))
           
         self.tv_pred_marker_pub = rospy.Publisher('/tv_pred',MarkerArray,queue_size = 2)
         self.ego_pred_marker_pub = rospy.Publisher('/ego_pred',MarkerArray,queue_size = 2)
@@ -122,30 +125,26 @@ class MultiPredPostEval:
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = gp_mpcc_ego_params, name="gp_mpcc_h2h_ego", track_name="test_track")        
         self.ego_warm_start()
-        args['model_name'] = 'simtsGP'
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
-        self.pred_eval(args = args, predictor_type = 4)
-
-        args['model_name'] = 'nosimtsGP'
-        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= args.copy())                    
-        self.pred_eval(args = args, predictor_type = 0)
-
-        args['model_name'] = 'naiveGP'
-        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
-        self.pred_eval(args= args, predictor_type = 3)
 
 
-        # gp_policy_name = 'gpberkely'        
-        # self.gp_predictor = GPPredictor(self.n_nodes, self.track_info.track, gp_policy_name, True, M, cov_factor=np.sqrt(2.0))        
+        ############################## MPCC Predictor ##################################
+        self.mpcc_predictor = MPCCPredictor(N=self.n_nodes, track=self.track_info.track, vehicle_config= mpcc_timid_params, cov=.01)
+        ############################## ContantAngularVelocity Predictor ##################################
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
+        ############################## SIMTSGP Predictor ####################################        
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
+        ############################## NoSIMTSGP Predictor ####################################        
+        self.predictor_withoutCOV = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= args.copy())                    
+        ############################## NaiveGP Predictor ####################################        
+        self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
+        
+        ### EVAL init  ########
+        self.pred_eval(args = args, predictor_type = 2)        
+        return 
         self.pred_eval(args = args, predictor_type = 1)
-        ## NMPC based game theoretic approach 
-        self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
-        self.nmpc_predictor.set_warm_start()
-        self.pred_eval(args = args, predictor_type = 2)
-        
-        
-    
+        self.pred_eval(args = args, predictor_type = 4)
+        self.pred_eval(args = args, predictor_type = 0)
+        self.pred_eval(args= args, predictor_type = 3)
         # self.pred_eval_parallel()
         
     def pred_eval_parallel(self):
@@ -164,6 +163,20 @@ class MultiPredPostEval:
     # def add_noise(self, ego_state, tar_state):
 
     def pred_eval(self, args = None, predictor_type = 0, snapshot_name = None, load_data = False):
+        if predictor_type ==0:
+            args['model_name'] = 'nosimtsGP'
+        elif predictor_type ==1:
+            args['model_name'] = None # CAV Predictor
+        elif predictor_type ==2:
+            args['model_name'] = None # MPCC Predictor
+            self.mpcc_predictor.set_warm_start(self.cur_tar_state)
+        elif predictor_type ==3: 
+            args['model_name'] = 'naiveGP'
+        elif predictor_type ==4:
+            args['model_name'] = 'simtsGP'
+        else:   
+            return
+
         
         for j in range(len(self.dirs)):
             tmp_dir = os.path.join(multiEval_dir,self.dirs[j].split('/')[-1])
@@ -192,7 +205,7 @@ class MultiPredPostEval:
                     elif predictor_type == 1:
                         self.tv_pred = self.cav_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)                               
                     elif predictor_type == 2:
-                        self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
+                        self.tv_pred = self.mpcc_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
                     elif predictor_type == 3:
                         # self.tv_pred = self.gp_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
                         self.tv_pred = self.predictor_naivegp.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)                        

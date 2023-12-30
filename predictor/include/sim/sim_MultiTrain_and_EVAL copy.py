@@ -8,6 +8,16 @@ import torch
 from predictor.prediction.covGP.EvalMultData import * 
 from predictor.prediction.covGP.EvalMultiPrior import * 
 
+def get_sim_dir(policy_name_, train_dir_):
+    policy_dir = os.path.join(train_dir_, policy_name_)
+    scencurve_dir = os.path.join(policy_dir, 'curve')
+    scenstraight_dir = os.path.join(policy_dir, 'straight')
+    scenchicane_dir = os.path.join(policy_dir, 'chicane')
+    dirs = [scencurve_dir, scenstraight_dir, scenchicane_dir]
+    return dirs
+
+
+
 args_ = {                    
     "batch_size": 512,
     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
@@ -20,20 +30,14 @@ args_ = {
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': True,
+    'add_noise_data': False,
     'model_name' : None
     }
 
 
 
 
-def main_train(train_policy_names = None):
-    train_dirs = []
-    for i in range(len(train_policy_names)):
-        test_folder = os.path.join(real_dir, train_policy_names[i])
-        train_dirs.append(test_folder)
-
-
+def main_train(train_dirs):
     # print("1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     # print("GP Berkely train init")
     # # gp_main(train_dirs, realdata = True)
@@ -46,7 +50,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
     args_['model_name'] = 'naiveGP'
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = False, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -55,7 +59,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
-    covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = False, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -65,7 +69,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
     args_['model_name'] = 'simtsGP'
-    covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = False, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -130,12 +134,7 @@ def run_eval(eval_policy_names):
 
 def main():  
     ####################################################
-    train_policy_names = ['centerline_1220',
-                        'blocking_1220',
-                        'hjpolicy_1220',
-                        'highspeed_centerlin_1221',
-                        'highspeed_aggresive_1221',
-                        'highspeed_hjpolicy_1221']    
+    
     # train_policy_names = ['centerline_1220',
     #                     'blocking_1220',
     #                     'highspeed_aggresive_1221',
@@ -149,8 +148,13 @@ def main():
     #                     'wall']    
                     #  'nonsense_reverse',
                         
+    timid = get_sim_dir('timid', train_dir)
+    aggressive = get_sim_dir('aggressive_blocking', train_dir)
+    dirs = timid.copy()
+    dirs.extend(aggressive)
+
     ####################################################
-    # main_train(train_policy_names)
+    main_train(dirs)
     ####################################################
     args_['add_noise_data'] = False
     ############ TSNE ##################################
@@ -173,9 +177,9 @@ def main():
     #                     'eval_highspeed_hjpolicy_1221'] 
 
     ####################################################
-    gen_eval_data(eval_policy_names)
+    # gen_eval_data(eval_policy_names)
     ####################################################
-    run_eval(eval_policy_names)        
+    # run_eval(eval_policy_names)        
 
 
 if __name__ == "__main__":
