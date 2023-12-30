@@ -358,7 +358,8 @@ class SampleGenerator():
                                     scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
                                 ntar_st = scenario_data.tar_states[i + 1]
                                 dtar = tar_st.copy()
-                                dtar.p.s = ntar_st.p.s - tar_st.p.s
+                                # dtar.p.s = ntar_st.p.s - tar_st.p.s
+                                dtar.p.s = wrap_del_s(ntar_st.p.s, tar_st.p.s)
                                 dtar.p.x_tran = (ntar_st.p.x_tran - tar_st.p.x_tran)
                                 dtar.p.e_psi = ntar_st.p.e_psi - tar_st.p.e_psi
                                 dtar.v.v_long = ntar_st.v.v_long - tar_st.v.v_long
@@ -368,8 +369,9 @@ class SampleGenerator():
                                 real_dt = ntar_st.t - tar_st.t 
                                 if (real_dt > 0.05 and real_dt < 0.2):
                                     valid_data = True
+                                
 
-                                if valid_data and elect_function(ego_st, tar_st) and abs(dtar.p.s) < track.track_length/4:
+                                if valid_data and elect_function(ego_st, tar_st) and abs(dtar.p.s) < track.track_length/2:
                                     self.samples.append(Sample((ego_st, tar_st), dtar, tar_st.lookahead.curvature[0]))
                                 else:
                                     invalid_count +=1
@@ -931,24 +933,28 @@ def interp_state(state1, state2, t):
     return state
 
 
-def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack, sim = False):
-    if sim:
-        half_track = track.track_length/2
-        full_track = track.track_length
-    else:
-        half_track = track.track_length/4
-        full_track = track.track_length/2
-    del_s = tar_s - ego_s    
-    if abs(del_s) > half_track:
-        if tar_s > half_track and ego_s < half_track:
-            tmp = tar_s - full_track
-            del_s = tmp - ego_s
-        elif tar_s < half_track and ego_s > half_track:
-            tmp = ego_s - full_track
-            del_s = tar_s - tmp
-        else:
-            print("NA")
-            return None
+def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
+
+    half_track = track.track_length/2
+    full_track = track.track_length
+
+    
+    if abs(tar_s + full_track - ego_s) < abs(tar_s - ego_s):
+        tar_s += full_track
+    elif abs(tar_s - full_track - ego_s) < abs(tar_s - ego_s):
+        tar_s -= full_track
+    del_s = tar_s - ego_s
+
+    # if abs(del_s) > half_track:
+    #     if tar_s > half_track and ego_s < half_track:
+    #         tmp = tar_s - full_track
+    #         del_s = tmp - ego_s
+    #     elif tar_s < half_track and ego_s > half_track:
+    #         tmp = ego_s - full_track
+    #         del_s = tar_s - tmp
+    #     else:
+    #         print("NA")
+    #         return None
     return del_s
 
 
@@ -958,20 +964,18 @@ def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack, sim = False):
 #     tv_state.p.s -= self.track_length
 
 
-def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack, sim=False):                        
-    if sim:
-        half_track = track.track_length/2
-        full_track = track.track_length
-    else:
-        half_track = track.track_length/4
-        full_track = track.track_length/2
-    
+def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack):                        
+
+    half_track = track.track_length/2
+    full_track = track.track_length
     if len(tar_s.shape)  < 1:
         tar_s = tar_s.unsqueeze(dim=1)
         ego_s = ego_s.unsqueeze(dim=1)
+    tar_s[abs(tar_s+full_track-ego_s) <abs(tar_s-ego_s)]+=full_track
+    tar_s[abs(tar_s-full_track-ego_s) <abs(tar_s-ego_s)]-=full_track
+        
     del_s = tar_s - ego_s    
-    del_s[del_s > half_track] -= full_track
-    del_s[del_s < -half_track] += full_track
+    
    
     return del_s
 

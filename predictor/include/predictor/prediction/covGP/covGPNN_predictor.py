@@ -9,6 +9,7 @@ from predictor.prediction.trajectory_predictor import BasePredictor
 
 from predictor.prediction.covGP.covGPNN_model import COVGPNNTrained
 from predictor.prediction.covGP.covGPNN_dataGen import states_to_encoder_input_torch
+from predictor.common.utils.scenario_utils import wrap_del_s
 
 class CovGPPredictor(BasePredictor):
     def __init__(self,  N: int, track : RadiusArclengthTrack, use_GPU: bool, M: int, cov_factor: float = 1, input_predict_model = "covGP", args = None):
@@ -57,7 +58,8 @@ class CovGPPredictor(BasePredictor):
             ######################### rolling into buffer ##########################                        
             tmp = self.encoder_input.clone()            
             self.encoder_input[:,0:-1] = tmp[:,1:]            
-            self.encoder_input[:,-1] = states_to_encoder_input_torch(tar_state,ego_state)
+            self.encoder_input[:,-1] = states_to_encoder_input_torch(tar_state,ego_state)            
+            self.encoder_input[0,-1] = wrap_del_s(tar_state,ego_state, self.track)
             self.buffer_update_count +=1
             if self.buffer_update_count > self.time_length:
                 self.buffer_update_count = self.time_length+1

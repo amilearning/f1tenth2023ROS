@@ -139,10 +139,11 @@ class MultiPredPostEval:
         self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
         
         ### EVAL init  ########
-        self.pred_eval(args = args, predictor_type = 2)        
-        return 
-        self.pred_eval(args = args, predictor_type = 1)
         self.pred_eval(args = args, predictor_type = 4)
+        return
+        self.pred_eval(args = args, predictor_type = 2)             
+        self.pred_eval(args = args, predictor_type = 1)
+        
         self.pred_eval(args = args, predictor_type = 0)
         self.pred_eval(args= args, predictor_type = 3)
         # self.pred_eval_parallel()

@@ -21,7 +21,7 @@ from predictor.controllers.abstract_controller import AbstractController
 from predictor.controllers.utils.controllerTypes import MPCCApproxFullModelParams
 from predictor.common.utils.file_utils import *
 from dataclasses import fields
-
+from predictor.common.utils.scenario_utils import wrap_del_s
 
 class MPCC_H2H_approx(AbstractController):
     """
@@ -787,9 +787,9 @@ class MPCC_H2H_approx(AbstractController):
         """
         Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
         """
-        dist = tv_state.p.s - ego_state.p.s        
-        if abs(dist) > self.track.track_length/4.0:
-            dist -=self.track.track_length/2.0
+        dist = tv_state.p.s - ego_state.p.s              
+        dist = wrap_del_s(tv_state.p.s, ego_state.p.s)  
+        
         
         # tv_state.p.s < ego_state.p.s 
         if tv_state is not None and abs(dist) <4.0 and tv_state.p.s < ego_state.p.s :            
@@ -807,9 +807,9 @@ class MPCC_H2H_approx(AbstractController):
         """
         Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
         """
-        dist = tv_state.p.s - ego_state.p.s        
-        if abs(dist) > self.track.track_length/4.0:
-            dist -=self.track.track_length/2.0
+        dist = tv_state.p.s - ego_state.p.s     
+        dist = wrap_del_s(tv_state.p.s, ego_state.p.s)     
+       
         
         # tv_state.p.s < ego_state.p.s 
         if tv_state is not None and abs(dist) <4.0 and tv_state.p.s < ego_state.p.s :            

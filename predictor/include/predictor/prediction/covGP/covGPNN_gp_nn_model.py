@@ -236,7 +236,11 @@ class CausalCNNEncoder(torch.nn.Module):
         self.multi_cnn = nn.ModuleList(
             [nn.Conv1d(reduced_size, component_dims, k, padding=k-1) for k in kernel_list]
         )
+        
+        # self.predictor =LinearPred(component_dims,1,component_dims, 10)
+        self.predictor = nn.Linear(component_dims, component_dims).to(self.device)
         # self.repr_dropout = torch.nn.Dropout(p=0.1)
+        
         
         
 
@@ -244,7 +248,7 @@ class CausalCNNEncoder(torch.nn.Module):
         
         return list(self.multi_cnn.parameters())[0].clone()    
         
-    def forward(self, x_h, x_f = None, mask = None, train = True):
+    def forward(self, x_h, x_f = None):
 
         # nan_mask_h = ~x_h.isnan().any(axis=-1)
         # x_h[~nan_mask_h] = 0
@@ -252,7 +256,7 @@ class CausalCNNEncoder(torch.nn.Module):
         # x_h = x_h.transpose(2,1)
         x_h = self.input_fc(x_h)        
         
-        if train and x_f is not None:
+        if x_f is not None:
  
             x_f = self.input_fc(x_f)
 
@@ -286,13 +290,17 @@ class CausalCNNEncoder(torch.nn.Module):
             )
 
             # trend_h = self.repr_dropout(trend_h)
-            latent_x = trend_h[:,-1,:]
-          
 
-            # print(rand_idx)
-            # self.predictor =LinearPred(component_dims,1,component_dims, int(reduced_size/2))
-            # fcst_future_embeds = self.predictor(latent_x.unsqueeze(-1))
-           
+            ###########  best ##########
+            # latent_x = trend_h[:,0,:]
+            ###########  best ##########
+
+            ######## predictor test ###
+            latent_x = trend_h[:,-1,:]     
+            # latent_x = self.predictor(latent_x)
+            ######## predictor test End ###
+
+
             return trend_h, latent_x, trend_f.detach()
 
         else:
@@ -314,7 +322,8 @@ class CausalCNNEncoder(torch.nn.Module):
             )
 
             # trend_h = self.repr_dropout(trend_h)
-            latent_x = trend_h[:,-1,:]
+            latent_x = trend_h[:,-1,:]  ## -1 is better as seeing more in the future while training. also can infer the multi step future. 
+            # latent_x = self.predictor(latent_x)
             return trend_h, latent_x, None
         
 
@@ -447,7 +456,7 @@ class COVGPNNModel(gpytorch.Module):
         # aug_pred = self.covnn.get_latent(input_data)              
         return latent_x
 
-    def forward(self, x_h, x_f = None, train= False):    
+    def forward(self, x_h, x_f = None):    
         # current vehicle state, pred_action , RGB-D normalized image (4 channel)        
         if x_h.shape[-1] > self.n_time_step:
             x_h = x_h[:,:,:int(x_h.shape[-1]/2)]        
@@ -456,7 +465,7 @@ class COVGPNNModel(gpytorch.Module):
             recon_data = x_h
             latent_x = gp_input
         else: 
-            recon_data, latent_x = self.encdecnn(x_h)          
+            recon_data, latent_x = self.encdecnn(x_h,x_f)          
             # latent_x = self.scale_to_bounds(latent_x).clone()  
             if latent_x.shape[0] == 1:
                 gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:5,-1]])
@@ -466,7 +475,7 @@ class COVGPNNModel(gpytorch.Module):
         pred = self.gp_layer(gp_input)
         # exp_dir_pred = dir_pred.reshape(dir_pred.shape[0],-1,5)        
         # # remap to [batch , sqeucen, feature]  -> [batch x sqeucen, feature + 1 (temporal encoding)]                        
-        if train:
+        if x_f is not None:
             return pred, recon_data, latent_x
         else:
             return pred

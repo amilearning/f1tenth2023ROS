@@ -148,10 +148,15 @@ def main():
     #                     'wall']    
                     #  'nonsense_reverse',
                         
-    timid = get_sim_dir('timid', train_dir)
-    aggressive = get_sim_dir('aggressive_blocking', train_dir)
-    dirs = timid.copy()
-    dirs.extend(aggressive)
+    timid_0 = get_sim_dir('timid_0', train_dir)
+    aggressive_blocking_0 = get_sim_dir('aggressive_blocking_0', train_dir)
+    mild_5000_0 = get_sim_dir('mild_5000_0', train_dir)
+    reverse_0 = get_sim_dir('reverse_0', train_dir)
+
+    dirs = timid_0.copy()
+    dirs.extend(aggressive_blocking_0)
+    dirs.extend(mild_5000_0)
+    dirs.extend(reverse_0)
 
     ####################################################
     main_train(dirs)

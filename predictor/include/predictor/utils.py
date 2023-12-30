@@ -137,8 +137,8 @@ def pose_to_vehicleState(track: RadiusArclengthTrack, state : VehicleState,pose 
     state.p.s = cl_coord[0]
     ##################
     ## WHen track is doubled... wrap with half track length
-    if state.p.s > track.track_length/2.0:
-        state.p.s -= track.track_length/2.0
+    if state.p.s > track.track_length:
+        state.p.s -= track.track_length
     ###################
     state.p.x_tran = cl_coord[1]
     state.p.e_psi = cl_coord[2]
@@ -828,7 +828,7 @@ class LaptimeRecorder():
         
         self.n_lap = 0
         self.init_s = 0
-        self.track_length = track.track_length/2.0
+        self.track_length = track.track_length
         self.num_max_lap = np.inf  # 5 for experiment
         print("track length is set as = " + str(self.track_length))        
         self.laptimes = []

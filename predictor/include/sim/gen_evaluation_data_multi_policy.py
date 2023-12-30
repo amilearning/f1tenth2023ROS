@@ -18,9 +18,10 @@ from predictor.simulation.dynamics_simulator import DynamicsSimulator
 
 import multiprocessing as mp
 from predictor.h2h_configs import *
-from predictor.prediction.trajectory_predictor import ConstantVelocityPredictor, ConstantAngularVelocityPredictor, GPPredictor, NoPredictor, NLMPCPredictor, MPCPredictor
+from predictor.prediction.trajectory_predictor import ConstantVelocityPredictor, ConstantAngularVelocityPredictor, GPPredictor, NoPredictor, MPCCPredictor, MPCPredictor
 from predictor.common_control import run_pid_warmstart
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
+import torch 
 
 total_runs = 200
 M = 50
@@ -34,6 +35,33 @@ gp_model_name = 'gpberkely'
 track_types = ['straight','curve', 'chicane']
 
 T = 20
+
+
+args_ = {                    
+    "batch_size": 512,
+    "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
+    "input_dim": 9,
+    "n_time_step": 10,
+    "latent_dim": 9,
+    "gp_output_dim": 4,
+    "inducing_points" : 200,
+    "train_nn" : False,
+    "include_simts_loss" : True,
+    "direct_gp" : False,
+    "n_epoch" : 10000,
+    'add_noise_data': False,
+    'model_name' : None
+    }
+
+naivegp_args = args_.copy()
+naivegp_args['model_name'] = 'naiveGP'
+
+nosimtsGP_args = args_.copy()
+nosimtsGP_args['model_name'] = 'nosimtsGP'
+
+simtsGP_args = args_.copy()
+simtsGP_args['model_name'] = 'simtsGP'
+
 
 # policy_dir = os.path.join(eval_dir, folder_name)
 
@@ -49,8 +77,11 @@ T = 20
 #                 # NLMPCPredictor(N, None, cov=.0, v_ref=mpcc_tv_params.vx_max)
 #               ]
 
-predictors = [                    
-                    CovGPPredictor(N, None, tp_model_name, True, M, cov_factor=np.sqrt(2))
+predictors = [      ConstantAngularVelocityPredictor(N, cov= .01),                                
+                    MPCCPredictor(N, None, vehicle_config= mpcc_timid_params, cov=.01),
+                    CovGPPredictor(N, None,  use_GPU=True, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= naivegp_args),
+                    CovGPPredictor(N, None,  use_GPU=True, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= nosimtsGP_args),                    
+                    CovGPPredictor(N, None,  use_GPU=True, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= simtsGP_args)                 
               ]
 
 
@@ -59,9 +90,7 @@ NoPredictor(N), MPCPredictor(N), NLMPCPredictor(N, None)]"""
 # names = ["GP2", "GP1", "GP_5 ","TP_2 ","TP_1 ","TP_5 ", "CAV_01", "CAV_005", "CAV0", "NLMPC_01", "NLMPC_005", "NLMPC0"]
 # names = ["GP2", "GP_5 ","TP_2 ","TP_5 ", "CAV_01",  "CAV0", "NLMPC_01",  "NLMPC0"]
 # names = ["GP_2", "TP_2 ","CAV_01", "NLMPC_01"]
-names = [ "TP_2 "]
-
-
+names = [ "CAV", "MPCC", "naiveGP", "nosimtsGP", "simtsGP"]
 
 def main(args=None):
 
@@ -141,9 +170,8 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
     mpcc_tv_controller.initialize()
     mpcc_tv_controller.set_warm_start(*tv_history)
 
-    if isinstance(predictor, NLMPCPredictor):
-        # predictor.set_warm_start(*vehiclestate_history)
-        predictor.set_warm_start()
+    if isinstance(predictor, MPCCPredictor):        
+        predictor.set_warm_start(tar_sim_state)
 
     gp_tarpred_list = [None] * n_iter
     egopred_list = [None] * n_iter
@@ -159,7 +187,7 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
         else:
             if predictor:
                 ego_pred = mpcc_ego_controller.get_prediction()
-                if ego_pred.x is not None:
+                if ego_pred.x is not None:                    
                     tv_pred = predictor.get_prediction(ego_sim_state, tar_sim_state, ego_pred, tar_prediction)
                     if tv_pred is None:
                         gp_tarpred_list.append(None)

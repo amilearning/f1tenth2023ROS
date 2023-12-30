@@ -75,15 +75,15 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
                         lateral = -dx * np.sin(angle) + dy * np.cos(angle)
                     else:
                         longitudinal = wrap_del_s(pred.s[i], tar_st.p.s, track)
-                        if abs(longitudinal) > track.track_length/4:
-                            if pred.s[i] > track.track_length/4 and tar_st.p.s < track.track_length/4:
-                                tmp = pred.s[i] - track.track_length/2
-                                longitudinal = tmp - tar_st.p.s
-                            elif pred.s[i] < track.track_length/4 and tar_st.p.s > track.track_length/4:
-                                tmp = tar_st.p.s - track.track_length/2
-                                longitudinal = pred.s[i] - tmp
-                            else:
-                                print("NA")
+                        # if abs(longitudinal) > track.track_length/4:
+                        #     if pred.s[i] > track.track_length/4 and tar_st.p.s < track.track_length/4:
+                        #         tmp = pred.s[i] - track.track_length/2
+                        #         longitudinal = tmp - tar_st.p.s
+                        #     elif pred.s[i] < track.track_length/4 and tar_st.p.s > track.track_length/4:
+                        #         tmp = tar_st.p.s - track.track_length/2
+                        #         longitudinal = pred.s[i] - tmp
+                        #     else:
+                        #         print("NA")
                     
                         lateral = pred.x_tran[i] - tar_st.p.x_tran                    
                     longitudinal_error.append(longitudinal)

@@ -159,7 +159,8 @@ class COVGPNN(GPController):
         optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.05}])
                     
         # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.002, 'weight_decay':1e-9},                                            
-        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005, 'weight_decay':1e-9},                                            
+        # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005, 'weight_decay':1e-9},                                            
+        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005},                                            
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
@@ -211,7 +212,7 @@ class COVGPNN(GPController):
                     train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                 
                 else:    
                     train_x_h , train_x_f = train_x, train_x                
-                output, trend_h, latent_x = self.model(train_x_h,train=True)                
+                output, trend_h, latent_x = self.model(train_x_h, train_x_f)                
 
                 # TODO: not used 
                 recon_data = trend_h.transpose(1,2)
@@ -251,11 +252,11 @@ class COVGPNN(GPController):
                         jitter = torch.eye(train_y.shape[0]).cuda()*1e-11
                         cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
                         ## TODO:  How to best select the ratio 
-                        cov.base_kernel.lengthscale = 5.0 #  (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
+                        cov.base_kernel.lengthscale = 1.0 # 3 (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
                         latent_dist= cov.base_kernel(latent_x,latent_x).evaluate()
 
                         outcov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                        outcov.base_kernel.lengthscale = 0.1 # (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])*0.9                  
+                        outcov.base_kernel.lengthscale = 1.0 # (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])*0.9                  
                         out_dist = outcov.base_kernel(train_y[:,i], train_y[:,i]).evaluate()
 
                         yinvKy = (train_y[:,i].unsqueeze(dim=0) @ torch.cholesky_inverse(latent_dist + jitter) @ train_y[:,i].unsqueeze(dim=1))/latent_dist.shape[0]
@@ -282,10 +283,10 @@ class COVGPNN(GPController):
                             
                     
                     if include_simts_loss:    
-                        if epoch > 200:
-                            loss =    variational_loss 
+                        if epoch > 0:
+                            loss =    variational_loss +reconloss # + latent_dist_loss
                         else:                        
-                            loss =   latent_dist_loss + reconloss
+                            loss =    reconloss
                             no_progress_epoch = 0                        
                     else:
                         loss = variational_loss 
@@ -297,8 +298,8 @@ class COVGPNN(GPController):
                 else:
                     if include_simts_loss:
                         # if recon_loss_cerverged and dist_loss_cerverged and epoch > 500:
-                        if epoch > 200:
-                            optimizer_gp.step()
+                        if epoch > 0:
+                            optimizer_all.step()
                         else:
                             optimizer_nn.step()
                     else:
@@ -326,11 +327,12 @@ class COVGPNN(GPController):
                 snapshot_name = gp_name + str(epoch)+ 'snapshot'
                 self.set_evaluation_mode()
                 self.save_model(snapshot_name)
-                self.model.train()
-                self.likelihood.train()
+
             
             for step, (train_x, train_y) in enumerate(valid_dataloader):
                 optimizer_gp.zero_grad()                
+                optimizer_all.zero_grad()
+                optimizer_nn.zero_grad()
                 output = self.model(train_x)
                 loss = -mll(output, train_y)
                 valid_loss += loss.item()

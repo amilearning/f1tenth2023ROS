@@ -14,7 +14,7 @@ def states_to_encoder_input_torch(tar_st,ego_st):
     #     ego_s -=  track.track_length/2.0
 
     delta_s = tar_s - ego_s
-        
+    
     
     input_data=torch.tensor([ delta_s,                        
                         tar_st.p.x_tran,
@@ -457,7 +457,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         del_s = wrap_del_s(ntar_st.p.s, tar_st.p.s, track)        
         if del_s is None:
             print("NA")
-        if abs(del_s) > 0.8: #track.track_length/4:
+        if abs(del_s) > 1.5: #track.track_length/4:
             valid_data = False
 
         return valid_data

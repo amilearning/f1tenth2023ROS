@@ -767,29 +767,6 @@ def simvehiclestate2GPinput(vehiclestate,theta):
     vehiclestate.w.w_psi
 
 
-def simvehiclestate2VAEinput(ego_vehiclestates,tar_vehiclestates,length= 5,track_info = None):
-    ## convert from vehiclestatus to input vecotr for VAE 
-    # delta_s(s_target - s_ego), ego_ey, ego_epsi, ego_cur, tar_ey, tar_epsi, tar_cur,
-    if len(ego_vehiclestates) < length:
-    # invalid length of vehiclestates
-        return;         
-    for i in range(len(ego_vehiclestates)-length, len(ego_vehiclestates)):            
-        s_diff = tar_vehiclestates[i].p.s-ego_vehiclestates[i].p.s
-        if s_diff > track_info.track_length/2.0:
-            s_diff = s_diff-track_info.track_length 
-        vaeinput_tmp = torch.tensor([s_diff,
-                                     ego_vehiclestates[i].p.x_tran,
-                                     bound_angle_within_pi(ego_vehiclestates[i].p.e_psi),
-                                     ego_vehiclestates[i].lookahead.curvature[1],                                      
-                                     tar_vehiclestates[i].p.x_tran,
-                                     bound_angle_within_pi(tar_vehiclestates[i].p.e_psi),
-                                     tar_vehiclestates[i].lookahead.curvature[1]])                                     
-        if i == (len(ego_vehiclestates)-length):
-            vaeinput = vaeinput_tmp
-        else:
-            vaeinput = torch.vstack([vaeinput,vaeinput_tmp])
-    
-    # print(vaeinput)
 
 
 

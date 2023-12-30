@@ -150,7 +150,7 @@ def main():
                     #  'nonsense_reverse',
                         
     ####################################################
-    # main_train(train_policy_names)
+    main_train(train_policy_names)
     ####################################################
     args_['add_noise_data'] = False
     ############ TSNE ##################################
@@ -159,10 +159,10 @@ def main():
                          'highspeed_aggresive_1221',
                          'eval_highspeed_aggresive_1221'] 
     # eval_policy_names = ['blocking_1220']
-    # args_['model_name'] ='simtsGP'
-    # tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
-    # args_['model_name'] ='nosimtsGP'
-    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    args_['model_name'] ='simtsGP'
+    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    args_['model_name'] ='nosimtsGP'
+    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     
     ####################################################
     eval_policy_names = ['eval_centerline_1220',
