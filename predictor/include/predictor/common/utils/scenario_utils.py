@@ -10,6 +10,7 @@ import torch
 
 from typing import List, Tuple
 import numpy as np
+import scipy.interpolate
 import matplotlib.pyplot as plt
 
 
@@ -359,7 +360,7 @@ class SampleGenerator():
                                 ntar_st = scenario_data.tar_states[i + 1]
                                 dtar = tar_st.copy()
                                 # dtar.p.s = ntar_st.p.s - tar_st.p.s
-                                dtar.p.s = wrap_del_s(ntar_st.p.s, tar_st.p.s)
+                                dtar.p.s = wrap_del_s(ntar_st.p.s, tar_st.p.s,track)
                                 dtar.p.x_tran = (ntar_st.p.x_tran - tar_st.p.x_tran)
                                 dtar.p.e_psi = ntar_st.p.e_psi - tar_st.p.e_psi
                                 dtar.v.v_long = ntar_st.v.v_long - tar_st.v.v_long
@@ -772,7 +773,7 @@ def post_gp(sim_data: EvalData, gp):
 def smoothPlotResults(sim_data: SimData, speedup=1, fps=60, start_t=0, close_loop=False):
     import pynput
     import scipy.interpolate
-    from barcgp.visualization.barc_plotter_qt import BarcFigure, GlobalPlotConfigs, VehiclePlotConfigs
+    from predictor.visualization.barc_plotter_qt import BarcFigure, GlobalPlotConfigs, VehiclePlotConfigs
     import time
     import scipy.interpolate
     import scipy

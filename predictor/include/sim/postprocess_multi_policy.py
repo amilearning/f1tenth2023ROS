@@ -608,13 +608,11 @@ def main(args=None):
     
     # policy_names = ['timid', 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
     policy_names = ['mild_200', 'aggressive_blocking', 'mild_5000', 'reverse']
-    policy_names = ['mild_200', 'aggressive_blocking', 'mild_5000']
+    policy_names = ['timid', 'aggressive_blocking',  'mild_5000' ,'reverse']
     # policy_names = [ 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
     
     for j in range(len(policy_names)):        
         get_process(policy_names[j])
-
-    
 
     
     

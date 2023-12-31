@@ -23,13 +23,13 @@ from predictor.common_control import run_pid_warmstart
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
 import torch 
 
-total_runs = 200
+total_runs = 1
 M = 50
 # target_policy_name = 'timid'
 # folder_name = 'timid'
-target_policy_names = [ 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
-folder_names = [ 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
-Q_xref_set = [ 200.0, 500.0, 5000.0, 1000.0]
+target_policy_names = [ 'timid', 'aggressive_blocking',  'mild_5000' ,'reverse']
+folder_names = [ 'timid_0', 'aggressive_blocking',  'mild_5000' ,'reverse']
+Q_xref_set = [ 0.0, 500.0, 5000.0, 1000.0]
 tp_model_name = 'tphmcl' # this is not used 
 gp_model_name = 'gpberkely'
 track_types = ['straight','curve', 'chicane']
@@ -114,8 +114,10 @@ def main(args=None):
         ## 
         # build forcespro     
         scen = scen_gen.genScenario()    
-        predictors[0].track = scen.track
-        runSimulation(dt, t, N, names[0], predictors[0], scen, 0, mpcc_tv_params_,target_policy_name, policy_dir, 0)
+        predictor_idx = 4
+        predictors[predictor_idx].track = scen.track
+        runSimulation(dt, t, N, names[j], predictors[predictor_idx], scen, 0, mpcc_tv_params_,target_policy_name, policy_dir, 0)
+        # runSimulation(dt, t, N, names[j], predictors[2], scen, 0, mpcc_tv_params_,target_policy_name, policy_dir, 0)
         print("FORCESPRO INIT DONE")
         ## 
         gp_params = []    
@@ -128,24 +130,32 @@ def main(args=None):
                 predictors[k].track = scen.track
 
                 if isinstance(predictors[k], GPPredictor) or  isinstance(predictors[k], CovGPPredictor):
-                    gp_params.append((dt, t, N, names[k], predictors[k], scen, i+d,mpcc_tv_params_,target_policy_name, policy_dir, offset))
-                
+                    gp_params.append((dt, t, N, names[k], predictors[k], scen, i+d,mpcc_tv_params_,target_policy_name, policy_dir, offset))                
                 else:
                     params.append((dt, t, N, names[k], predictors[k], scen, i+d, mpcc_tv_params_,target_policy_name, policy_dir, offset))
+
+
+        # print("Starting non-GP Evaluation!")
+        # process_pool = mp.Pool(processes=8)
+        # process_pool.starmap(runSimulation, params)
+        # process_pool.close()
+        # process_pool.join()
+        
+        print(len(params[0]))
+        process_pool = mp.Pool(processes=10)
+        process_pool.starmap(runSimulation, params)
+        print("Closing!")
+        process_pool.close()
+        process_pool.join()
 
         print("Starting GP Evaluation!")
         for p in gp_params:
             runSimulation(*p)
 
-        print("Starting non-GP Evaluation!")
-        # print(len(params[0]))
-        # process_pool = mp.Pool(processes=10)
-        # process_pool.starmap(runSimulation, params)
-        # print("Closing!")
-        # process_pool.close()
-        # process_pool.join()
-        for p in params:
-            runSimulation(*p)
+        # for p in params:
+        #     runSimulation(*p)
+
+
         
     
 
@@ -166,7 +176,8 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
     mpcc_ego_controller.initialize()
     mpcc_ego_controller.set_warm_start(*ego_history)
 
-    mpcc_tv_controller = MPCC_H2H_approx(tar_dynamics_simulator.model, track_obj, mpcc_tv_params_, name="mpcc_h2h_tv", track_name='track')
+    # mpcc_tv_controller = MPCC_H2H_approx(tar_dynamics_simulator.model, track_obj, mpcc_tv_params_, name="mpcc_h2h_tv", track_name='track')
+    mpcc_tv_controller = MPCC_H2H_approx(tar_dynamics_simulator.model, track_obj, mpcc_tv_params_, name="mpcc_tv_params", track_name='track')
     mpcc_tv_controller.initialize()
     mpcc_tv_controller.set_warm_start(*tv_history)
 
@@ -180,6 +191,9 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
     ego_prediction, tar_prediction, tv_pred = None, None, None
     while True:
         # if tar_sim_state.p.s >= 0.8 * scenario.length - offset or ego_sim_state.p.s >= 0.8 * scenario.length - offset or ego_sim_state.t > 37:
+        
+        if abs(ego_sim_state.p.x_tran) > (scenario.track.track_width/2.0)*0.99:
+            break 
         if ego_sim_state.v.v_long < 0 or tar_sim_state.v.v_long < 0:
             break 
         if tar_sim_state.p.s >= 0.8 * scenario.length or ego_sim_state.p.s >= 0.8 * scenario.length:
@@ -192,6 +206,7 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
                     if tv_pred is None:
                         gp_tarpred_list.append(None)
                     else:
+                        tv_pred.xy_cov =tv_pred.xy_cov * 1.0# np.clip(tv_pred.xy_cov,1.0,np.inf)
                         gp_tarpred_list.append(tv_pred.copy())
                 else:
                     gp_tarpred_list.append(None)
@@ -239,6 +254,9 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
     root_dir = os.path.join(root_dir, name)
     create_dir(path=root_dir)
     pickle_write(multi_policy_sim_data, os.path.join(root_dir, str(id) + '.pkl'))
+
+    if total_runs == 1:        
+        smoothPlotResults(scenario_sim_data, speedup=1.6, close_loop=False)
 
 if __name__ == '__main__':
     main()

@@ -117,7 +117,7 @@ class MPCC_H2H_approx(AbstractController):
         self.track_length = track.track_length
 
         self.num_std_deviations = control_params.num_std_deviations
-        self.policy_map = {None: self.no_blocking_policy, "aggressive_blocking": self.aggressive_blocking_policy,
+        self.policy_map = {None: self.no_blocking_policy, "aggressive_blocking": self.aggressive_blocking_policy, "mild_5000": self.aggressive_blocking_policy,
                            "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy, "timid": self.no_blocking_policy, "reverse" : self.reverse_blocking_policy}
 
         self.optlevel = control_params.optlevel
@@ -788,7 +788,7 @@ class MPCC_H2H_approx(AbstractController):
         Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
         """
         dist = tv_state.p.s - ego_state.p.s              
-        dist = wrap_del_s(tv_state.p.s, ego_state.p.s)  
+        dist = wrap_del_s(tv_state.p.s, ego_state.p.s,self.track)  
         
         
         # tv_state.p.s < ego_state.p.s 
@@ -808,7 +808,7 @@ class MPCC_H2H_approx(AbstractController):
         Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
         """
         dist = tv_state.p.s - ego_state.p.s     
-        dist = wrap_del_s(tv_state.p.s, ego_state.p.s)     
+        dist = wrap_del_s(tv_state.p.s, ego_state.p.s,self.track)     
        
         
         # tv_state.p.s < ego_state.p.s 

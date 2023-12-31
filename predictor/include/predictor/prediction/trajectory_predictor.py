@@ -273,10 +273,11 @@ class MPCCPredictor(BasePredictor):
     def __init__(self, N:int, track : RadiusArclengthTrack, vehicle_config : MPCCApproxFullModelParams, cov: float = 0):
         super(MPCCPredictor, self).__init__(N, track)
         self.cov = cov               
-        self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track)
-        self.mpcc_controller = MPCC_H2H_approx(self.vehicle_model, self.track, control_params = mpcc_timid_params, name="gp_mpcc_h2h_timid", track_name="test_track")        
+
 
     def set_warm_start(self, cur_ego_state: VehicleState):
+        self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track)
+        self.mpcc_controller = MPCC_H2H_approx(self.vehicle_model, self.track, control_params = mpcc_timid_params, name="gp_mpcc_h2h_timid", track_name="test_track")        
         # cur_ego_state = VehicleState(t=0.0, p=ParametricPose(s=0, x_tran=0, e_psi=0), v=BodyLinearVelocity(v_long=1.2))
         # input = VehicleActuation(u_a=0.0, u_steer=0.0)
 

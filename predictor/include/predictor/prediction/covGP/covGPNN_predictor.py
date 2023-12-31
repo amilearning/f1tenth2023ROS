@@ -59,7 +59,7 @@ class CovGPPredictor(BasePredictor):
             tmp = self.encoder_input.clone()            
             self.encoder_input[:,0:-1] = tmp[:,1:]            
             self.encoder_input[:,-1] = states_to_encoder_input_torch(tar_state,ego_state)            
-            self.encoder_input[0,-1] = wrap_del_s(tar_state,ego_state, self.track)
+            self.encoder_input[0,-1] = wrap_del_s(tar_state.p.s,ego_state.p.s, self.track)
             self.buffer_update_count +=1
             if self.buffer_update_count > self.time_length:
                 self.buffer_update_count = self.time_length+1
