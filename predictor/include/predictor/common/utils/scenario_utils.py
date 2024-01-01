@@ -936,8 +936,8 @@ def interp_state(state1, state2, t):
 
 def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
 
-    half_track = track.track_length/2
-    full_track = track.track_length
+    half_track = track.track_length/4
+    full_track = track.track_length/2
 
     
     if abs(tar_s + full_track - ego_s) < abs(tar_s - ego_s):
@@ -946,6 +946,8 @@ def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
         tar_s -= full_track
     del_s = tar_s - ego_s
 
+    if del_s < -15:
+        print(1)
     # if abs(del_s) > half_track:
     #     if tar_s > half_track and ego_s < half_track:
     #         tmp = tar_s - full_track

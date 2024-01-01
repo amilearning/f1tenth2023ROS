@@ -65,28 +65,28 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.stds_y = None
         invalid_data_count = 0
         # pre_load_data_name = "preload_data"
-        # if not dest_path.exists()        
-        if pre_load_data_name is not None:       
-            pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')              
-            pre_data_dir =os.path.join(pre_data_dir,pre_load_data_name+'.pkl')
-            self.load_pre_data(pre_data_dir)            
-        else:            
-            pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
-            create_dir(pre_data_dir)        
-            pre_data_dir =os.path.join(pre_data_dir,"preload_data.pkl")        
-            if model_name == 'naiveGP':
-                self.gen_samples(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
-            else:
-                self.gen_samples_with_buffer(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
+        # if not dest_path.exists()      
+        if args['eval'] is False:  
+            if pre_load_data_name is not None:       
+                pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')              
+                pre_data_dir =os.path.join(pre_data_dir,pre_load_data_name+'.pkl')
+                self.load_pre_data(pre_data_dir)            
+            else:            
+                pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
+                create_dir(pre_data_dir)        
+                pre_data_dir =os.path.join(pre_data_dir,"preload_data.pkl")        
+                
+                if model_name == 'naiveGP':
+                    self.gen_samples(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
+                else:
+                    self.gen_samples_with_buffer(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
 
-        
-        
-        if len(self.samples) < 1 or self.samples is None:
-            return 
+            if len(self.samples) < 1 or self.samples is None:
+                return 
         # self.plotStatistics()
-        if args['model_name'] is not None:
-            self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
-        print('Generated Dataset with', len(self.samples), 'samples!')
+            if args['model_name'] is not None:
+                self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
+            print('Generated Dataset with', len(self.samples), 'samples!')
        
         # if randomize:
         #     random.shuffle(self.samples)
@@ -173,9 +173,10 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
                                     if self.add_noise_data:
                                         # if np.random.randint(10) < 8:
-                                        noisy_dat, noisy_output = self.add_noise(dat, gp_output)
-                                        self.output_data.append(noisy_output.clone())    
-                                        self.samples.append(noisy_dat.clone())  
+                                        for i in range(5):
+                                            noisy_dat, noisy_output = self.add_noise(dat, gp_output)
+                                            self.output_data.append(noisy_output.clone())    
+                                            self.samples.append(noisy_dat.clone())  
                                     self.output_data.append(gp_output.clone())    
                                     self.samples.append(dat.clone())  
                                 else:
@@ -184,7 +185,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                     
                         dbfile.close()
             self.save_pre_data(pre_data_dir)
-
+            print( "invalid_data_count = " + str(invalid_data_count))
+            
 
     def gen_samples(self, real_data = False, tsne = False, pre_data_dir = None):
             invalid_data_count = 0
@@ -236,7 +238,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
                                     if self.add_noise_data:
                                         # if np.random.randint(10) < 8:
-                                        for i in range(4):
+                                        # for i in range(4):
+                                        for i in range(1):
                                             noisy_dat, noisy_output = self.add_noise(dat, gp_output)
                                             self.output_data.append(noisy_output.clone())    
                                             self.samples.append(noisy_dat.clone())  
@@ -248,24 +251,90 @@ class SampleGeneartorCOVGP(SampleGenerator):
                         
                         dbfile.close()
             self.save_pre_data(pre_data_dir)
+            # plt.show()
+            print( "invalid_data_count = " + str(invalid_data_count))
+
+    
+
+    def generate_quintic_polynomial(self, y_min, y_max, max_attempts=1000):
+        x_start, x_end = -1, 1
+        for _ in range(max_attempts):
+            # Generate random coefficients for a quintic polynomial
+            coeffs = np.random.uniform(-2, 2, 6)
+            coeffs[-1] = 0 # ensure it passes the origin
+            poly = np.poly1d(coeffs)
+
+            # Evaluate the polynomial over the specified x-axis range
+            x = np.linspace(x_start, x_end, 21)
+            y = poly(x)
+            
+            # Check if all y-values are within the specified limits
+            if np.all((y >= y_min.cpu().numpy()) & (y <= y_max.cpu().numpy())):
+                return y
+
+        raise ValueError("Unable to find a suitable polynomial within the specified limits.")
+
+    
 
 
-    def add_noise(self, input, output, input_noise_level = None):
+
+
+
+
+    def add_noise(self, input, output, noise_level = None):
         # measurement noise level
                     # delta_s, tar_xtran, tar_epsi,      tar_vx, 
-        if input_noise_level is None:
-            input_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
-        output_noise_level = torch.tensor([0.3,       0.3,     10*np.pi/180,  0.2])
+        if noise_level is None:
+            noise_level = torch.tensor([2.0,       2.0,     60,  50.0])
         
         noisy_input = input.clone()
         noisy_output = output.clone()
-        for i in range(4):
-            if noisy_input.shape[1] > 1:            
-                    noisy_input[i,:8] += np.random.uniform(-input_noise_level[i], input_noise_level[i], (8))
-            else:
-                noisy_input[i] += np.random.uniform(-input_noise_level[i], input_noise_level[i], 1)
-        for i in range(4):
-            noisy_output[i] += np.random.uniform(-output_noise_level[i], output_noise_level[i], 1)
+        # noisy_output[1:] = -1*noisy_output[1:]
+        # noisy_output[0] += np.random.uniform(-input_noise_level[0], input_noise_level[0], (1))+0.1
+        
+        input_del_s_noise = self.generate_quintic_polynomial(-noise_level[0], noise_level[0])
+        # input_del_s_noise = np.clip(input_del_s_noise, -2.0, 0.3)
+        input_del_xtran_noise = self.generate_quintic_polynomial(-noise_level[1], noise_level[1])
+        # input_del_xtran_noise = np.clip(input_del_xtran_noise, -0.3, 0.3)
+        input_del_epsi_noise = self.generate_quintic_polynomial(-noise_level[2], noise_level[2])
+        # input_del_epsi_noise = np.clip(input_del_epsi_noise, -30, 30)
+        input_del_epsi_noise = input_del_epsi_noise*3.14/180.0
+        input_del_vx_noise = self.generate_quintic_polynomial(-noise_level[3], noise_level[3])
+        # input_del_vx_noise = np.clip(input_del_vx_noise, -2, 2)
+        input_del_vx_noise = input_del_vx_noise/10.0
+
+        output_del_s_noise = input_del_s_noise[11] - input_del_s_noise[10]
+        output_del_xtran_noise = input_del_xtran_noise[11] - input_del_xtran_noise[10]
+        output_del_epsi_noise = input_del_epsi_noise[11] - input_del_epsi_noise[10]
+        output_del_vx_noise = input_del_vx_noise[11] - input_del_vx_noise[10]
+
+        noisy_output[0] += output_del_s_noise
+        noisy_output[1] += output_del_xtran_noise
+        noisy_output[2] += output_del_epsi_noise
+        noisy_output[3] += output_del_vx_noise
+       
+        plt.plot(input_del_s_noise[5:12])
+        
+        if noisy_input.shape[1] > 1:       
+            ## train data for SimTSGP        
+            noisy_input[0,:] += input_del_s_noise[1:]
+            noisy_input[1,:] += input_del_xtran_noise[1:]
+            noisy_input[2,:] += input_del_epsi_noise[1:]
+            noisy_input[3,:] += input_del_vx_noise[1:]
+        else:
+            noisy_input[0] += np.random.normal(-0.01, 0.01, (1))
+            noisy_input[1] += np.random.normal(-0.01, 0.01, (1))
+            noisy_input[2] += np.random.normal(-0.01, 0.01, (1))
+            noisy_input[3] += np.random.normal(-0.01, 0.01, (1))
+
+            # noisy_input[0,:9] += np.random.normal(-noise_level[0], noise_level[0], (len(noisy_input[0,:9])))+0.1
+            # noisy_input[1,:9] += np.random.normal(-noise_level[1], noise_level[1], (len(noisy_input[1,:9])))+0.1
+            # noisy_input[2,:9] += np.random.normal(-noise_level[2], noise_level[2], (len(noisy_input[2,:9])))+0.1            
+
+            # noisy_input[0,10:] += np.random.normal(-noise_level[0], noise_level[0], (len(noisy_input[0,10:])))-0.1
+            # noisy_input[1,10:] += np.random.normal(-noise_level[1], noise_level[1], (len(noisy_input[1,10:])))-0.1
+            # noisy_input[2,10:] += np.random.normal(-noise_level[2], noise_level[2], (len(noisy_input[2,10:])))-0.1            
+        
 
         return noisy_input, noisy_output
 
@@ -277,6 +346,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         ego_state_list = []
         tar_state_list = []
         gt_tar_state_list = []
+        ego_pred_list= []
+        invalid_count= 0
         for ab_p in abs_path:
             for filename in os.listdir(ab_p):
                 if filename.endswith(".pkl"):
@@ -291,8 +362,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                     
                     # scenario_data: RealData = pickle.load(dbfile)                        
                     N = scenario_data.N   
-                    if N > self.time_horizon+5:
-                        for t in range(N-1-self.time_horizon - pred_horizon):                            
+                    if N > self.time_horizon+1:
+                        for t in range(N-1-self.time_horizon - pred_horizon):                                                        
                             # define empty torch with proper size 
                             encoder_input = torch.zeros(self.input_dim, self.time_horizon)                            
                             for i in range(t,t+self.time_horizon):                                
@@ -308,16 +379,34 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             tar_pred.x_tran = array.array('d')
                             tar_pred.e_psi = array.array('d')
                             tar_pred.v_long = array.array('d')
-                            for i in range(t+self.time_horizon-1,t+self.time_horizon+pred_horizon):
+
+                            ego_pred = VehiclePrediction()
+                            ego_pred.s = array.array('d')
+                            ego_pred.x_tran = array.array('d')
+                            ego_pred.e_psi = array.array('d')
+                            ego_pred.v_long = array.array('d')
+
+                            valid_data = self.data_validation(encoder_input,tar_st,scenario_data.tar_states[i+1],track_)                                                        
+                            if valid_data is False:
+                                invalid_count +=1
+                                continue
+
+                            for i in range(t+self.time_horizon-1,t+self.time_horizon+pred_horizon-1):
                                 tar_pred.t = ego_state.t
                                 tar_pred.s.append(scenario_data.tar_states[i].p.s)
                                 tar_pred.x_tran.append(scenario_data.tar_states[i].p.x_tran)
                                 tar_pred.e_psi.append(scenario_data.tar_states[i].p.e_psi)
                                 tar_pred.v_long.append(scenario_data.tar_states[i].v.v_long)
+
+                                ego_pred.t = ego_state.t
+                                ego_pred.s.append(scenario_data.ego_states[i].p.s)
+                                ego_pred.x_tran.append(scenario_data.ego_states[i].p.x_tran)
+                                ego_pred.e_psi.append(scenario_data.ego_states[i].p.e_psi)
+                                ego_pred.v_long.append(scenario_data.ego_states[i].v.v_long)
                             
-                            if noise:                                
-                                input_noise_level = torch.tensor([0.1,       0.1,     10*np.pi/180,  0.1])
-                                noisy_encoder_input , _ = self.add_noise(encoder_input,encoder_input, input_noise_level = input_noise_level)
+                            if self.add_noise_data or noise:                                
+                                
+                                noisy_encoder_input , _ = self.add_noise(encoder_input,encoder_input)
                                 
                                 tar_state.p.x_tran = noisy_encoder_input[1,-1]
                                 tar_state.p.e_psi = noisy_encoder_input[2,-1]
@@ -333,8 +422,11 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             ego_state_list.append(ego_state)
                             tar_state_list.append(tar_state)
                             gt_tar_state_list.append(tar_pred)
-
-        return input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list
+                            ego_pred_list.append(ego_pred)
+                            
+        print("invalid_count = " + str(invalid_count))
+        print("valid eval data len = " + str(len(input_buffer_list)))
+        return input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list
 
     def load_pre_data(self,pre_data_dir):        
         model = pickle_read(pre_data_dir)
@@ -455,10 +547,24 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # if abs(ntar_st.p.x_tran) > track.track_width/2:
         #     valid_data = False
         del_s = wrap_del_s(ntar_st.p.s, tar_st.p.s, track)        
+
         if del_s is None:
             print("NA")
-        if abs(del_s) > 1.5: #track.track_length/4:
+        if abs(del_s) > 0.5: 
             valid_data = False
+        
+        # del_epsi = ntar_st.p.e_psi-  tar_st.p.e_psi
+        # if abs(del_epsi) > 0.2: 
+        #     valid_data = False
+
+        del_x_tran = ntar_st.p.x_tran-  tar_st.p.x_tran
+        if abs(del_x_tran) > 0.5: 
+            valid_data = False
+
+        del_vlong = ntar_st.v.v_long-  tar_st.v.v_long
+        if abs(del_vlong) > 0.5: 
+            valid_data = False
+
 
         return valid_data
     
@@ -508,7 +614,12 @@ class SampleGeneartorCOVGP(SampleGenerator):
         
         # x_label = torch.stack(self.samples).detach().cpu().numpy()
         import matplotlib.pyplot as plt
-        y_label = torch.stack(self.output_data).detach().cpu().numpy()
+        # self.normalized_sample
+        # self.normalized_output
+        # self.output_data
+        # y_label = torch.stack(self.output_data).detach().cpu().numpy()
+        # self.normalized_sample[]
+        y_label = self.normalized_output.detach().cpu().numpy()
         debug_t = np.array(self.debug_t)
         titles = ["del_s", "del_ey", "del_epsi", "del_vx", "dt"]
         fig, axs = plt.subplots(5, 1, figsize=(10, 10))

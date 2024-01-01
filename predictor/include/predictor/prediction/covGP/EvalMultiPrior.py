@@ -139,11 +139,11 @@ class MultiPredPostEval:
         self.predictor_naivegp = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
         
         ### EVAL init  ########
-        self.pred_eval(args = args, predictor_type = 4)
-        return
-        self.pred_eval(args = args, predictor_type = 2)             
-        self.pred_eval(args = args, predictor_type = 1)
         
+        
+        self.pred_eval(args = args, predictor_type = 4)                
+        self.pred_eval(args = args, predictor_type = 2)             
+        self.pred_eval(args = args, predictor_type = 1)        
         self.pred_eval(args = args, predictor_type = 0)
         self.pred_eval(args= args, predictor_type = 3)
         # self.pred_eval_parallel()
@@ -185,9 +185,8 @@ class MultiPredPostEval:
             dir = [self.dirs[j]]                        
            
             sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
-            if len(sampGen.samples) < 1: 
-                return
-            input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list = sampGen.get_eval_data(dir,real_data = True, noise = False)            
+            
+            input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list = sampGen.get_eval_data(dir,real_data = True, noise = False)            
             pred_tar_state_list = []
             self.tv_pred = None ## Assume each directory contains single time race
             self.ego_warm_start()
@@ -198,13 +197,14 @@ class MultiPredPostEval:
                     input_buffer = input_buffer_list[i]
                     ego_state = ego_state_list[i]
                     tar_state = tar_state_list[i]
+                    
                     _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(ego_state, tv_state=tar_state, tv_pred=self.tv_pred)                    
                     ego_pred = self.gp_mpcc_ego_controller.get_prediction()
-
+                    ego_pred = ego_pred_list[i]
                     if predictor_type == 0:
                         self.tv_pred = self.predictor_withoutCOV.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)                         
                     elif predictor_type == 1:
-                        self.tv_pred = self.cav_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)                               
+                        self.tv_pred = gt_tar_state_list[i] # self.cav_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)                               
                     elif predictor_type == 2:
                         self.tv_pred = self.mpcc_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
                     elif predictor_type == 3:

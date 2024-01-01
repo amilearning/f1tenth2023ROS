@@ -13,15 +13,16 @@ args_ = {
     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
     "input_dim": 9,
     "n_time_step": 10,
-    "latent_dim": 9,
+    "latent_dim": 11,
     "gp_output_dim": 4,
-    "inducing_points" : 200,
+    "inducing_points" : 1000,
     "train_nn" : False,
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': True,
-    'model_name' : None
+    'add_noise_data': False,
+    'model_name' : None,
+    'eval' : False
     }
 
 
@@ -46,7 +47,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
     args_['model_name'] = 'naiveGP'
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = True, args= args_)
     print(" train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -82,6 +83,7 @@ def gen_eval_data(eval_policy_names):
 
     ########## Generate Prediction data for each predictor ########   
     rospy.init_node("MultiPredPostEval") 
+    args_['eval'] = True
     MultiPredPostEval(eval_dirs, args_)
 
 def run_eval(eval_policy_names):
@@ -98,23 +100,27 @@ def run_eval(eval_policy_names):
 
         for i in range(0,5):    
             # i is in predictor type  0 nosimtsgp, 1- cav, 2- nmpc, 3 - naivegp , 4 - simtsgp
-            lateral_errors, longitudinal_errors, pred_covs = get_process(eval_policy_names[j], predictor_type = i)            
-            rmse_longitudinal = np.sqrt(np.sum(longitudinal_errors**2))
-            rmse_lateral = np.sqrt(np.sum(lateral_errors**2))
+            # lateral_errors, longitudinal_errors, pred_covs = get_process(eval_policy_names[j], predictor_type = i)            
+            lateral_errors, longitudinal_errors = get_process(eval_policy_names[j], predictor_type = i)            
+            rmse_longitudinal = np.sqrt(np.sum(longitudinal_errors**2)/len(longitudinal_errors))
+            rmse_lateral = np.sqrt(np.sum(lateral_errors**2)/len(lateral_errors))
             rmse_combined = np.sqrt((rmse_longitudinal ** 2 + rmse_lateral ** 2) / 2)
             print(str(i) + "th predictor,  mse combined = " + str(rmse_combined))
+            # plt.plot(lateral_errors)
             # print(str(i) + "th predictor,  long_eror = " + str(np.mean(longitudinal_errors)))
             # print(str(i) + "th predictor,  lat_eror = " + str(np.mean(lateral_errors)))            
             lateral_errors_list.append((lateral_errors))
             longitudinal_errors_list.append((longitudinal_errors))
-            pred_covs_list.append(pred_covs)
+            # pred_covs_list.append(pred_covs)
             errors_list.append( abs(longitudinal_errors) + abs(lateral_errors))
          
+        # plt.legend()
+        # plt.show()
         
         predtype_lateral_errors_list.append(lateral_errors_list)
         predtype_longitudinal_errors_list.append(longitudinal_errors_list)
         predtype_errors_list.append(errors_list)
-        predtype_pred_covs_list.append(pred_covs_list)
+        # predtype_pred_covs_list.append(pred_covs_list)
         
            
         
@@ -124,18 +130,18 @@ def run_eval(eval_policy_names):
     draw_barplot_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
     draw_barplot_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
     draw_barplot_with_list(predtype_errors_list, eval_policy_names, value_name_ = 'Error')
-    draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
+    # draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
 
 
 
 def main():  
     ####################################################
-    train_policy_names = ['centerline_1220',
-                        'blocking_1220',
-                        'hjpolicy_1220',
-                        'highspeed_centerlin_1221',
-                        'highspeed_aggresive_1221',
-                        'highspeed_hjpolicy_1221']    
+    train_policy_names = ['centerline_11',
+                          'blocking_11'] #,
+                        # 'hjpolicy_1220',
+                        # 'highspeed_centerlin_1221',
+                        # 'highspeed_hjpolicy_1221',
+                        # 'highspeed_aggresive_1221']    
     # train_policy_names = ['centerline_1220',
     #                     'blocking_1220',
     #                     'highspeed_aggresive_1221',
@@ -154,20 +160,22 @@ def main():
     ####################################################
     args_['add_noise_data'] = False
     ############ TSNE ##################################
-    eval_policy_names = ['eval_centerline_1220',
-                         'centerline_1220',
-                         'highspeed_aggresive_1221',
-                         'eval_highspeed_aggresive_1221'] 
-    # eval_policy_names = ['blocking_1220']
+    eval_policy_names = ['centerline_11',
+                         'blocking_11'] 
+    
     args_['model_name'] ='simtsGP'
     tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     args_['model_name'] ='nosimtsGP'
     tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     
     ####################################################
-    eval_policy_names = ['eval_centerline_1220',
-                        'eval_blocking_1220',
-                        'eval_highspeed_aggresive_1221']
+    eval_policy_names = ['centerline_11',
+                         'blocking_11',
+                        ]
+    
+    # eval_policy_names = ['centerline_1220',
+    #                 'blocking_1220',
+    #                 'highspeed_aggresive_1221']
     # ,
     #                     'eval_highspeed_aggresive_1221',
     #                     'eval_highspeed_hjpolicy_1221'] 

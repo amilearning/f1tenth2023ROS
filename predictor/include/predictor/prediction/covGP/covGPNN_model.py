@@ -156,11 +156,13 @@ class COVGPNN(GPController):
                                     {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
 
-        optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.05}])
+        # optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01}])
+        optimizer_nn = torch.optim.Adam([{'params': self.model.fully_fc.parameters(), 'lr': 0.01}])
                     
         # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.002, 'weight_decay':1e-9},                                            
         # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005, 'weight_decay':1e-9},                                            
-        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005},                                            
+        # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                                    
+        optimizer_all = torch.optim.Adam([{'params': self.model.fully_fc.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
@@ -199,7 +201,7 @@ class COVGPNN(GPController):
             c_loss = 0
             recon_loss_sum = 0
             latent_dist_loss_sum = 0
-            variational_loss_sum = 0
+            variational_loss_sum = 0 
             for step, (train_x, train_y) in enumerate(train_dataloader):                
                 self.model.train()
                 self.likelihood.train()     
@@ -284,10 +286,10 @@ class COVGPNN(GPController):
                     
                     if include_simts_loss:    
                         if epoch > 0:
-                            loss =    variational_loss +reconloss # + latent_dist_loss
+                            loss =    variational_loss +reconloss #+ latent_dist_loss
                         else:                        
                             loss =    reconloss
-                            no_progress_epoch = 0                        
+                        #     no_progress_epoch = 0                        
                     else:
                         loss = variational_loss 
                 train_loss += loss.item()    
@@ -297,11 +299,13 @@ class COVGPNN(GPController):
                     optimizer_gp.step()
                 else:
                     if include_simts_loss:
-                        # if recon_loss_cerverged and dist_loss_cerverged and epoch > 500:
                         if epoch > 0:
+                        # if epoch > 0:
                             optimizer_all.step()
                         else:
                             optimizer_nn.step()
+                        # else:
+                        #     optimizer_nn.step()
                     else:
                         optimizer_all.step()
                                     
@@ -314,13 +318,13 @@ class COVGPNN(GPController):
                 lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
                 self.writer.add_scalar(lr_tag, param_group['lr'], epoch )                
             varloss_tag = gp_name+'/Loss/variational_loss'
-            self.writer.add_scalar(varloss_tag, variational_loss_sum, epoch)
+            self.writer.add_scalar(varloss_tag, variational_loss_sum/ len(train_dataloader), epoch)
             reconloss_tag = gp_name +'/Loss/reconloss'
-            self.writer.add_scalar(reconloss_tag, recon_loss_sum, epoch )
+            self.writer.add_scalar(reconloss_tag, recon_loss_sum / len(train_dataloader), epoch )
             latent_dist_loss_tag = gp_name+'/Loss/latent_dist_loss'
-            self.writer.add_scalar(latent_dist_loss_tag, latent_dist_loss_sum, epoch)
+            self.writer.add_scalar(latent_dist_loss_tag, latent_dist_loss_sum/ len(train_dataloader) , epoch)
             train_loss_tag = gp_name+'/Loss/total_train_loss' 
-            self.writer.add_scalar(train_loss_tag, train_loss, epoch)
+            self.writer.add_scalar(train_loss_tag, train_loss/ len(train_dataloader), epoch)
             
             scheduler.step()            
             if epoch % 50 ==0:
@@ -342,10 +346,10 @@ class COVGPNN(GPController):
             valid_loss_tag = gp_name+'/Loss/valid_loss'
             self.writer.add_scalar(valid_loss_tag, valid_loss, epoch)
             if c_loss > last_loss:
-                if no_progress_epoch >= 20:
+                if no_progress_epoch >= 15:
                     if include_simts_loss:
-                        if recon_loss_cerverged and dist_loss_cerverged and epoch > 300: 
-                            if no_progress_epoch > 20:
+                        if recon_loss_cerverged and epoch > 0: 
+                            if no_progress_epoch > 50:
                                 done = True   
                     else:
                         done = True 
@@ -613,7 +617,7 @@ class COVGPNNTrained(GPController):
         roll_ego_state = torch.tensor([ego_state.p.s, ego_state.p.x_tran, ego_state.p.e_psi, ego_state.v.v_long]).to('cuda')
         roll_ego_state = roll_ego_state.repeat(M,1)
 
-        horizon = len(ego_prediction.x)    
+        horizon = len(ego_prediction.s)    
         # start_time = time.time()
         for i in range(horizon-1):         
             # gp_start_time = time.time()  

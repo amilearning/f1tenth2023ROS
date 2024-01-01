@@ -24,7 +24,7 @@ def covGPNN_train(dirs = None, real_data = False, args = None):
         print("ARGS should be given!!")
         return 
     sampGen = SampleGeneartorCOVGP(dirs, args = args, randomize=True, real_data = real_data)
-    
+ 
     # sampGen.plotStatistics()
     
     if not dir_exists(dirs[0]):

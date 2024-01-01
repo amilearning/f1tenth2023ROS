@@ -14,19 +14,18 @@ from barcgp.common.utils.scenario_utils import MultiPolicyEvalData, EvalData, Po
 
 from barcgp.h2h_configs import *
 
-total_runs = 200
+total_runs = 100
 track_width = width
 blocking_threshold = 0.5  # Percentage of track x_tran movement to consider for blocking
 
-policy_name = 'reverse'
-policy_dir = os.path.join(eval_dir, policy_name)
-scen_dir = os.path.join(policy_dir, 'track')
-
+tmp_policy_name = 'timid'
+policy_dir = os.path.join(eval_dir, tmp_policy_name)
+scen_dir = os.path.join(policy_dir, 'straight')
 names = sorted(os.listdir(scen_dir), key=str)
 print(names)
 names_for_legend = names 
-names_for_legend = ['NaiveGP', 'NMPC', 'CAV', 'Proposed']
-colors = {"GP": "y", "NLMPC": "b", "CAV": "g", "CV": "m", "MPCC": "k", "STSP": "y", "TP": "r"}
+
+colors = {"CAV": "y", "MPPC": "b", "naiveGP": "g", "nosimtsGP": "m", "simtsGP": "k"}
 find_color = lambda pred: [val for key, val in colors.items() if key in pred].__getitem__(0)
 
 
@@ -445,7 +444,8 @@ def get_lat_lon_mse(processed_data, tmp_policy_name):
     last_step_lon_mse = []        
     last_step_lat_mse = [] 
     for id, ctrl_name in enumerate(names):
-        if ctrl_name == 'CAV_01' or ctrl_name == 'GP_2' or ctrl_name == 'NLMPC_01' or ctrl_name == 'TP_2 ':
+        # if ctrl_name == 'CAV_01' or ctrl_name == 'GP_2' or ctrl_name == 'NLMPC_01' or ctrl_name == 'TP_2 ':
+        if ctrl_name == 'CAV' or ctrl_name == 'MPCC' or ctrl_name == 'naiveGP' or ctrl_name == 'nosimtsGP' or ctrl_name == 'simtsGP':
             ctrl_data = processed_data[ctrl_name]                
             
             last_step_lon_data = np.array(ctrl_data.longitudinal_errors)[:,-1]            
@@ -460,22 +460,23 @@ def get_lat_lon_mse(processed_data, tmp_policy_name):
     last_step_lon_mse_np = np.transpose(np.array(last_step_lon_mse)).reshape(1, -1)   
    
  
-    last_step_lon_mse_np_df = pd.DataFrame(last_step_lon_mse_np,columns=['CAV_01', 'GP_2', 'NLMPC_01', 'TP_2'])
+    last_step_lon_mse_np_df = pd.DataFrame(last_step_lon_mse_np,columns=['CAV', 'MPCC', 'naiveGP', 'nosimtsGP', 'simtsGP'])
     last_step_lon_mse_np_df['Policy'] = str(tmp_policy_name)
 
     last_step_lat_mse_np = np.transpose(np.array(last_step_lat_mse)).reshape(1, -1)    
-    last_step_lat_mse_np_df = pd.DataFrame(last_step_lat_mse_np,columns=['CAV_01', 'GP_2', 'NLMPC_01', 'TP_2'])
+    last_step_lat_mse_np_df = pd.DataFrame(last_step_lat_mse_np,columns=['CAV', 'MPCC', 'naiveGP', 'nosimtsGP', 'simtsGP'])
     last_step_lat_mse_np_df['Policy'] = str(tmp_policy_name)
 
     return    last_step_lon_mse_np_df, last_step_lat_mse_np_df
             
 def get_step_df(step_erros, min_idx, tmp_policy_name):
     a = []
+    print(tmp_policy_name + " min_idx = " + str(min_idx))
     for i in range(len(step_erros)):
         tmp =  step_erros[i][:min_idx]
         a.append(tmp)
     a_np = np.transpose(np.array(a))    
-    df_step = pd.DataFrame(a_np,columns=['CAV_01', 'GP_2', 'NLMPC_01', 'TP_2'])
+    df_step = pd.DataFrame(a_np,columns=['CAV', 'MPCC', 'naiveGP', 'nosimtsGP', 'simtsGP'])
     df_step['Policy'] = str(tmp_policy_name)
     return df_step
 
@@ -486,7 +487,7 @@ def get_lon_lat_df(processed_data, tmp_policy_name):
     first_step_erros_lat = []
     last_step_erros_lat = [] 
     for id, ctrl_name in enumerate(names):
-        if ctrl_name == 'CAV_01' or ctrl_name == 'GP_2' or ctrl_name == 'NLMPC_01' or ctrl_name == 'TP_2 ':
+        if ctrl_name == 'CAV' or ctrl_name == 'MPCC' or ctrl_name == 'naiveGP' or ctrl_name == 'nosimtsGP' or ctrl_name == 'simtsGP':
             ctrl_data = processed_data[ctrl_name]                
             first_step_erros_lon.append(np.array(ctrl_data.longitudinal_errors)[:,2])       
             last_step_erros_lon.append(np.array(ctrl_data.longitudinal_errors)[:,-1])
@@ -525,10 +526,13 @@ def main(args=None):
 
   
     def get_process(policy_name):
-        
+        types_of_track = ['straight', 'curve', 'chicane']
         policy_dir = os.path.join(eval_dir, policy_name)
-        scen_dir = os.path.join(policy_dir, 'track')
-        print(f"Evaluating data for policy: {policy_name} in {scen_dir}")
+        track_types = sorted(os.listdir(policy_dir), key=str)
+        tmp_dir = os.path.join(policy_dir, types_of_track[0])
+        # names = sorted(os.listdir(tmp_dir), key=str)
+        # scen_dir = os.path.join(policy_dir, 'track')
+        print(f"Evaluating data for policy: {policy_name}")
         n = len(names)
         # Initialize processed data container
         processed_data = {}
@@ -569,50 +573,60 @@ def main(args=None):
             col_d_cont.append(np.zeros((100,)))
             u_a.append(np.zeros((100,)))
             u_s.append(np.zeros((100,)))
-    
+
         for i in tqdm(range(total_runs)):
             scores = [None] * n
             exists = True
-            for a in names:
-                name = os.path.join(os.path.join(scen_dir, a), str(i) + '.pkl')
-                if not os.path.exists(name):
-                    exists = False
-                    break
-            if exists:
-                for id, a in enumerate(names):
-                    if id not in lateral_errors:
-                        lateral_errors[id] = []
-                    if id not in longitudinal_errors:
-                        longitudinal_errors[id] = []
+            for track_type in track_types:
+                track_folder = os.path.join(policy_dir,track_type)
+                sub_track_folder_dir = sorted(os.listdir(track_folder), key=str)
+                ##################################################
+                ##################################################
+                ##################################################
+                for predictor_name in names:     
+                    folder_name_to_files = os.path.join(track_folder, predictor_name)            
+                    files = sorted(os.listdir(folder_name_to_files), key=str)
+                    for file in files:
+                        if file.endswith('.pkl'):  
+                            file_idx = int(file.split('.pkl')[-2])
+                            file_dir = os.path.join(folder_name_to_files, file)
+                            dbfile = open(file_dir, 'rb')
+                            multi_scenario_data: MultiPolicyEvalData = pickle.load(dbfile)
+                            scenario_data = multi_scenario_data.evaldata
+                            
+                            if processed_data[predictor_name].track is None:
+                                processed_data[predictor_name].track = scenario_data.scenario_def.track
+                            metrics = get_metrics(scenario_data)
+                            if metrics.lateral_error.shape[0] != 0:
+                                parse_metrics(metrics, processed_data[predictor_name], file_idx)
+                        
+                  
+                # if exists:
+                #     for id, a in enumerate(names):
+                #         if id not in lateral_errors:
+                #             lateral_errors[id] = []
+                #         if id not in longitudinal_errors:
+                #             longitudinal_errors[id] = []
 
-                    name = os.path.join(os.path.join(scen_dir, a), str(i) + '.pkl')
-                    if os.path.exists(name):
-                        dbfile = open(name, 'rb')
-                        multi_scenario_data: MultiPolicyEvalData = pickle.load(dbfile)
-                        scenario_data = multi_scenario_data.evaldata
-                        
-                        if processed_data[a].track is None:
-                            processed_data[a].track = scenario_data.scenario_def.track
-                        metrics = get_metrics(scenario_data)
-                        if metrics.lateral_error.shape[0] != 0:
-                            parse_metrics(metrics, processed_data[a], i)
-                        
+                #         name = os.path.join(os.path.join(scen_dir, a), str(i) + '.pkl')
+                #         if os.path.exists(name):
+
                         
     
-        post_path = os.path.join(policy_dir, policy_name + '.pkl')
-        pickle_write(processed_data, post_path)
+        # post_path = os.path.join(policy_dir, policy_name + '.pkl')
+        # pickle_write(processed_data, post_path)
 
     
         
     
     
     # policy_names = ['timid', 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
-    policy_names = ['mild_200', 'aggressive_blocking', 'mild_5000', 'reverse']
-    policy_names = ['timid', 'aggressive_blocking',  'mild_5000' ,'reverse']
+    # policy_names = ['mild_200', 'aggressive_blocking', 'mild_5000', 'reverse']
+    policy_names = ['timid'] #, 'aggressive_blocking',  'mild_5000' ,'reverse']
     # policy_names = [ 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
     
-    for j in range(len(policy_names)):        
-        get_process(policy_names[j])
+    # for j in range(len(policy_names)):        
+    #     get_process(policy_names[j])
 
     
     

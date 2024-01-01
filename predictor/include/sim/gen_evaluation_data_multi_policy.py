@@ -23,7 +23,7 @@ from predictor.common_control import run_pid_warmstart
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
 import torch 
 
-total_runs = 1
+total_runs = 100
 M = 50
 # target_policy_name = 'timid'
 # folder_name = 'timid'
@@ -114,7 +114,7 @@ def main(args=None):
         ## 
         # build forcespro     
         scen = scen_gen.genScenario()    
-        predictor_idx = 4
+        predictor_idx = 1
         predictors[predictor_idx].track = scen.track
         runSimulation(dt, t, N, names[j], predictors[predictor_idx], scen, 0, mpcc_tv_params_,target_policy_name, policy_dir, 0)
         # runSimulation(dt, t, N, names[j], predictors[2], scen, 0, mpcc_tv_params_,target_policy_name, policy_dir, 0)
@@ -141,19 +141,19 @@ def main(args=None):
         # process_pool.close()
         # process_pool.join()
         
-        print(len(params[0]))
-        process_pool = mp.Pool(processes=10)
-        process_pool.starmap(runSimulation, params)
-        print("Closing!")
-        process_pool.close()
-        process_pool.join()
+        # print(len(params[0]))
+        # process_pool = mp.Pool(processes=10)
+        # process_pool.starmap(runSimulation, params)
+        # print("Closing!")
+        # process_pool.close()
+        # process_pool.join()
 
         print("Starting GP Evaluation!")
         for p in gp_params:
             runSimulation(*p)
 
-        # for p in params:
-        #     runSimulation(*p)
+        for p in params:
+            runSimulation(*p)
 
 
         
@@ -192,7 +192,7 @@ def runSimulation(dt, t, N, name, predictor, scenario, id,mpcc_tv_params_,target
     while True:
         # if tar_sim_state.p.s >= 0.8 * scenario.length - offset or ego_sim_state.p.s >= 0.8 * scenario.length - offset or ego_sim_state.t > 37:
         
-        if abs(ego_sim_state.p.x_tran) > (scenario.track.track_width/2.0)*0.99:
+        if abs(ego_sim_state.p.x_tran) > (scenario.track.track_width/2.0)*0.99 or abs(tar_sim_state.p.x_tran) > (scenario.track.track_width/2.0)*0.99:
             break 
         if ego_sim_state.v.v_long < 0 or tar_sim_state.v.v_long < 0:
             break 
