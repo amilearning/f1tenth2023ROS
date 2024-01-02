@@ -384,8 +384,7 @@ def get_metrics(scen_data: EvalData):
     u = Act.get_results()
     metrics.lateral_rmse = np.sqrt(np.mean(metrics.lateral_error ** 2))
     
-    # if sum(sum(np.isnan(metrics.lateral_error))) > 0:
-    #     print(1)
+
 
     metrics.longitudinal_rmse = np.sqrt(np.mean(metrics.longitudinal_error ** 2))
     metrics.lateral_rmse = np.sqrt(np.mean(metrics.lateral_error ** 2))

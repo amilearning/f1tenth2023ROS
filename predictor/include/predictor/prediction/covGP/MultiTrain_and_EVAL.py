@@ -158,17 +158,17 @@ def main():
                     #  'nonsense_reverse',
                         
     ####################################################
-    # main_train(train_policy_names)
+    main_train(train_policy_names)
     ####################################################
     args_['add_noise_data'] = False
     ############ TSNE ##################################
     eval_policy_names = ['centerline_11',
                          'blocking_11'] 
     
-    # args_['model_name'] ='simtsGP'
-    # tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
-    # args_['model_name'] ='nosimtsGP'
-    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    args_['model_name'] ='simtsGP'
+    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    args_['model_name'] ='nosimtsGP'
+    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     
     ####################################################
     eval_policy_names = ['centerline_11',
@@ -183,7 +183,7 @@ def main():
     #                     'eval_highspeed_hjpolicy_1221'] 
 
     ####################################################
-    # gen_eval_data(eval_policy_names)
+    gen_eval_data(eval_policy_names)
     ####################################################
     run_eval(eval_policy_names)        
 

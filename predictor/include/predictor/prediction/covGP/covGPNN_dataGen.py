@@ -103,7 +103,6 @@ class SampleGeneartorCOVGP(SampleGenerator):
                         else:
                             scenario_data: RealData = pickle.load(dbfile)                                                            
                             track_ = scenario_data.scenario_def.track
-
                         # scenario_data: RealData = pickle.load(dbfile)                        
                         N = scenario_data.N              
                         ######################## random Policy ############################
@@ -111,153 +110,219 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             policy_name = ab_p.split('/')[-1]
                         else:
                             policy_name = ab_p.split('/')[-2]
-                        policy_gen = False
-                        if policy_name == 'wall' :
-                            policy_gen = True
-                            # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.scenario_def.track)                    
-                            # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
-                            tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track_)                                        
+                        
+                        tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track_)                                                      
                         ###################################################################
                         if N > self.time_horizon+1:
-                            for t in range(N-1-self.time_horizon*2):                            
-                                # define empty torch with proper size 
-                                dat = torch.zeros(self.input_dim, 2*self.time_horizon)
-                                # fdat = torch.zeros(self.input_dim, self.time_horizon)
-                                for i in range(t,t+self.time_horizon):                                
-                                    ego_st = scenario_data.ego_states[i]
-                                    tar_st = scenario_data.tar_states[i]
-                                    ntar_orin = scenario_data.tar_states[i+1]
-                                    real_dt = ntar_orin.t - tar_st.t 
-                                
-                                    # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
-                                    #                 tar_ey, tar_epsi, tar_cur]      
-                                                               
-                                    dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st, track_)                                          
-                                    # dat[0,i-t] = wrap_del_s(tar_st.p.s,ego_st.p.s , track_)
-
-                                                                        
-                                next_tar_st = scenario_data.tar_states[t+self.time_horizon].copy()
-                                tar_st = scenario_data.tar_states[t+self.time_horizon-1].copy()
-                                real_dt = next_tar_st.t - tar_st.t 
-                                valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
-                                if tsne:
-                                    if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 2.0:
-                                        valid_data = False
-
-                                if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
-                                    # delta_s = next_tar_st.p.s-tar_st.p.s
-                                    delta_s = wrap_del_s(next_tar_st.p.s,tar_st.p.s, track_)                                    
-                                    delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
-                                    delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
-                                    delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long
-                                    
-
-                                    self.debug_t.append(real_dt)
-                                    gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ]).clone()                                                                                                                               
-                                    
-                                        
-                                    for i in range(t+self.time_horizon, t+self.time_horizon*2):
+                            for t in range(N-1-self.time_horizon*2):  
+                                #                if self.add_noise:
+                                # tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=scenario_data.track)                    
+                                # scenario_data.tar_states[i+1] = policy_generator(tar_dynamics_simulator,scenario_data.tar_states[i])                  
+                                # ntar_orin = scenario_data.tar_states[i+1]
+                                def get_x_y_data_from_index(t, scenario_data, tsne = False):                                                 
+                                    # define empty torch with proper size                                     
+                                    dat = torch.zeros(self.input_dim, 2*self.time_horizon)                                    
+                                    for i in range(t,t+self.time_horizon):                                
                                         ego_st = scenario_data.ego_states[i]
                                         tar_st = scenario_data.tar_states[i]
                                         ntar_orin = scenario_data.tar_states[i+1]
+                                        real_dt = ntar_orin.t - tar_st.t 
+                                    # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
+                                    #                 tar_ey, tar_epsi, tar_cur]      
+                                                            
+                                        dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st, track_)                                          
+                                    # dat[0,i-t] = wrap_del_s(tar_st.p.s,ego_st.p.s , track_)
+                            
+                                    next_tar_st = scenario_data.tar_states[t+self.time_horizon].copy()
+                                    tar_st = scenario_data.tar_states[t+self.time_horizon-1].copy()
                                     
-                                        # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
-                                        #                 tar_ey, tar_epsi, tar_cur]                                 
-                                        dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st, track_)                                        
+                                    valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
+                                    if tsne:
+                                        if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 2.0:
+                                            valid_data = False
                                         
+                                    if valid_data:                              
+                                        # delta_s = next_tar_st.p.s-tar_st.p.s
+                                        delta_s = wrap_del_s(next_tar_st.p.s,tar_st.p.s, track_)                                    
+                                        delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
+                                        delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
+                                        delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long
+                                        
+                                        self.debug_t.append(real_dt)
+                                        gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ]).clone()                                                                                                                               
+                                        
+                                        for i in range(t+self.time_horizon, t+self.time_horizon*2):
+                                            ego_st = scenario_data.ego_states[i]
+                                            tar_st = scenario_data.tar_states[i]
+                                            ntar_orin = scenario_data.tar_states[i+1]
+                                        
+                                            # [(tar_s-ego_s), ego_ey, ego_epsi, ego_cur,
+                                            #                 tar_ey, tar_epsi, tar_cur]                                 
+                                            dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st, track_)                                        
+                                            
+                                        
+                                        # if self.add_noise_data:
+                                            # if np.random.randint(10) < 8:
+                                            # for i in range(1):
+                                            #     noisy_dat, noisy_output = self.add_noise(dat, gp_output)
+                                            #     if self.args['model_name'] == 'naiveGP':
+                                            #         self.output_data.append(noisy_output.clone())                                           
+                                            #         self.samples.append(noisy_dat[:,int(noisy_dat.shape[1]/2)-1].clone())  
+                                            #     else:
+                                            #         self.output_data.append(noisy_output.clone())    
+                                            #         self.samples.append(noisy_dat.clone())  
+                                        # if self.args['model_name'] == 'naiveGP':
+                                        #     self.output_data.append(gp_output.clone())                                           
+                                        #     self.samples.append(dat[:,int(dat.shape[1]/2)-1].clone())  
+                                        # else:
+                                        #     self.output_data.append(gp_output.clone())    
+                                        #     self.samples.append(dat.clone())  
 
-                                    if self.add_noise_data:
-                                        # if np.random.randint(10) < 8:
-                                        for i in range(1):
-                                            noisy_dat, noisy_output = self.add_noise(dat, gp_output)
-                                            if self.args['model_name'] == 'naiveGP':
-                                                self.output_data.append(noisy_output.clone())                                           
-                                                self.samples.append(noisy_dat[:,int(noisy_dat.shape[1]/2)-1].clone())  
-                                            else:
-                                                self.output_data.append(noisy_output.clone())    
-                                                self.samples.append(noisy_dat.clone())  
-                                    if self.args['model_name'] == 'naiveGP':
-                                        self.output_data.append(gp_output.clone())                                           
-                                        self.samples.append(dat[:,int(dat.shape[1]/2)-1].clone())  
+                                        return dat.clone(), gp_output.clone() 
                                     else:
-                                        self.output_data.append(gp_output.clone())    
-                                        self.samples.append(dat.clone())  
-                                else:
-                                    invalid_data_count+=1
+                                        return None, None # invalid_data_count+=1
+                                
+                                        ############### return noisy trajecoties ##############                                    
+                                
+
+                                    
+                                tmp_sample, tmp_output = get_x_y_data_from_index(t,scenario_data, tsne)
+                                if tmp_sample is None or tmp_output is None:
+                                    continue
+                                self.output_data.append(tmp_output)
+                                self.samples.append(tmp_sample)
+                                if self.add_noise_data:
+                                    if t < scenario_data.N-self.time_horizon*3 and t%3 ==0:
+                                        aug_gp_outputs, aug_samples = self.get_augment_samples(t,scenario_data, track_, tar_dynamics_simulator)
+                                        self.output_data.extend(aug_gp_outputs)
+                                        self.samples.extend(aug_samples)
+                                    
                                 ### Add curvature[2] at the last dimension 
                     
                         dbfile.close()
+            
+            
+            if self.args['model_name'] == 'naiveGP':                
+                new_samples = []
+                for i in range(len(self.samples)):
+                    new_samples.append(self.samples[i][:,self.time_horizon-1])
+                self.samples = new_samples
+                
             self.save_pre_data(pre_data_dir)
-            print( "invalid_data_count = " + str(invalid_data_count))
+            # print( "invalid_data_count = " + str(invalid_data_count))
+            
+    def get_augment_samples(self, t, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator : DynamicsSimulator, sample_num = 10):
+        gp_outputs, samples = self.extend_dat(t,sample_num, self.time_horizon*3,scenario_data,track,simulator)
+      
+        # original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
+        # original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
+        # x2 = range(self.time_horizon*3)
+        # for i in range(len(samples)):
+        #     x = range(i,i+len(samples[i][1,:]))
+        #     plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
+        # x = range(self.time_horizon*2)
+        # plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
+        # plt.plot(x2,original_dat2[1,:],'r')
+        
+
+        return gp_outputs, samples
+      
+
+
+    def extend_dat(self,t, num_sample, time_length, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator: DynamicsSimulator):
+        dat = torch.zeros(self.input_dim, time_length)                                    
+        if time_length < self.time_horizon*2+1:
+            time_length = self.time_horizon*2
+        roll_tar_st = scenario_data.tar_states[t].copy()  
+        # for i in range(t,t+time_length):            
+        gp_outputs = []      
+        samples = []
+                      
+        for i in range(time_length):                                
+            ego_st = scenario_data.ego_states[i+t]
+            if i == self.time_horizon-1:
+                roll_tar_st = scenario_data.tar_states[i+t].copy()  
+                tar_st = roll_tar_st                
+            elif i >= self.time_horizon-1:
+                tar_st = roll_tar_st                
+            else:
+                tar_st = scenario_data.tar_states[i+t]
+                roll_tar_st =tar_st
+            
+            dat[:,i]=states_to_encoder_input_torch(tar_st, ego_st, track)  
+
+
+            roll_tar_st = self.gen_random_next_state(tar_st,simulator)           
+            if i >= self.time_horizon-1:
+                del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 
+                del_xtran = roll_tar_st.p.x_tran - tar_st.p.x_tran
+                del_epsi = roll_tar_st.p.e_psi - tar_st.p.e_psi
+                del_vx = roll_tar_st.v.v_long - tar_st.v.v_long
+                gp_output = torch.tensor([del_s, del_xtran, del_epsi, del_vx ]).clone()   
+                gp_outputs.append(gp_output.clone())
+
             
 
-    # def gen_samples(self, real_data = False, tsne = False, pre_data_dir = None):
-    #         invalid_data_count = 0
-    #         for ab_p in self.abs_path:
-    #             for filename in os.listdir(ab_p):
-    #                 if filename.endswith(".pkl"):
-    #                     dbfile = open(os.path.join(ab_p, filename), 'rb')
-    #                     if real_data:
-    #                         scenario_data: SimData = pickle.load(dbfile)                                
-    #                         track_ = scenario_data.track
-    #                     else:
-    #                         scenario_data: RealData = pickle.load(dbfile)                                                            
-    #                         track_ = scenario_data.scenario_def.track
-    #                     # scenario_data: RealData = pickle.load(dbfile)                        
-    #                     N = scenario_data.N              
-    #                     ######################## random Policy ############################
-    #                     if real_data:
-    #                         policy_name = ab_p.split('/')[-1]
-    #                     else:
-    #                         policy_name = ab_p.split('/')[-2]
-                                                            
-    #                     ###################################################################
-    #                     if N > self.time_horizon+1:
-                            
-    #                         for t in range(N-1-self.time_horizon*2):                            
-    #                             # define empty torch with proper size 
-    #                             dat = torch.zeros(self.input_dim, 1)
-    #                             # fdat = torch.zeros(self.input_dim, self.time_horizon)                                                                
-    #                             ego_st = scenario_data.ego_states[t]
-    #                             tar_st = scenario_data.tar_states[t]
-    #                             ntar_orin = scenario_data.tar_states[t+1]
-    #                             real_dt = ntar_orin.t - tar_st.t 
-    #                             dat=states_to_encoder_input_torch(tar_st, ego_st, track_).unsqueeze(dim=1)      
-                                
-    #                             next_tar_st = ntar_orin.copy()
-    #                             real_dt = next_tar_st.t - tar_st.t 
-    #                             valid_data = self.data_validation(dat,tar_st,next_tar_st,track_)                                                        
-    #                             if tsne:
-    #                                 if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.3:
-    #                                     valid_data = False
+         
 
-    #                             if valid_data and (real_dt > 0.05 and real_dt < 0.2):                              
-    #                                 delta_s = wrap_del_s(next_tar_st.p.s, tar_st.p.s, track_)                                    
-    #                                 delta_xtran = next_tar_st.p.x_tran-tar_st.p.x_tran
-    #                                 delta_epsi = next_tar_st.p.e_psi-tar_st.p.e_psi
-    #                                 delta_vlong  = next_tar_st.v.v_long-tar_st.v.v_long                                    
-    #                                 self.debug_t.append(real_dt)
-    #                                 gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ])                                                                                                                               
+        # dat[:,0:self.time_horizon*2] = self.augment_left_with_polynoial(dat[:,0:self.time_horizon*2])
+        dat[:,:self.time_horizon] = self.get_left_dat_dynamics(t+self.time_horizon-1, scenario_data, simulator, track) 
 
-    #                                 if self.add_noise_data:
-    #                                     # if np.random.randint(10) < 8:
-    #                                     # for i in range(4):
-    #                                     for i in range(1):
-    #                                         noisy_dat, noisy_output = self.add_noise(dat, gp_output)
-    #                                         self.output_data.append(noisy_output.clone())    
-    #                                         self.samples.append(noisy_dat.clone())  
-    #                                 self.output_data.append(gp_output.clone())    
-    #                                 self.samples.append(dat.clone())  
-    #                             else:
-    #                                 invalid_data_count+=1
-    #                             ### Add curvature[2] at the last dimension 
-                        
-    #                     dbfile.close()
-    #         self.save_pre_data(pre_data_dir)
-    #         # plt.show()
-    #         print( "invalid_data_count = " + str(invalid_data_count))
+        for k in range(num_sample):
+            sample = dat[:,k:k+self.time_horizon*2]
+            samples.append(sample.clone())
+
+        return gp_outputs[:num_sample], samples
+    
+    def get_left_dat_dynamics(self,t, scenario_data, simulator, track):
+        dat = torch.zeros(self.input_dim, self.time_horizon)         
+        roll_tar_st = scenario_data.tar_states[t].copy()                               
+        for i in range(self.time_horizon):                                
+            ego_st = scenario_data.ego_states[i+t]
+            if i == 0:
+                roll_tar_st = scenario_data.tar_states[i+t].copy()                                      
+            tar_st = roll_tar_st   
+            dat[:,i]=states_to_encoder_input_torch(tar_st, ego_st, track)  
+            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=0.2, accel_mag = 1.4)  
+
+        return torch.flip(dat, dims=[1])
+    
+    def get_data(self,t, time_length, scenario_data: RealData or SimData, track: RadiusArclengthTrack):
+        dat = torch.zeros(self.input_dim, time_length)                                    
+        for i in range(t,t+time_length):                                
+            ego_st = scenario_data.ego_states[i]
+            tar_st = scenario_data.tar_states[i]            
+            dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st, track)  
+        return dat
 
     
+    def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator, direction = 1, accel_mag= 0.01):        
+        tmp_state = state.copy()
+        if tmp_state.p.e_psi < 0:            
+            tmp_state.u.u_steer = -(np.random.rand(1)*0.2 +0.1)[0] * direction
+        else:
+            tmp_state.u.u_steer = (np.random.rand(1)*0.2 +0.1)[0] * direction
+        tmp_state.u.u_a = accel_mag
+        if abs(tmp_state.p.x_tran) > simulator.model.track.track_width*1.1:
+            tmp_state.u.u_steer = -1*tmp_state.u.u_steer
+            tmp_state.u.u_a = -accel_mag
+        simulator.step(tmp_state) 
+        simulator.model.track.update_curvature(tmp_state)      
+        
+        return tmp_state 
+    
+    
+
+    def augment_left_with_polynoial(self, data):
+        # data -> b, d, t -> d= 9, t = 10
+        # del_s, tar_s, tar_ey, tar_epsi, vx 
+        out_data = data.clone()
+        noise_levels = torch.tensor([1.0, 1.0, 1.0, 1.0])
+        for idx in range(len(noise_levels)):            
+            noise = self.generate_quintic_polynomial(-noise_levels[idx],noise_levels[idx])
+            out_data[idx,:int(out_data.shape[1]/2)-1] += noise[:int(out_data.shape[1]/2)-1]
+        return out_data 
+            
 
     def generate_quintic_polynomial(self, y_min, y_max, max_attempts=1000):
         x_start, x_end = -1, 1
@@ -312,33 +377,13 @@ class SampleGeneartorCOVGP(SampleGenerator):
         output_del_epsi_noise = input_del_epsi_noise[11] - input_del_epsi_noise[10]
         output_del_vx_noise = input_del_vx_noise[11] - input_del_vx_noise[10]
 
-        # noisy_output[0] += output_del_s_noise
-        # noisy_output[1] += output_del_xtran_noise
-        # noisy_output[2] += output_del_epsi_noise
-        # noisy_output[3] += output_del_vx_noise
-       
-        # plt.plot(input_del_s_noise[5:12])
-        
         if noisy_input.shape[1] > 1:       
             ## train data for SimTSGP        
             noisy_input[0,:] += input_del_s_noise[1:]
             noisy_input[1,:] += input_del_xtran_noise[1:]
             noisy_input[2,:] += input_del_epsi_noise[1:]
             noisy_input[3,:] += input_del_vx_noise[1:]
-        # else:
-        #     noisy_input[0] += np.random.normal(-0.01, 0.01, (1))
-        #     noisy_input[1] += np.random.normal(-0.01, 0.01, (1))
-        #     noisy_input[2] += np.random.normal(-0.01, 0.01, (1))
-        #     noisy_input[3] += np.random.normal(-0.01, 0.01, (1))
-
-            # noisy_input[0,:9] += np.random.normal(-noise_level[0], noise_level[0], (len(noisy_input[0,:9])))+0.1
-            # noisy_input[1,:9] += np.random.normal(-noise_level[1], noise_level[1], (len(noisy_input[1,:9])))+0.1
-            # noisy_input[2,:9] += np.random.normal(-noise_level[2], noise_level[2], (len(noisy_input[2,:9])))+0.1            
-
-            # noisy_input[0,10:] += np.random.normal(-noise_level[0], noise_level[0], (len(noisy_input[0,10:])))-0.1
-            # noisy_input[1,10:] += np.random.normal(-noise_level[1], noise_level[1], (len(noisy_input[1,10:])))-0.1
-            # noisy_input[2,10:] += np.random.normal(-noise_level[2], noise_level[2], (len(noisy_input[2,10:])))-0.1            
-        
+  
 
         return noisy_input, noisy_output
 
@@ -403,10 +448,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 invalid_count +=1
                                 continue
                             
-                            # if scenario_data.tar_states[t+self.time_horizon*2-2].p.s == scenario_data.tar_states[t+self.time_horizon*2-3].p.s == scenario_data.tar_states[t+self.time_horizon*2-4].p.s:
-                            #     print(1)
-
-
+                          
                             for pred_j in range(t+self.time_horizon-1,t+self.time_horizon+self.time_horizon-1):
                                 
                                 tar_pred.t = ego_state.t
@@ -422,7 +464,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 ego_pred.v_long.append(scenario_data.ego_states[pred_j].v.v_long)
                             
                             # if self.add_noise_data or noise:                                
-                                
+             
                             #     noisy_encoder_input , _ = self.add_noise(encoder_input,encoder_input)
                                 
                             #     tar_state.p.x_tran = noisy_encoder_input[1,-1]
@@ -498,7 +540,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
         # x_h_tensor = torch.stack([sample[0] for sample in self.samples])
         # x_f_tensor = torch.stack([sample[1] for sample in self.samples])
-        x_tensor = torch.stack( self.samples)
+        x_tensor = torch.stack(self.samples)
 
         tensor_output = torch.stack(self.output_data)
         
@@ -544,7 +586,11 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # ego_ey = data[6,:]
         # ego_epsi = data[7,:]
         # ego_vx = data[8,:]
-
+        real_dt = ntar_st.t - tar_st.t 
+        if (real_dt > 0.05 and real_dt < 0.2):
+            valid_data = True
+        else:
+            valid_data = False
         
 
 

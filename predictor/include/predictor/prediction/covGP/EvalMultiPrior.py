@@ -245,7 +245,7 @@ class MultiPredPostEval:
                     if predictor_type == 0:
                         self.tv_pred = self.predictor_withoutCOV.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)                         
                     elif predictor_type == 1:
-                        self.tv_pred = gt_tar_state_list[i] # self.cav_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)                               
+                        self.tv_pred =  self.cav_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)                               
                     elif predictor_type == 2:
                         self.tv_pred = self.mpcc_predictor.get_prediction(ego_state = ego_state, target_state = tar_state, ego_prediction = ego_pred)
                     elif predictor_type == 3:

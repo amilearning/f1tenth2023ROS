@@ -449,9 +449,10 @@ class COVGPNNModel(gpytorch.Module):
             input_data = input_data[:,:,:int(input_data.shape[-1]/2)]
         # recon_data, latent_x = self.encdecnn(input_data)          
 
-        recon_data = self.fully_fc(input_data.reshape(input_data.shape[0],-1))                
-        recon_data = recon_data.reshape(recon_data.shape[0],self.seq_len,self.nn_input_dim)        
-        latent_x = recon_data[:,-1,:]
+        # recon_data = self.encdecnn(input_data.reshape(input_data.shape[0],-1))                
+        # recon_data = recon_data.reshape(recon_data.shape[0],self.seq_len,self.nn_input_dim)        
+        # latent_x = recon_data[:,-1,:]
+        recon_data, latent_x = self.encdecnn(input_data) 
         
         return latent_x
 
