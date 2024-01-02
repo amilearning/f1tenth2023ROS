@@ -4,17 +4,17 @@ from predictor.simulation.dynamics_simulator import DynamicsSimulator
 from predictor.h2h_configs import *    
 from predictor.common.utils.scenario_utils import policy_generator
 
-def states_to_encoder_input_torch(tar_st,ego_st):
-    input_data=torch.tensor([ tar_st.p.s - ego_st.p.s,                        
-                        tar_st.p.x_tran,
-                        tar_st.p.e_psi,
-                        tar_st.v.v_long,
-                        tar_st.lookahead.curvature[0],
-                        ego_st.p.x_tran,
-                        ego_st.p.e_psi, 
-                        ego_st.v.v_long,                       
-                        ego_st.lookahead.curvature[0]])
-    return input_data
+# def states_to_encoder_input_torch(tar_st,ego_st):
+#     input_data=torch.tensor([ tar_st.p.s - ego_st.p.s,                        
+#                         tar_st.p.x_tran,
+#                         tar_st.p.e_psi,
+#                         tar_st.v.v_long,
+#                         tar_st.lookahead.curvature[0],
+#                         ego_st.p.x_tran,
+#                         ego_st.p.e_psi, 
+#                         ego_st.v.v_long,                       
+#                         ego_st.lookahead.curvature[0]])
+#     return input_data
 
 
 class SampleGeneartorEncoder(SampleGenerator):

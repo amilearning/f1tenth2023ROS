@@ -938,13 +938,13 @@ def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
 
     half_track = track.track_length/4
     full_track = track.track_length/2
-
+    tmp_tar_s = tar_s 
     
     if abs(tar_s + full_track - ego_s) < abs(tar_s - ego_s):
-        tar_s += full_track
+        tmp_tar_s += full_track
     elif abs(tar_s - full_track - ego_s) < abs(tar_s - ego_s):
-        tar_s -= full_track
-    del_s = tar_s - ego_s
+        tmp_tar_s -= full_track
+    del_s = tmp_tar_s - ego_s
 
     if del_s < -15:
         print(1)

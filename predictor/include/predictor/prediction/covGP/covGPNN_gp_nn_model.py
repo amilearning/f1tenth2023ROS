@@ -189,6 +189,10 @@ class LinearPred(torch.nn.Module):
             self.device = torch.cuda.current_device()
         else:
             self.device = 'cpu'
+        self.output_len = output_len
+        self.input_len =input_len
+        self.input_dims = input_dims
+        self.output_dims = output_dims
         self.Wk_wl = nn.Linear(input_len, output_len).to(self.device)
         self.Wk_wl2 = nn.Linear(input_dims, output_dims).to(self.device)        
         self.relu = nn.ReLU(inplace=False)
@@ -233,6 +237,7 @@ class CausalCNNEncoder(torch.nn.Module):
         self.component_dims = component_dims
         self.in_channels = in_channels
         self.reduced_size = reduced_size
+        self.n_time_step = 10
         self.input_fc = CausalConvolutionBlock(in_channels, reduced_size, 1, 1)
         
         self.kernel_list = kernel_list
@@ -248,65 +253,31 @@ class CausalCNNEncoder(torch.nn.Module):
                 nn.Linear(24, component_dims)                               
         )
 
-        # self.latent_fc2 = nn.Sequential(             
-        #         nn.Linear(component_dims, 24),           
-        #         nn.LeakyReLU(),                                    
-        #         nn.Linear(24, 24),        
-        #         nn.LeakyReLU(),                                    
-        #         nn.Linear(24, self.in_channels)                               
-        # )
 
-
-        self.deconv = nn.ConvTranspose1d(in_channels = self.component_dims, out_channels = self.in_channels, kernel_size= 10, padding=0, stride=1)
+        # self.deconv = nn.ConvTranspose1d(in_channels = self.in_channels, out_channels = reduced_size, kernel_size= self.n_time_step, padding=0, stride=1)
         self.decoder_fc = CausalConvolutionBlock(self.in_channels, self.reduced_size, 1, 1)
         
         
         self.decoder_cnn = nn.ModuleList(
             [nn.Conv1d(reduced_size, self.in_channels, k, padding=k-1) for k in kernel_list]
         )
-        # d = 1
-        # y = torch.ones(1,d,1)   
-        # k = 2
-        # deconv = nn.ConvTranspose1d(in_channels = d, out_channels = 1, kernel_size= k, padding=0, stride=1, bias= False)
-        # deconv.weight.data = torch.ones(1,1,k)
-        # x = deconv(y)
 
-        # k2 =2
-        # deconv2 = nn.ConvTranspose1d(in_channels = 1, out_channels = 1, kernel_size= k2, padding=0, stride=1, bias= False)
-        # deconv2.weight.data = torch.ones(1,1,k)
         
-        # self.multi_cnn_decoder = nn.ModuleList(
-        #     [nn.ConvTranspose1d(in_channels = 1, out_channels = 1, kernel_size= k, padding=k-1) for k in kernel_list]             
-            
-        # )
-        
-        # self.predictor =LinearPred(component_dims,1,component_dims, 10)
+        self.predictor =LinearPred(component_dims,1,self.in_channels, self.n_time_step)
+                       # LinearPred(input_dims,input_len,output_dims,output_len):
+
         # self.predictor = nn.Linear(component_dims, component_dims).to(self.device)
         # self.repr_dropout = torch.nn.Dropout(p=0.1)
         
-        
-        
-
     def print_para(self):
         
         return list(self.multi_cnn.parameters())[0].clone()    
         
     def forward(self, x_h, x_f = None):
 
-        # nan_mask_h = ~x_h.isnan().any(axis=-1)
-        # x_h[~nan_mask_h] = 0
-        
         # x_h = x_h.transpose(2,1)
         x_h = self.input_fc(x_h)        
-        
-        # if x_f is not None:
- 
-        # x_f = self.input_fc(x_f)
-
         trend_h = []            
-        # trend_f = []
-        # trend_h_weights = []
-        # trend_f_weights = []
 
         for idx, mod in enumerate(self.multi_cnn):
             
@@ -323,13 +294,15 @@ class CausalCNNEncoder(torch.nn.Module):
       
         latent_x = trend_h[:,-1,:]     
 
-        latent_x = self.latent_fc(latent_x)
-        deconv_latent_x = latent_x.unsqueeze(dim=2)
+        deconv_latent_x = self.predictor(latent_x.unsqueeze(-1)) # output = b x t x intput_dim
+        deconv_latent_x = deconv_latent_x.transpose(1,2) #  b x t x intput_dim -> b x input_dim x t
+        # latent_x = self.latent_fc(latent_x)
+        # deconv_latent_x = latent_x.unsqueeze(dim=2)
         # latent_x2 =  self.latent_fc2(latent_x)
         # deconv_latent_x = latent_x2.unsqueeze(dim=2)
         ######## Decoding  ###
         
-        deconv_latent_x = self.deconv(deconv_latent_x)
+        # deconv_latent_x = self.deconv(deconv_latent_x)
         deconv_latent_x = self.decoder_fc(deconv_latent_x)  
         decoder_h = []
         for idx, mod in enumerate(self.decoder_cnn):
@@ -345,51 +318,8 @@ class CausalCNNEncoder(torch.nn.Module):
             'list b t d -> b t d', 'mean'
         )
 
-        return decoder_h, latent_x, None #trend_f.detach()
+        return decoder_h.transpose(1,2), latent_x
 
-        # else:
-        #     trend_h = []
-        #     # trend_h_weights = []
-
-        #     for idx, mod in enumerate(self.multi_cnn):
-              
-        #         out_h = mod(x_h)  # b d t
-
-        #         if self.kernel_list[idx] != 1:
-        #           out_h = out_h[..., :-(self.kernel_list[idx] - 1)]
-        #         trend_h.append(out_h.transpose(1,2))  # b 1 t d
-        #         # trend_h_weights.append(out_h.transpose(1, 2)[:,-1,:].unsqueeze(-1)) 
-
-        #     trend_h = reduce(
-        #       rearrange(trend_h, 'list b t d -> list b t d'),
-        #       'list b t d -> b t d', 'mean'
-        #     )
-
-        #     # trend_h = self.repr_dropout(trend_h)
-        #     latent_x = trend_h[:,-1,:]  ## -1 is better as seeing more in the future while training. also can infer the multi step future. 
-
-        #     deconv_latent_x = latent_x.unsqueeze(dim=2)
-        #     deconv_latent_x = self.deconv(deconv_latent_x)
-        #     deconv_latent_x = self.decoder_fc(deconv_latent_x)  
-        #     decoder_h = []
-        #     for idx, mod in enumerate(self.decoder_cnn):
-              
-        #         dec_h = mod(deconv_latent_x)  # b d t
-
-        #         if self.kernel_list[idx] != 1:
-        #           dec_h = dec_h[..., :-(self.kernel_list[idx] - 1)]
-        #         decoder_h.append(dec_h.transpose(1,2))  # b 1 t d
-        #         # trend_h_weights.append(out_h.transpose(1, 2)[:,-1,:].unsqueeze(-1)) 
-
-        #     decoder_h = reduce(
-        #       rearrange(decoder_h, 'list b t d -> list b t d'),
-        #       'list b t d -> b t d', 'mean'
-        #     )
-
-
-        #     # latent_x = self.predictor(latent_x)
-        #     return decoder_h, latent_x, None
-        
 
         
 class CNNModel(nn.Module):    
@@ -399,7 +329,7 @@ class CNNModel(nn.Module):
         self.input_dim = args['input_dim']        
         self.output_dim = args['latent_dim'] 
         self.n_time_step = args['n_time_step']        
-        kernel_list=[4,5,6,7,8,9]        
+        kernel_list=[2,3,4,5,6,7,8,9]        
         self.net = CausalCNNEncoder(in_channels = self.input_dim, 
                                 reduced_size=50, 
                                 component_dims = self.output_dim, 
@@ -407,7 +337,7 @@ class CNNModel(nn.Module):
         
         x_h = torch.randn(2, self.input_dim,self.n_time_step, requires_grad=False).cuda()
         x_f = torch.randn(2, self.input_dim,self.n_time_step, requires_grad=False).cuda()
-        trend_h, latent_x, trend_f = self.net(x_h, x_f)
+        trend_h, latent_x = self.net(x_h, x_f)
         self.latent_size = latent_x.shape[-1]
     
 
@@ -423,11 +353,8 @@ class CNNModel(nn.Module):
     #     return latent_x
 
     def forward(self, x, x_f = None):       
-        trend_h, latent_x, trend_f = self.net(x, x_f)
-        if x_f is None:
-            return trend_h, latent_x
-        else:
-            return trend_h, latent_x 
+        recon, latent_x = self.net(x, x_f)     
+        return recon, latent_x 
             
         
 class ENCDECModel(nn.Module):    
@@ -491,24 +418,17 @@ class COVGPNNModel(gpytorch.Module):
 
         # self.encdecnn = ENCDECModel(args)
                               
-        # self.encdecnn = CNNModel(args)
+        self.encdecnn = CNNModel(args)
 
-        self.fully_fc = nn.Sequential(             
-                nn.Linear(self.seq_len*self.nn_input_dim, 128),           
-                nn.LeakyReLU(),                                    
-                nn.Linear(128, 128),        
-                nn.LeakyReLU(),           
-                nn.Linear(128, self.seq_len*self.nn_input_dim)                              
-        )
+       
 
-        
         # self.scale_to_bounds = gpytorch.utils.grid.ScaleToBounds(-1., 1.)
 
         if self.directGP:
             self.gp_input_dim =  self.nn_input_dim
         else: 
-            # [ policy, dels, xtran, epsi, vx, cur1, cur2]  
-            self.gp_input_dim =  18
+            # [ policy, dels, xtran, ep si,vx, cur1, cur2]  
+            self.gp_input_dim =  self.encdecnn.latent_size
 
         self.gp_layer = CovSparseGP(inducing_points_num=inducing_points,
                                                         input_dim=self.gp_input_dim,
@@ -537,27 +457,26 @@ class COVGPNNModel(gpytorch.Module):
 
     def forward(self, x_h, x_f = None):    
         # current vehicle state, pred_action , RGB-D normalized image (4 channel)        
-        if x_h.shape[-1] > self.n_time_step:
-            x_h = x_h[:,:,:int(x_h.shape[-1]/2)]        
+        
+        # if len(x_h.shape) > 2:
+        #     x_h = x_h[:,:,:int(x_h.shape[-1]/2)]        
         if self.directGP: 
-            gp_input = x_h[:,0:,-1].float()
-            recon_data = x_h
+            # if len(x_h.shape) > 2:
+            #     gp_input = x_h[:,:,-1].float()
+            # else:
+            gp_input = x_h.float()
+            recon_data = gp_input # torch.zeros(x_h.shape[0],x_h.shape[1], self.n_time_step).cuda()            
             latent_x = gp_input
         else:             
-            
-            # recon_data, latent_x = self.encdecnn(x_h,x_f)          
-            recon_data = self.fully_fc(x_h.reshape(x_h.shape[0],-1))            
-            
-            # recon_data = self.fc(x_h.reshape(x_h.shape[0],-1))
-            recon_data = recon_data.reshape(recon_data.shape[0],self.seq_len,self.nn_input_dim)
-            latent_x = recon_data[:,-1,:]
+            recon_data, latent_x = self.encdecnn(x_h,x_f)   
+            gp_input = latent_x
             # latent_x = self.scale_to_bounds(latent_x)
-            if latent_x.shape[0] == 1:
-                # gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:5,-1]])
-                gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:,-1]])
-            else:
-                # gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,:5,-1]])
-                gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,:,-1]])
+            # if latent_x.shape[0] == 1:
+            #     # gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:5,-1]])
+            #     gp_input = torch.hstack([ latent_x.reshape(1,-1) , x_h[:,:,-1]])
+            # else:
+            #     # gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,:5,-1]])
+            #     gp_input = torch.hstack([latent_x.view(x_h.shape[0],-1), x_h[:,:,-1]])
             
             
         pred = self.gp_layer(gp_input)

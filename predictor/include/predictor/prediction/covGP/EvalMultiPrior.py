@@ -57,7 +57,7 @@ from torch.utils.data import DataLoader
 import torch
 from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
-
+from datetime import datetime
 
 
 # folder_name = ['centerline_1220', 'nonblocking_yet_racing_1220', 'blocking_1220', 'hjpolicy_1220', 'reverse_1220'] 
@@ -99,6 +99,13 @@ class MultiPredPostEval:
                 pickle.dump(self.track_info, file)
         
 
+        self.multi_pred_lon_err = []        
+        self.multi_pred_lat_err = []
+        
+        
+        for j in range(5):            
+            self.multi_pred_lat_err.append([])
+            self.multi_pred_lon_err.append([])
 # Open the file in binary mode for writing
 
         self.track_info = PathGenerator()        
@@ -146,8 +153,40 @@ class MultiPredPostEval:
         self.pred_eval(args = args, predictor_type = 1)        
         self.pred_eval(args = args, predictor_type = 0)
         self.pred_eval(args= args, predictor_type = 3)
-        # self.pred_eval_parallel()
+
+        self.save_errors()
+        self.plot_errors()
         
+
+        print("gen done")
+        # self.pred_eval_parallel()
+    def save_errors(self):
+        error_dict = {}
+        error_dict['lon'] = self.multi_pred_lon_err
+        error_dict['lat'] = self.multi_pred_lat_err        
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pickle_write(error_dict, os.path.join(multiEval_dir, f"error_dict_{current_time}.png"))            
+
+    def plot_errors(self):
+        import matplotlib.pyplot as plt
+        # for i in range(5):
+            # plt.plot(np.array(self.multi_pred_lat_err[i]).reshape(-1))
+        last_step_lat_error_np = np.array(self.multi_pred_lat_err)
+        plt.boxplot(last_step_lat_error_np[:,:,-1].T)        
+        plt.axhline(0, color='gray', linestyle='--')
+        plt.legend()
+        plt.show()
+
+        
+        last_step_lon_error_np = np.array(self.multi_pred_lon_err)
+        last_step_lon_error_np[last_step_lon_error_np>self.track_info.track.track_length/2-0.5] -= self.track_info.track.track_length/2
+        plt.boxplot(last_step_lon_error_np[:,:,-1].T)        
+        plt.axhline(0, color='gray', linestyle='--')
+        plt.legend(['1','2','3','4','5'])
+        plt.show()
+
+
+
     def pred_eval_parallel(self):
         threads = []
         for i in range(5):
@@ -178,6 +217,8 @@ class MultiPredPostEval:
         else:   
             return
 
+
+        
         
         for j in range(len(self.dirs)):
             tmp_dir = os.path.join(multiEval_dir,self.dirs[j].split('/')[-1])
@@ -214,7 +255,14 @@ class MultiPredPostEval:
                         self.tv_pred = self.predictor.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)
                     else: 
                         print("select predictor")
-                
+                    
+                    lon_error = np.array(self.tv_pred.s) - np.array(gt_tar_state_list[i].s)
+                    lat_error = np.array(self.tv_pred.x_tran) - np.array(gt_tar_state_list[i].x_tran)
+                    self.multi_pred_lon_err[predictor_type].append(lon_error)
+                    self.multi_pred_lat_err[predictor_type].append(lat_error)
+
+                    
+
                     if self.visualize:
                         tv_pred_markerArray = prediction_to_marker(self.tv_pred)
                         self.tv_pred_marker_pub.publish(tv_pred_markerArray)
@@ -227,6 +275,7 @@ class MultiPredPostEval:
                         print("Sample : {} out of {}".format(i, len(input_buffer_list)))    
             tmp_real_data = RealData(self.predictor.track, len(input_buffer_list),ego_state_list, tar_state_list, pred_tar_state_list)
             pickle_write(tmp_real_data, os.path.join(tmp_dir, 'predictor_'  +str(i) + '_'+ str(predictor_type) +'.pkl'))            
+            
         
             # if self.predictor and self.cur_ego_state is not None:                
             #     _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred)

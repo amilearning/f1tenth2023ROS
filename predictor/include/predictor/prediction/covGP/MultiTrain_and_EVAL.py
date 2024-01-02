@@ -1,7 +1,7 @@
 from predictor.common.utils.file_utils import *
-from predictor.prediction.cont_encoder.cont_encoderTrain import cont_encoder_train
-from predictor.prediction.thetaGP.ThetaGPTrain import thetagp_train
-from predictor.prediction.gp_berkely_train import gp_main
+
+
+
 from predictor.prediction.covGP.covGPNN_Train import covGPNN_train, tsne_analysis
 import os
 import torch
@@ -20,7 +20,7 @@ args_ = {
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': False,
+    'add_noise_data': True,
     'model_name' : None,
     'eval' : False
     }
@@ -105,6 +105,8 @@ def run_eval(eval_policy_names):
             rmse_longitudinal = np.sqrt(np.sum(longitudinal_errors**2)/len(longitudinal_errors))
             rmse_lateral = np.sqrt(np.sum(lateral_errors**2)/len(lateral_errors))
             rmse_combined = np.sqrt((rmse_longitudinal ** 2 + rmse_lateral ** 2) / 2)
+            print(str(i) + "th predictor,  rmse_longitudinal combined = " + str(rmse_longitudinal))
+            print(str(i) + "th predictor,  rmse_lateral combined = " + str(rmse_lateral))
             print(str(i) + "th predictor,  mse combined = " + str(rmse_combined))
             # plt.plot(lateral_errors)
             # print(str(i) + "th predictor,  long_eror = " + str(np.mean(longitudinal_errors)))
@@ -126,7 +128,7 @@ def run_eval(eval_policy_names):
         
 
     
-    
+    # draw_histo_with_list
     draw_barplot_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
     draw_barplot_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
     draw_barplot_with_list(predtype_errors_list, eval_policy_names, value_name_ = 'Error')
@@ -156,17 +158,17 @@ def main():
                     #  'nonsense_reverse',
                         
     ####################################################
-    main_train(train_policy_names)
+    # main_train(train_policy_names)
     ####################################################
     args_['add_noise_data'] = False
     ############ TSNE ##################################
     eval_policy_names = ['centerline_11',
                          'blocking_11'] 
     
-    args_['model_name'] ='simtsGP'
-    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
-    args_['model_name'] ='nosimtsGP'
-    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    # args_['model_name'] ='simtsGP'
+    # tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    # args_['model_name'] ='nosimtsGP'
+    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     
     ####################################################
     eval_policy_names = ['centerline_11',
@@ -181,7 +183,7 @@ def main():
     #                     'eval_highspeed_hjpolicy_1221'] 
 
     ####################################################
-    gen_eval_data(eval_policy_names)
+    # gen_eval_data(eval_policy_names)
     ####################################################
     run_eval(eval_policy_names)        
 

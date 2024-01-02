@@ -4,27 +4,27 @@ from barcgp.simulation.dynamics_simulator import DynamicsSimulator
 from barcgp.h2h_configs import *    
 from barcgp.common.utils.scenario_utils import policy_generator, interp_state_with_vel
 
-def states_to_encoder_input_torch(tar_st,ego_st):
-    tar_s = tar_st.p.s
-    ego_s = ego_st.p.s
-    ######### doubled track ##########
-    # if tar_s > track.track_length/2.0:
-    #     tar_s -=  track.track_length/2.0
-    # if ego_s > track.track_length/2.0:
-    #     ego_s -=  track.track_length/2.0
+# def states_to_encoder_input_torch(tar_st,ego_st):
+#     tar_s = tar_st.p.s
+#     ego_s = ego_st.p.s
+#     ######### doubled track ##########
+#     # if tar_s > track.track_length/2.0:
+#     #     tar_s -=  track.track_length/2.0
+#     # if ego_s > track.track_length/2.0:
+#     #     ego_s -=  track.track_length/2.0
 
-    delta_s = tar_s - ego_s    
+#     delta_s = tar_s - ego_s    
 
-    input_data=torch.tensor([ delta_s,                        
-                        tar_st.p.x_tran,
-                        tar_st.p.e_psi,
-                        tar_st.v.v_long,
-                        tar_st.lookahead.curvature[0],
-                        ego_st.p.x_tran,
-                        ego_st.p.e_psi, 
-                        ego_st.v.v_long,                       
-                        tar_st.lookahead.curvature[2]])
-    return input_data
+#     input_data=torch.tensor([ delta_s,                        
+#                         tar_st.p.x_tran,
+#                         tar_st.p.e_psi,
+#                         tar_st.v.v_long,
+#                         tar_st.lookahead.curvature[0],
+#                         ego_st.p.x_tran,
+#                         ego_st.p.e_psi, 
+#                         ego_st.v.v_long,                       
+#                         tar_st.lookahead.curvature[2]])
+#     return input_data
 
 
 class SampleGeneartorGPContEncoder(SampleGenerator):

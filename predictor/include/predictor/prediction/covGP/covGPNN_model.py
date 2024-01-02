@@ -156,13 +156,9 @@ class COVGPNN(GPController):
                                     {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
 
-        # optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01}])
-        optimizer_nn = torch.optim.Adam([{'params': self.model.fully_fc.parameters(), 'lr': 0.01}])
-                    
-        # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.002, 'weight_decay':1e-9},                                            
-        # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.005, 'weight_decay':1e-9},                                            
-        # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                                    
-        optimizer_all = torch.optim.Adam([{'params': self.model.fully_fc.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
+        optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01}])
+        
+        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
@@ -182,13 +178,6 @@ class COVGPNN(GPController):
         epoch = 0
         best_model = None
         best_likeli = None
-
-        best_recon_loss = np.inf
-        no_progress_best_recon = 0
-        recon_loss_cerverged = False
-        best_dist_loss = np.inf
-        no_progress_best_dist = 0
-        dist_loss_cerverged = False
 
         sys.setrecursionlimit(100000)
         
@@ -210,14 +199,13 @@ class COVGPNN(GPController):
                 optimizer_nn.zero_grad()
                 optimizer_all.zero_grad()
                 #####################           
-                if int(train_x.shape[-1]/2) > 0:
+                if int(len(train_x.shape)) > 2:
                     train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                 
                 else:    
                     train_x_h , train_x_f = train_x, train_x                
-                output, trend_h, latent_x = self.model(train_x_h, train_x_f)                
+                output, recon_data, latent_x = self.model(train_x_h, train_x_f)                
 
-                # TODO: not used 
-                recon_data = trend_h.transpose(1,2)
+                
 
                 self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
                 self.writer.add_scalar(gp_name+'/stat/latent_min', torch.min(latent_x), epoch*len(train_dataloader) + step)
@@ -227,28 +215,16 @@ class COVGPNN(GPController):
                 variational_loss_sum += variational_loss.item()
 
                 ############# Compute Reconstruction LOSS ####################
-                reconloss_weight = 1.0
-                reconloss = (mseloss(recon_data,train_x_f)* reconloss_weight)
-                recon_loss_sum +=reconloss.item()
-                if reconloss > best_recon_loss:
-                    best_recon_loss = reconloss.item()
-                    no_progress_best_recon = 0
-                else:
-                    no_progress_best_recon += 1
-                    if no_progress_best_recon > 20:
-                        recon_loss_cerverged = True
+                reconloss_weight = 1.0                
+                reconloss = (mseloss(recon_data,train_x_f)* reconloss_weight)                                    
+                recon_loss_sum +=reconloss.item()                
                 
+
                 if directGP:
                     loss = variational_loss
                 else:
                     ############# Compute Latent Distance LOSS ####################
-                    latent_dist_loss = 0.0
-                    
-
-                    # latent_dist = torch.cov(latent_x).float()
-                    # out_cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                    # out_cov.base_kernel.lengthscale =  0.67 # (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
-                    
+                    latent_dist_loss = 0.0    
                     yinvKy_loss = 0
                     for i in range(self.model.gp_layer.covar_module.base_kernel.batch_shape[0]):
                         jitter = torch.eye(train_y.shape[0]).cuda()*1e-11
@@ -269,27 +245,14 @@ class COVGPNN(GPController):
                         
 
                         latent_dist_loss += mse
-                        
-
                     latent_dist_loss_weight = 1.0
                     latent_dist_loss = (latent_dist_loss * latent_dist_loss_weight)
                     latent_dist_loss_sum +=latent_dist_loss.item()                    
-
-                    if latent_dist_loss > best_dist_loss:
-                        best_dist_loss = latent_dist_loss.item()
-                        no_progress_best_dist = 0
-                    else:
-                        no_progress_best_dist += 1
-                        if no_progress_best_dist > 20:
-                            dist_loss_cerverged = True
-                            
-                    
+                    ########################################################################################3
+                    ########################################################################################3
+ 
                     if include_simts_loss:    
-                        if epoch > 0:
-                            loss =    variational_loss +reconloss #+ latent_dist_loss
-                        else:                        
-                            loss =    reconloss
-                        #     no_progress_epoch = 0                        
+                        loss =    variational_loss +reconloss #+ latent_dist_loss
                     else:
                         loss = variational_loss 
                 train_loss += loss.item()    
@@ -298,18 +261,8 @@ class COVGPNN(GPController):
                 if directGP:
                     optimizer_gp.step()
                 else:
-                    if include_simts_loss:
-                        if epoch > 0:
-                        # if epoch > 0:
-                            optimizer_all.step()
-                        else:
-                            optimizer_nn.step()
-                        # else:
-                        #     optimizer_nn.step()
-                    else:
-                        optimizer_all.step()
-                                    
-
+                    optimizer_all.step()
+                     
             if directGP is False:
                 tag = 'Lengthscale/yinvKy_loss' + gp_name
                 self.writer.add_scalar(tag, yinvKy_loss, epoch)                    
@@ -347,10 +300,9 @@ class COVGPNN(GPController):
             self.writer.add_scalar(valid_loss_tag, valid_loss, epoch)
             if c_loss > last_loss:
                 if no_progress_epoch >= 15:
-                    if include_simts_loss:
-                        if recon_loss_cerverged and epoch > 0: 
-                            if no_progress_epoch > 50:
-                                done = True   
+                    if include_simts_loss:                        
+                        if no_progress_epoch > 30:
+                            done = True   
                     else:
                         done = True 
             else:
@@ -362,6 +314,7 @@ class COVGPNN(GPController):
             epoch +=1
             if epoch > max_epochs:
                 done = True
+            
 
         self.model = best_model
         self.likelihood = best_likeli
@@ -496,6 +449,8 @@ class COVGPNNTrained(GPController):
         else:
             self.input_dim = 9
             self.n_time_step = 10
+        
+        self.model_name = name
 
         if model is not None:
             self.load_model_from_object(model)
@@ -528,7 +483,10 @@ class COVGPNNTrained(GPController):
         
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.model.eval()
-            test_x = torch.randn(self.M,self.input_dim,self.n_time_step).cuda()
+            if self.model_name == 'naiveGP':
+                test_x = torch.randn(self.M,self.input_dim).cuda()
+            else:
+                test_x = torch.randn(self.M,self.input_dim,self.n_time_step).cuda()
             pred = self.model(test_x)  # Do precomputation
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.trace_model = torch.jit.trace(COVGPNNModelWrapper(self.model), test_x)
@@ -539,11 +497,11 @@ class COVGPNNTrained(GPController):
         
         model = pickle_read(os.path.join(model_dir, name + '_normconstant.pkl'))        
         self.means_x = model['mean_sample'].cuda()
-        if int(self.means_x.shape[1]/2) > 1:
+        if len(self.means_x.shape) > 1:
             self.means_x = self.means_x[:,:int(self.means_x.shape[1]/2)]
         self.means_y = model['mean_output'].cuda()
         self.stds_x = model['std_sample'].cuda()
-        if int(self.stds_x.shape[1]/2) > 1:
+        if len(self.stds_x.shape) > 1:
             self.stds_x = self.stds_x[:,:int(self.stds_x.shape[1]/2)]
         self.stds_y = model['std_output'].cuda()        
         # self.independent = model['independent'] TODO uncomment        
@@ -623,10 +581,14 @@ class COVGPNNTrained(GPController):
             # gp_start_time = time.time()  
             roll_input = self.insert_to_end(roll_input, roll_tar_state, roll_tar_curv, roll_ego_state, track)                      
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                if self.load_trace:
-                    mean, stddev = self.trace_model(self.standardize(roll_input))
+                if self.model_name == 'naiveGP':
+                    tmp_input = roll_input[:,:,-1]
                 else:
-                    pred_delta_dist = self.model(self.standardize(roll_input))
+                    tmp_input = roll_input
+                if self.load_trace:
+                    mean, stddev = self.trace_model(self.standardize(tmp_input))
+                else:
+                    pred_delta_dist = self.model(self.standardize(tmp_input))
                     mean = pred_delta_dist.mean
                     stddev = pred_delta_dist.stddev
                 # pred_delta_dist = self.model(roll_input)            
@@ -672,8 +634,7 @@ class COVGPNNTrained(GPController):
 
 
   
-    ## TODO: This should be matched with the below funciton 
-    # states_to_encoder_input_torch
+    
  
 
         

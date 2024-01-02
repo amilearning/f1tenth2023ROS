@@ -11,8 +11,7 @@ from predictor.prediction.encoder.encoderModel import LSTMAutomodel
 from predictor.prediction.encoder.policyEncoder import PolicyEncoder
 from torch.utils.data import DataLoader, random_split
 
-from predictor.prediction.thetaGP.ThetaGPdataGen import SampleGeneartorThetaGP
-from predictor.prediction.thetaGP.ThetaGPModel import ThetaGPApproximate
+
 from predictor.prediction.covGP.covGPNN_model import COVGPNN
 from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
