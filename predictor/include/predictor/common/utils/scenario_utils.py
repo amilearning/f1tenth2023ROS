@@ -966,6 +966,18 @@ def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
 # elif abs((tv_state.p.s - self.track_length) - ego_state.p.s) < abs(tv_state.p.s - ego_state.p.s):
 #     tv_state.p.s -= self.track_length
 
+def wrap_s_np(s_,track_length):
+    if len(s_.shape)<1:
+        while(s_ <0):
+            s_+=track_length
+        while(s_ > track_length):
+            s_-= track_length
+    else:
+        while(np.min(s_) < 0):        
+            s_[s_ < 0] += track_length    
+        while(np.max(s_) >= track_length):        
+            s_[s_ >= track_length] -= track_length    
+    return s_
 
 def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack):                        
 

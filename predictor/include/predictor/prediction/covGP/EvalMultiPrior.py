@@ -56,7 +56,7 @@ import gpytorch
 from torch.utils.data import DataLoader
 import torch
 from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
-
+from predictor.common.utils.scenario_utils import wrap_s_np
 from datetime import datetime
 
 
@@ -99,13 +99,16 @@ class MultiPredPostEval:
                 pickle.dump(self.track_info, file)
         
 
-        self.multi_pred_lon_err = []        
-        self.multi_pred_lat_err = []
+         
+        self.driving_policies = [dir.split('/')[-1] for dir in self.dirs]
+        prediction_types  = 5  # List of prediction types
+        self.error_data = {policy: {str(ptype): {"lon": [], "lat": []} 
+                        for ptype in range(prediction_types)} 
+                for policy in self.driving_policies}
         
         
-        for j in range(5):            
-            self.multi_pred_lat_err.append([])
-            self.multi_pred_lon_err.append([])
+                
+        
 # Open the file in binary mode for writing
 
         self.track_info = PathGenerator()        
@@ -147,43 +150,156 @@ class MultiPredPostEval:
         
         ### EVAL init  ########
         
+        if args['load_eval_data']:
+            load_data_name = 'error_dict_20240103_130834.pkl'
+            eval_data_load = os.path.join(multiEval_dir, load_data_name)
+            if os.path.exists(eval_data_load):
+                self.error_data = pickle_read(eval_data_load)
+            else:
+                print("load eval data not found ")
+                return 
+        else:            
+            self.pred_eval(args = args, predictor_type = 4)                
+            self.pred_eval(args = args, predictor_type = 2)             
+            self.pred_eval(args = args, predictor_type = 1)        
+            self.pred_eval(args = args, predictor_type = 0)
+            self.pred_eval(args= args, predictor_type = 3)
+            print("gen done")
         
-        self.pred_eval(args = args, predictor_type = 4)                
-        self.pred_eval(args = args, predictor_type = 2)             
-        self.pred_eval(args = args, predictor_type = 1)        
-        self.pred_eval(args = args, predictor_type = 0)
-        self.pred_eval(args= args, predictor_type = 3)
-
-        self.save_errors()
+            if self.error_data is not None:
+                self.save_errors()            
+        
         self.plot_errors()
-        
 
-        print("gen done")
-        # self.pred_eval_parallel()
-    def save_errors(self):
-        error_dict = {}
-        error_dict['lon'] = self.multi_pred_lon_err
-        error_dict['lat'] = self.multi_pred_lat_err        
+        
+    def save_errors(self):  
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pickle_write(error_dict, os.path.join(multiEval_dir, f"error_dict_{current_time}.png"))            
+        pickle_write(self.error_data, os.path.join(multiEval_dir, f"error_dict_{current_time}.pkl"))            
 
     def plot_errors(self):
         import matplotlib.pyplot as plt
-        # for i in range(5):
-            # plt.plot(np.array(self.multi_pred_lat_err[i]).reshape(-1))
-        last_step_lat_error_np = np.array(self.multi_pred_lat_err)
-        plt.boxplot(last_step_lat_error_np[:,:,-1].T)        
-        plt.axhline(0, color='gray', linestyle='--')
-        plt.legend()
-        plt.show()
+        import pandas as pd
+        import seaborn as sns
 
+        predictor_labels = {
+            '0': "nosimtsGP",
+            '1': "CAV",
+            '2': "MPCC",
+            '3': "naiveGP",
+            '4': "simtimGP"
+            # ... Add custom labels for each ptype
+            }
+
+        records = []  # List to store dataframe records
+
+        # Iterate through the nested dictionary and create records
+        for policy, ptypes in self.error_data.items():
+            for ptype, errors in ptypes.items():
+                for lon_error, lat_error in zip(errors["lon"], errors["lat"]):
+                    # Create a dictionary for each record
+                    record = {
+                        "DrivingPolicy": policy,
+                        "PredictorType": predictor_labels[ptype],
+                        "Lon_Error": lon_error[-1],
+                        "Lat_Error": lat_error[-1]
+                    }
+                    # Add the record to the list
+                    records.append(record)
+
+        # Convert the records to a pandas DataFrame
+        error_df = pd.DataFrame(records)
+
+        predictor_types = error_df['PredictorType'].unique()
+        drivign_policies = error_df['DrivingPolicy'].unique()
+
+
+            # Create a list of labels in the order the histograms were plotted
+        # predictor_labels = [predictor_labels[ptype] for ptype in predictor_types]
+
+##########################################################################
+##########################################################################
+        plt.figure()
+        sns.boxplot(x='DrivingPolicy', y='Lon_Error', hue='PredictorType', data=error_df, showfliers=False)
         
-        last_step_lon_error_np = np.array(self.multi_pred_lon_err)
-        last_step_lon_error_np[last_step_lon_error_np>self.track_info.track.track_length/2-0.5] -= self.track_info.track.track_length/2
-        plt.boxplot(last_step_lon_error_np[:,:,-1].T)        
         plt.axhline(0, color='gray', linestyle='--')
-        plt.legend(['1','2','3','4','5'])
-        plt.show()
+        # Additional plot formatting
+        plt.title('Longitudinal Error by Policy Type and Name')
+        plt.xlabel('Policy')
+        plt.ylabel('Longitudinal Error')
+        
+
+        # Adjust the legend or axes as needed, for example, to prevent overlapping:
+        plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = os.path.join(fig_dir, f"lon_evalbar_{current_time}.png")
+        plt.savefig(file_path)   
+##########################################################################
+##########################################################################
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(x='DrivingPolicy', y='Lat_Error', hue='PredictorType', data=error_df, showfliers=False)
+        plt.axhline(0, color='gray', linestyle='--')
+        # Additional plot formatting
+        plt.title('Lateral Error by Policy Type and Name')
+        plt.xlabel('Policy')
+        plt.ylabel('Lateral Error')        
+        plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = os.path.join(fig_dir, f"lat_evalbar_{current_time}.png")
+        plt.savefig(file_path)   
+##########################################################################
+##########################################################################
+      
+##########################################################################
+##########################################################################        
+            
+        n_bins = 50
+        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+        for idx, policy in enumerate(drivign_policies):
+            subsets = error_df[error_df['DrivingPolicy'] == policy]            
+            for ptype in predictor_types:     
+                subset = subsets[subsets['PredictorType'] == ptype]
+                # Plot a histogram for the subset
+                axes[idx].hist(subset['Lat_Error'], bins=n_bins, alpha=0.4, label=ptype)
+            
+            axes[idx].axvline(0, color='gray', linestyle='--')
+            max_error = np.max(np.abs(subsets['Lat_Error']))
+            axes[idx].set_xlim(-max_error, max_error)
+            # Additional plot formatting
+            axes[idx].set_title(f'Lateral Error by {policy}')
+            axes[idx].set_xlabel('Lateral Error')
+            axes[idx].set_ylabel('Frequency')
+
+        plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
+        plt.tight_layout()
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = os.path.join(fig_dir, f"lat_hist_{policy}_{current_time}.png")
+        plt.savefig(file_path) 
+       
+
+##########################################################################
+##########################################################################        
+        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+        for idx, policy in enumerate(drivign_policies):
+            subsets = error_df[error_df['DrivingPolicy'] == policy]            
+            for ptype in predictor_types:     
+                subset = subsets[subsets['PredictorType'] == ptype]
+                # Plot a histogram for the subset
+                axes[idx].hist(subset['Lon_Error'], bins=n_bins, alpha=0.4, label=ptype)
+            
+            axes[idx].axvline(0, color='gray', linestyle='--')
+            max_error = np.max(np.abs(subsets['Lon_Error']))
+            axes[idx].set_xlim(-max_error, max_error)
+            # Additional plot formatting
+            axes[idx].set_title(f'Longitudinal Error by {policy}')
+            axes[idx].set_xlabel('Longitudinal Error')
+            axes[idx].set_ylabel('Frequency')
+
+        plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
+        plt.tight_layout()
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = os.path.join(fig_dir, f"lon_hist_{policy}_{current_time}.png")
+        plt.savefig(file_path) 
+       
 
 
 
@@ -222,10 +338,11 @@ class MultiPredPostEval:
         
         for j in range(len(self.dirs)):
             tmp_dir = os.path.join(multiEval_dir,self.dirs[j].split('/')[-1])
+            driving_policy_name = tmp_dir.split('/')[-1]
             create_dir(path=tmp_dir)   
             dir = [self.dirs[j]]                        
            
-            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
+            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=False, real_data = True, tsne = True)
             
             input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list = sampGen.get_eval_data(dir,real_data = True, noise = False)            
             pred_tar_state_list = []
@@ -256,10 +373,31 @@ class MultiPredPostEval:
                     else: 
                         print("select predictor")
                     
-                    lon_error = np.array(self.tv_pred.s) - np.array(gt_tar_state_list[i].s)
-                    lat_error = np.array(self.tv_pred.x_tran) - np.array(gt_tar_state_list[i].x_tran)
-                    self.multi_pred_lon_err[predictor_type].append(lon_error)
-                    self.multi_pred_lat_err[predictor_type].append(lat_error)
+                    if self.tv_pred.s is not None:
+                        # self.track_info.track.global_to_local([self.tv_pred.x, self.tv_pred.y, self.tv_pred.psi])                        
+                        lon_error = np.array(gt_tar_state_list[i].s) - np.array(self.tv_pred.s) 
+                        lat_error = np.array(gt_tar_state_list[i].x_tran) - np.array(self.tv_pred.x_tran)
+                    else: 
+                        lon_error = [] #np.array(gt_tar_state_list[i].s) - np.array(gt_tar_state_list[i].s)
+                        lat_error = [] #np.array(gt_tar_state_list[i].x_tran) - np.array(gt_tar_state_list[i].x_tran)
+                        for idx in range(len(self.tv_pred.x)):                                                    
+                            tv_fren = self.track_info.track.global_to_local((self.tv_pred.x[idx], self.tv_pred.y[idx], self.tv_pred.psi[idx]))
+                            if tv_fren is not None:
+                                lon = gt_tar_state_list[i].s[idx] - tv_fren[0] 
+                                lat = gt_tar_state_list[i].x_tran[idx] - tv_fren[1] 
+                            lon_error.append(lon)
+                            lat_error.append(lat)
+                        lon_error = np.array(lon_error)
+                        lat_error = np.array(lat_error)
+                    
+                    ## semi-wrapping for track length
+                    lon_error[lon_error < -self.track_info.track.track_length/4] += self.track_info.track.track_length/2            
+                    lon_error[lon_error >= self.track_info.track.track_length/4] -= self.track_info.track.track_length/2    
+
+                    self.error_data[driving_policy_name][str(predictor_type)]['lon'].append(lon_error)
+                    self.error_data[driving_policy_name][str(predictor_type)]['lat'].append(lat_error)
+                    # self.multi_pred_lon_err[predictor_type].append(lon_error)
+                    # self.multi_pred_lat_err[predictor_type].append(lat_error)
 
                     
 

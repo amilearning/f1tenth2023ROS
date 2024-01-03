@@ -22,9 +22,9 @@ args_ = {
     "n_epoch" : 10000,
     'add_noise_data': True,
     'model_name' : None,
-    'eval' : False
+    'eval' : False,
+    'load_eval_data' : True
     }
-
 
 
 
@@ -100,8 +100,8 @@ def run_eval(eval_policy_names):
 
         for i in range(0,5):    
             # i is in predictor type  0 nosimtsgp, 1- cav, 2- nmpc, 3 - naivegp , 4 - simtsgp
-            # lateral_errors, longitudinal_errors, pred_covs = get_process(eval_policy_names[j], predictor_type = i)            
-            lateral_errors, longitudinal_errors = get_process(eval_policy_names[j], predictor_type = i)            
+            lateral_errors, longitudinal_errors, pred_covs = get_process(eval_policy_names[j], predictor_type = i)            
+            # lateral_errors, longitudinal_errors = get_process(eval_policy_names[j], predictor_type = i)            
             rmse_longitudinal = np.sqrt(np.sum(longitudinal_errors**2)/len(longitudinal_errors))
             rmse_lateral = np.sqrt(np.sum(lateral_errors**2)/len(lateral_errors))
             rmse_combined = np.sqrt((rmse_longitudinal ** 2 + rmse_lateral ** 2) / 2)
@@ -113,7 +113,7 @@ def run_eval(eval_policy_names):
             # print(str(i) + "th predictor,  lat_eror = " + str(np.mean(lateral_errors)))            
             lateral_errors_list.append((lateral_errors))
             longitudinal_errors_list.append((longitudinal_errors))
-            # pred_covs_list.append(pred_covs)
+            pred_covs_list.append(pred_covs)
             errors_list.append( abs(longitudinal_errors) + abs(lateral_errors))
          
         # plt.legend()
@@ -122,17 +122,17 @@ def run_eval(eval_policy_names):
         predtype_lateral_errors_list.append(lateral_errors_list)
         predtype_longitudinal_errors_list.append(longitudinal_errors_list)
         predtype_errors_list.append(errors_list)
-        # predtype_pred_covs_list.append(pred_covs_list)
+        predtype_pred_covs_list.append(pred_covs_list)
         
            
         
 
     
     # draw_histo_with_list
-    draw_barplot_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
-    draw_barplot_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
+    draw_histo_with_list(predtype_lateral_errors_list, eval_policy_names, value_name_ = 'Lateral_error')
+    draw_histo_with_list(predtype_longitudinal_errors_list, eval_policy_names, value_name_ = 'Long_error')
     draw_barplot_with_list(predtype_errors_list, eval_policy_names, value_name_ = 'Error')
-    # draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
+    draw_barplot_with_list(predtype_pred_covs_list, eval_policy_names, value_name_ = 'COV')
 
 
 
@@ -163,17 +163,18 @@ def main():
     args_['add_noise_data'] = False
     ############ TSNE ##################################
     eval_policy_names = ['centerline_11',
-                         'blocking_11'] 
+                         'blocking_11',
+                         'eval_highspeed_hjpolicy_1221'] 
     
-    args_['model_name'] ='simtsGP'
-    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
-    args_['model_name'] ='nosimtsGP'
-    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    # args_['model_name'] ='simtsGP'
+    # tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
+    # args_['model_name'] ='nosimtsGP'
+    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = eval_policy_names, perplexity = 50, load_data=False)
     
     ####################################################
     eval_policy_names = ['centerline_11',
                          'blocking_11',
-                        ]
+                         'eval_highspeed_hjpolicy_1221'] 
     
     # eval_policy_names = ['centerline_1220',
     #                 'blocking_1220',
@@ -183,6 +184,7 @@ def main():
     #                     'eval_highspeed_hjpolicy_1221'] 
 
     ####################################################
+     
     gen_eval_data(eval_policy_names)
     ####################################################
     run_eval(eval_policy_names)        

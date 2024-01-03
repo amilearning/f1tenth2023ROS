@@ -6,7 +6,10 @@ from predictor.common.utils.scenario_utils import policy_generator, wrap_del_s
 from predictor.common.utils.file_utils import *
 def states_to_encoder_input_torch(tar_st,ego_st, track:RadiusArclengthTrack):
     tar_s = tar_st.p.s
+    tar_s = wrap_s_np(tar_s,track.track_length/2)
+
     ego_s = ego_st.p.s
+    ego_s = wrap_s_np(ego_s,track.track_length/2)
     ######### doubled track ##########
     # if tar_s > track.track_length/2.0:
     #     tar_s -=  track.track_length/2.0
@@ -83,6 +86,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
             if len(self.samples) < 1 or self.samples is None:
                 return 
         # self.plotStatistics()
+            if randomize:
+                self.samples, self.output_data = self.shuffle_in_out_data(self.samples, self.output_data)
             if args['model_name'] is not None:
                 self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
             print('Generated Dataset with', len(self.samples), 'samples!')
@@ -90,6 +95,19 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # if randomize:
         #     random.shuffle(self.samples)
     
+    def shuffle_in_out_data(self,input, output):
+        # Pair up the elements and shuffle
+        combined = list(zip(input, output))
+        random.shuffle(combined)
+
+        # Unzip them back into two lists
+        shuffled_list1, shuffled_list2 = zip(*combined)
+
+        # Convert tuples back to lists (if needed)
+        shuffled_input = list(shuffled_list1)
+        shuffled_output = list(shuffled_list2)
+        return shuffled_input, shuffled_output
+
 
     def gen_samples_with_buffer(self, real_data = False, tsne = False, pre_data_dir = None):
             invalid_data_count = 0
@@ -160,24 +178,6 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                             #                 tar_ey, tar_epsi, tar_cur]                                 
                                             dat[:,i-t]=states_to_encoder_input_torch(tar_st, ego_st, track_)                                        
                                             
-                                        
-                                        # if self.add_noise_data:
-                                            # if np.random.randint(10) < 8:
-                                            # for i in range(1):
-                                            #     noisy_dat, noisy_output = self.add_noise(dat, gp_output)
-                                            #     if self.args['model_name'] == 'naiveGP':
-                                            #         self.output_data.append(noisy_output.clone())                                           
-                                            #         self.samples.append(noisy_dat[:,int(noisy_dat.shape[1]/2)-1].clone())  
-                                            #     else:
-                                            #         self.output_data.append(noisy_output.clone())    
-                                            #         self.samples.append(noisy_dat.clone())  
-                                        # if self.args['model_name'] == 'naiveGP':
-                                        #     self.output_data.append(gp_output.clone())                                           
-                                        #     self.samples.append(dat[:,int(dat.shape[1]/2)-1].clone())  
-                                        # else:
-                                        #     self.output_data.append(gp_output.clone())    
-                                        #     self.samples.append(dat.clone())  
-
                                         return dat.clone(), gp_output.clone() 
                                     else:
                                         return None, None # invalid_data_count+=1
@@ -283,7 +283,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                 roll_tar_st = scenario_data.tar_states[i+t].copy()                                      
             tar_st = roll_tar_st   
             dat[:,i]=states_to_encoder_input_torch(tar_st, ego_st, track)  
-            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=0.2, accel_mag = 1.4)  
+            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=1.0, accel_mag = -2.0)  
 
         return torch.flip(dat, dims=[1])
     
@@ -296,12 +296,12 @@ class SampleGeneartorCOVGP(SampleGenerator):
         return dat
 
     
-    def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator, direction = 1, accel_mag= 0.01):        
+    def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator, direction = 1, accel_mag= 0.0):        
         tmp_state = state.copy()
         if tmp_state.p.e_psi < 0:            
-            tmp_state.u.u_steer = -(np.random.rand(1)*0.2 +0.1)[0] * direction
+            tmp_state.u.u_steer = -(np.random.rand(1)*0.2 +0.2)[0] * direction
         else:
-            tmp_state.u.u_steer = (np.random.rand(1)*0.2 +0.1)[0] * direction
+            tmp_state.u.u_steer = (np.random.rand(1)*0.2 +0.2)[0] * direction
         tmp_state.u.u_a = accel_mag
         if abs(tmp_state.p.x_tran) > simulator.model.track.track_width*1.1:
             tmp_state.u.u_steer = -1*tmp_state.u.u_steer
@@ -392,6 +392,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # create_dir(pre_data_dir)        
         # pre_data_dir =os.path.join(pre_data_dir,"eval_preload_data.pkl")                        
         input_buffer_list = [] 
+        track_angle_list = []
         ego_state_list = []
         tar_state_list = []
         gt_tar_state_list = []

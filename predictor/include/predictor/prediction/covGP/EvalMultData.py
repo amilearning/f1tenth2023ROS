@@ -15,7 +15,7 @@ from predictor.common.utils.scenario_utils import wrap_del_s
 
 
 
-def multi_policy_lat_lon_error_covs(real_data : RealData, predictor_type):
+def multi_policy_lat_lon_error_covs(real_data : RealData):
     """
     @param sim_data: Input evaluation data where we are comparing against `tar_states` (true trajectory)
     @return:
@@ -63,9 +63,9 @@ def multi_policy_lat_lon_error_covs(real_data : RealData, predictor_type):
             if N + timeStep  < len(real_data.tar_states):
                 samps += 1
                     
-                # covs = np.vstack([real_data.tar_pred[timeStep].xy_cov[:,0,0], real_data.tar_pred[timeStep].xy_cov[:,1,1]])
+                covs = np.vstack([real_data.tar_pred[timeStep].xy_cov[:,0,0], real_data.tar_pred[timeStep].xy_cov[:,1,1]])
                 
-                # total_cov_list.append(covs)
+                total_cov_list.append(covs)
                 for i in range(N-1):
                     ntar_st = real_data.tar_states[timeStep + i]  # (VehicleState) current target state from true traveled trajectory
                     if not pred.s:
@@ -96,7 +96,7 @@ def multi_policy_lat_lon_error_covs(real_data : RealData, predictor_type):
             
                 total_lateral_error.append(np.array(lateral_error))
                 
-    return np.array(total_lateral_error), np.array(total_longitunidal_error) #, np.array(total_cov_list)
+    return np.array(total_lateral_error), np.array(total_longitunidal_error) , np.array(total_cov_list)
 
 
 
@@ -121,20 +121,20 @@ def get_process(policy_name, predictor_type = 0):
                 if (len(data.tar_states) != len(data.tar_pred)) or len(data.tar_states) < 21:
                     continue 
                 else:                        
-                    # lateral_error, longitudinal_error, pred_cov = multi_policy_lat_lon_error_covs(data)
-                    lateral_error, longitudinal_error = multi_policy_lat_lon_error_covs(data, predictor_type)
+                    lateral_error, longitudinal_error, pred_cov = multi_policy_lat_lon_error_covs(data)
+                    # lateral_error, longitudinal_error = multi_policy_lat_lon_error_covs(data, predictor_type)
                     # for j in range(len(lateral_error[0,:])-3):
                     # lateral_errors.append(np.sqrt(np.mean(lateral_error[:,-1] ** 2)))
-                    lateral_errors.append(lateral_error[:,-2])
+                    lateral_errors.append(lateral_error[:,-1])
                         # longitudinal_errors.append(np.sqrt(np.mean(longitudinal_error[:,-1] ** 2)))
-                    longitudinal_errors.append(longitudinal_error[:,-2])
-                    # pred_covs.append(np.mean(np.mean(pred_cov[:,:,:], axis=1), axis=1))
+                    longitudinal_errors.append(longitudinal_error[:,-1])
+                    pred_covs.append(abs(pred_cov[:,0,-1])+abs(pred_cov[:,1,-1]))
   
-    # pred_covs = np.concatenate(pred_covs)
+    pred_covs = np.concatenate(pred_covs)
     lateral_errors = np.concatenate(lateral_errors)
     longitudinal_errors = np.concatenate(longitudinal_errors)
     
-    return lateral_errors, longitudinal_errors#, pred_covs
+    return lateral_errors, longitudinal_errors, pred_covs
 
 
 
