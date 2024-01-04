@@ -434,16 +434,16 @@ class COVGPNNModel(gpytorch.Module):
                                                         input_dim=self.gp_input_dim,
                                                         num_tasks=self.gp_output_dim)  # Independent        
         
-        self.in_covlist = []        
-        self.out_covlist = []
-
-        self.in_covs = nn.ModuleList(
-            [gpytorch.kernels.MaternKernel(nu=1.5) for k in range(self.gp_output_dim)]
+ 
+        
+        self.in_covs = torch.nn.ModuleList(
+            [gpytorch.kernels.MaternKernel(nu=1.5) for k in range(4)]
         )
 
-        self.out_covs = nn.ModuleList(
-            [gpytorch.kernels.MaternKernel(nu=1.5) for k in range(self.gp_output_dim)]
+        self.out_covs = torch.nn.ModuleList(
+            [gpytorch.kernels.MaternKernel(nu=1.5)for k in range(4)]
         )
+
 
         # for i in range(self.gp_output_dim):
         #     intmp =gpytorch.kernels.MaternKernel(nu=1.5)#.to("cuda").double()                                                

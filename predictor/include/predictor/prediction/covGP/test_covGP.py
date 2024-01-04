@@ -194,8 +194,8 @@ likelihood.train()
 
 optimizer = torch.optim.Adam([{'params': model.feature_extractor.parameters(), 'lr': 0.01},                                            
                                 {'params': model.gplayer.hyperparameters(), 'lr': 0.01},
-                                {'params': model.incov[0].parameters(), 'lr': 0.01, 'weight_decay':1e-8},
-                                {'params': model.outcov[0].parameters(), 'lr': 0.01, 'weight_decay':1e-8},
+                                {'params': model.incov.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
+                                {'params': model.outcov.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
                                 {'params': model.gplayer.variational_parameters()},
                                 {'params': likelihood.parameters()},
                                 ], lr=0.01)
@@ -214,6 +214,7 @@ iterator = tqdm.tqdm(range(training_iterations))
 best_valid_loss = 0
 best_epoch = 0
 no_progress_count = 0
+
 for i in iterator:
     torch.cuda.empty_cache()  
     # Zero backprop gradients
@@ -273,7 +274,7 @@ for i in iterator:
     # Calc loss and backprop derivatives
     
     
-    model_all = True
+    model_all = False
     if model_all:
         loss = variation_loss 
         writer.add_scalar("loss/total_loss", loss.item(), i)                    

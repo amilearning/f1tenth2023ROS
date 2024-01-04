@@ -20,7 +20,7 @@ args_ = {
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': True,
+    'add_noise_data': False,
     'add_aug_data' : False,
     'model_name' : None,
     'eval' : False,
@@ -59,7 +59,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
     args_['model_name'] = 'simtsGP'
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, real_data = True, args= args_)
     print("simtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -80,7 +80,8 @@ def main():
     ####################################################
     ####################################################
     train_policy_names = ['centerline_train',
-                          'blocking_train']                         
+                          'blocking_train']             
+    train_policy_names = ['centerline_eval']               
     
     main_train(train_policy_names)
     ####################################################    
