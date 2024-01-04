@@ -19,7 +19,9 @@ def states_to_encoder_input_torch(tar_st,ego_st, track:RadiusArclengthTrack):
     # delta_s = tar_s - ego_s
     delta_s = wrap_del_s(tar_s, ego_s, track)
     
-    
+    if len(delta_s.shape) == 1 :
+        delta_s = delta_s[0]
+
     input_data=torch.tensor([ delta_s,                        
                         tar_st.p.x_tran,
                         tar_st.p.e_psi,
@@ -57,6 +59,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.input_dim = args["input_dim"]        
         self.time_horizon = args["n_time_step"]
         self.add_noise_data = args["add_noise_data"]
+        self.add_aug_data = args["add_aug_data"]
+
         model_name = args["model_name"]
         if elect_function is None:
             elect_function = self.useAll
@@ -156,7 +160,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     
                                     valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                     if tsne:
-                                        if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 2.0:
+                                        if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.5:
                                             valid_data = False
                                         
                                     if valid_data:                              
@@ -168,6 +172,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                         
                                         self.debug_t.append(real_dt)
                                         gp_output = torch.tensor([delta_s, delta_xtran, delta_epsi, delta_vlong ]).clone()                                                                                                                               
+                                        
                                         
                                         for i in range(t+self.time_horizon, t+self.time_horizon*2):
                                             ego_st = scenario_data.ego_states[i]
@@ -191,9 +196,18 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     continue
                                 self.output_data.append(tmp_output)
                                 self.samples.append(tmp_sample)
+
+                                
                                 if self.add_noise_data:
                                     if t < scenario_data.N-self.time_horizon*3 and t%3 ==0:
-                                        aug_gp_outputs, aug_samples = self.get_augment_samples(t,scenario_data, track_, tar_dynamics_simulator)
+                                        aug_gp_outputs, aug_samples = self.get_additional_samples(False, t,scenario_data, track_, tar_dynamics_simulator)
+                                        
+                                        self.output_data.extend(aug_gp_outputs)
+                                        self.samples.extend(aug_samples)
+
+                                if self.add_aug_data:
+                                    if t < scenario_data.N-self.time_horizon*3 and t%3 ==0:
+                                        aug_gp_outputs, aug_samples = self.get_additional_samples(self.add_aug_data, t,scenario_data, track_, tar_dynamics_simulator)
                                         self.output_data.extend(aug_gp_outputs)
                                         self.samples.extend(aug_samples)
                                     
@@ -211,9 +225,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
             self.save_pre_data(pre_data_dir)
             # print( "invalid_data_count = " + str(invalid_data_count))
             
-    def get_augment_samples(self, t, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator : DynamicsSimulator, sample_num = 10):
-        gp_outputs, samples = self.extend_dat(t,sample_num, self.time_horizon*3,scenario_data,track,simulator)
-      
+    def get_additional_samples(self,is_augment, t, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator : DynamicsSimulator, sample_num = 10):
+        gp_outputs, samples = self.extend_dat(is_augment, t,sample_num, self.time_horizon*3,scenario_data,track,simulator)
+        # # if is_augment:
         # original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
         # original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
         # x2 = range(self.time_horizon*3)
@@ -228,8 +242,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         return gp_outputs, samples
       
 
-
-    def extend_dat(self,t, num_sample, time_length, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator: DynamicsSimulator):
+    def extend_dat(self,is_augment, t, num_sample, time_length, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator: DynamicsSimulator):
         dat = torch.zeros(self.input_dim, time_length)                                    
         if time_length < self.time_horizon*2+1:
             time_length = self.time_horizon*2
@@ -239,40 +252,49 @@ class SampleGeneartorCOVGP(SampleGenerator):
         samples = []
                       
         for i in range(time_length):                                
-            ego_st = scenario_data.ego_states[i+t]
-            if i == self.time_horizon-1:
+            ego_st = scenario_data.ego_states[i+t].copy()
+            if i <=self.time_horizon-1:
                 roll_tar_st = scenario_data.tar_states[i+t].copy()  
-                tar_st = roll_tar_st                
-            elif i >= self.time_horizon-1:
-                tar_st = roll_tar_st                
-            else:
-                tar_st = scenario_data.tar_states[i+t]
-                roll_tar_st =tar_st
-            
+            tar_st = roll_tar_st.copy()               
+
             dat[:,i]=states_to_encoder_input_torch(tar_st, ego_st, track)  
 
+            if is_augment:                                
+                roll_tar_st = scenario_data.tar_states[i+t+1].copy()  
+                roll_tar_st.p.s += np.random.randn(1)*0.01
+                roll_tar_st.p.x_tran += np.random.randn(1)*0.01
+                roll_tar_st.p.e_psi += np.random.randn(1)*0.01
+                roll_tar_st.v.v_long += np.random.randn(1)*0.01                
+            else:
+                tmp_tar_st = scenario_data.tar_states[i+t+1].copy()  
+                roll_tar_st = self.gen_random_next_state(tar_st,simulator)           
+                roll_tar_st.p.s = tmp_tar_st.p.s
+                if i >= self.time_horizon-1:
+                    del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 
+                    del_xtran = roll_tar_st.p.x_tran - tar_st.p.x_tran
+                    del_epsi = roll_tar_st.p.e_psi - tar_st.p.e_psi
+                    del_vx = roll_tar_st.v.v_long - tar_st.v.v_long
+                    gp_output = torch.tensor([del_s, del_xtran, del_epsi, del_vx ]).clone()   
+                    gp_outputs.append(gp_output.clone())
 
-            roll_tar_st = self.gen_random_next_state(tar_st,simulator)           
-            if i >= self.time_horizon-1:
-                del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 
-                del_xtran = roll_tar_st.p.x_tran - tar_st.p.x_tran
-                del_epsi = roll_tar_st.p.e_psi - tar_st.p.e_psi
-                del_vx = roll_tar_st.v.v_long - tar_st.v.v_long
-                gp_output = torch.tensor([del_s, del_xtran, del_epsi, del_vx ]).clone()   
-                gp_outputs.append(gp_output.clone())
-
-            
-
-         
-
-        # dat[:,0:self.time_horizon*2] = self.augment_left_with_polynoial(dat[:,0:self.time_horizon*2])
-        dat[:,:self.time_horizon] = self.get_left_dat_dynamics(t+self.time_horizon-1, scenario_data, simulator, track) 
+        if is_augment:
+            dat[:,0:self.time_horizon*2] = self.augment_left_with_polynoial(dat[:,0:self.time_horizon*2])
+        else:
+            dat[:,:self.time_horizon] = self.get_left_dat_dynamics(t+self.time_horizon-1, scenario_data, simulator, track) 
 
         for k in range(num_sample):
             sample = dat[:,k:k+self.time_horizon*2]
             samples.append(sample.clone())
+        
+        new_samples = []
+        new_gp_outputs = []
+        for i in range(len(samples)):
+            if gp_outputs[i][0] <= 0.3:
+                new_samples.append(samples[i])
+                new_gp_outputs.append(gp_outputs[i])
 
-        return gp_outputs[:num_sample], samples
+        
+        return new_gp_outputs[:num_sample], new_samples
     
     def get_left_dat_dynamics(self,t, scenario_data, simulator, track):
         dat = torch.zeros(self.input_dim, self.time_horizon)         
@@ -283,7 +305,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                 roll_tar_st = scenario_data.tar_states[i+t].copy()                                      
             tar_st = roll_tar_st   
             dat[:,i]=states_to_encoder_input_torch(tar_st, ego_st, track)  
-            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=1.0, accel_mag = -2.0)  
+            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=1.0, accel_mag = 1.0)  
 
         return torch.flip(dat, dims=[1])
     
@@ -317,10 +339,10 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # data -> b, d, t -> d= 9, t = 10
         # del_s, tar_s, tar_ey, tar_epsi, vx 
         out_data = data.clone()
-        noise_levels = torch.tensor([1.0, 1.0, 1.0, 1.0])
+        noise_levels = torch.tensor([10.0, 10.0, 10.0, 10.0])
         for idx in range(len(noise_levels)):            
             noise = self.generate_quintic_polynomial(-noise_levels[idx],noise_levels[idx])
-            out_data[idx,:int(out_data.shape[1]/2)-1] += noise[:int(out_data.shape[1]/2)-1]
+            out_data[idx,:int(out_data.shape[1]/2)-1] += noise[:int(out_data.shape[1]/2)-1] * 1e-3
         return out_data 
             
 
@@ -353,7 +375,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # measurement noise level
                     # delta_s, tar_xtran, tar_epsi,      tar_vx, 
         if noise_level is None:
-            noise_level = torch.tensor([10.0,       3.0,     60,  50.0])
+            noise_level = torch.tensor([10,       10,     10,  10.0])
         
         noisy_input = input.clone()
         noisy_output = output.clone()
@@ -587,11 +609,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # ego_ey = data[6,:]
         # ego_epsi = data[7,:]
         # ego_vx = data[8,:]
-        real_dt = ntar_st.t - tar_st.t 
-        if (real_dt > 0.05 and real_dt < 0.2):
-            valid_data = True
-        else:
-            valid_data = False
+
         
 
 
@@ -619,21 +637,24 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
         if del_s is None:
             print("NA")
-        if abs(del_s) > 0.5: 
+        if del_s < 0.05: 
             valid_data = False
         
         # del_epsi = ntar_st.p.e_psi-  tar_st.p.e_psi
         # if abs(del_epsi) > 0.2: 
         #     valid_data = False
 
-        del_x_tran = ntar_st.p.x_tran-  tar_st.p.x_tran
-        if abs(del_x_tran) > 0.5: 
-            valid_data = False
+        # del_x_tran = ntar_st.p.x_tran-  tar_st.p.x_tran
+        # if abs(del_x_tran) > 0.5: 
+        #     valid_data = False
 
         del_vlong = ntar_st.v.v_long-  tar_st.v.v_long
         if abs(del_vlong) > 0.5: 
             valid_data = False
 
+        real_dt = ntar_st.t - tar_st.t 
+        if (real_dt < 0.05 or real_dt > 0.2):            
+            valid_data = False
 
         return valid_data
     
@@ -670,10 +691,11 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # labels = labels[perm]
         samp_len = self.getNumSamples()            
         dataset =  torch.utils.data.TensorDataset(inputs,labels) 
-        train_size = int(0.98 * samp_len)
-        val_size = int(0.01 * samp_len)
+        train_size = int(0.99 * samp_len)
+        val_size = int(0.005 * samp_len)
         test_size = samp_len - train_size - val_size
         train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+        val_dataset = train_dataset
         return train_dataset, val_dataset, test_dataset
         # return train_dataset, val_dataset, test_dataset, self.means_y, self.stds_y
 
@@ -688,7 +710,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # self.output_data
         # y_label = torch.stack(self.output_data).detach().cpu().numpy()
         # self.normalized_sample[]
-        y_label = self.normalized_output.detach().cpu().numpy()
+        y_label=torch.stack(self.output_data).detach().cpu().numpy()
+        # y_label = self.normalized_output.detach().cpu().numpy()
         debug_t = np.array(self.debug_t)
         titles = ["del_s", "del_ey", "del_epsi", "del_vx", "dt"]
         fig, axs = plt.subplots(5, 1, figsize=(10, 10))

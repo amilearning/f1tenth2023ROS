@@ -41,6 +41,7 @@ class COVGPNN(GPController):
         self.train_nn = self.args["train_nn"]
         input_size = self.args["input_dim"]
         output_size = self.args["gp_output_dim"]
+        self.output_size = output_size
         inducing_points = self.args["inducing_points"]
         super().__init__(sample_generator, model_class, likelihood, input_size, output_size, enable_GPU)
         
@@ -156,10 +157,12 @@ class COVGPNN(GPController):
                                     {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
 
-        optimizer_nn = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01}])
+        
         
         optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},
+                                        {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
+                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
@@ -196,7 +199,7 @@ class COVGPNN(GPController):
                 self.likelihood.train()     
                 torch.cuda.empty_cache()       
                 optimizer_gp.zero_grad()    
-                optimizer_nn.zero_grad()
+                
                 optimizer_all.zero_grad()
                 #####################           
                 if int(len(train_x.shape)) > 2:
@@ -205,7 +208,6 @@ class COVGPNN(GPController):
                     train_x_h , train_x_f = train_x, train_x                
                 output, recon_data, latent_x = self.model(train_x_h, train_x_f)                
 
-                
 
                 self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
                 self.writer.add_scalar(gp_name+'/stat/latent_min', torch.min(latent_x), epoch*len(train_dataloader) + step)
@@ -215,8 +217,12 @@ class COVGPNN(GPController):
                 variational_loss_sum += variational_loss.item()
 
                 ############# Compute Reconstruction LOSS ####################
-                reconloss_weight = 1.0                
-                reconloss = (mseloss(recon_data,train_x_f)* reconloss_weight)                                    
+                reconloss_weight = 1.0       
+                recon_tar = recon_data[:,1:4,:]
+                train_tar = train_x_f[:,1:4,:]
+                reconloss = (mseloss(recon_tar,train_tar)* reconloss_weight)                                    
+                recon_dist = torch.cdist(recon_tar, train_tar,2)
+                
                 recon_loss_sum +=reconloss.item()                
                 
 
@@ -225,34 +231,22 @@ class COVGPNN(GPController):
                 else:
                     ############# Compute Latent Distance LOSS ####################
                     latent_dist_loss = 0.0    
-                    yinvKy_loss = 0
-                    for i in range(self.model.gp_layer.covar_module.base_kernel.batch_shape[0]):
-                        jitter = torch.eye(train_y.shape[0]).cuda()*1e-11
-                        cov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                        ## TODO:  How to best select the ratio 
-                        cov.base_kernel.lengthscale = (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                   
-                        latent_dist= cov.base_kernel(latent_x,latent_x).evaluate()
-
-                        outcov = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5)).to("cuda").double()                                                
-                        outcov.base_kernel.lengthscale = (self.model.gp_layer.covar_module.base_kernel.lengthscale[i])                
-                        out_dist = outcov.base_kernel(train_y[:,i], train_y[:,i]).evaluate()
-
-                        yinvKy = (train_y[:,i].unsqueeze(dim=0) @ torch.cholesky_inverse(latent_dist + jitter) @ train_y[:,i].unsqueeze(dim=1))/latent_dist.shape[0]
-                        yinvKy_loss += yinvKy[0][0]/self.model.gp_layer.covar_module.base_kernel.batch_shape[0]  # mseloss(latent_dist,out_dist)                    
+                    for i in range(self.output_size):                        
+                        latent_dist = self.model.in_covlist[i](latent_x, latent_x)
+                        latent_dist = latent_dist.evaluate()
+                        out_dist = self.model.out_covlist[i](train_y[:,i], train_y[:,i])
+                        out_dist = out_dist.evaluate()
+                        cov_mse = mseloss(out_dist, latent_dist) 
                         
-                        mse = mseloss(latent_dist,out_dist)
-                        # cos = self.cosine_loss(latent_dist, out_dist)
-                        
-
-                        latent_dist_loss += mse
-                    latent_dist_loss_weight = 0.5
+                        latent_dist_loss += cov_mse
+                    latent_dist_loss_weight = 1.0
                     latent_dist_loss = (latent_dist_loss * latent_dist_loss_weight)
                     latent_dist_loss_sum +=latent_dist_loss.item()                    
                     ########################################################################################3
                     ########################################################################################3
  
                     if include_simts_loss:    
-                        loss =   variational_loss + latent_dist_loss + reconloss
+                        loss =   variational_loss  + latent_dist_loss #+ reconloss
                     else:
                         loss = variational_loss 
                 train_loss += loss.item()    
@@ -264,8 +258,7 @@ class COVGPNN(GPController):
                     optimizer_all.step()
                      
             if directGP is False:
-                tag = 'Lengthscale/yinvKy_loss' + gp_name
-                self.writer.add_scalar(tag, yinvKy_loss, epoch)                    
+                tag = 'Lengthscale/yinvKy_loss' + gp_name                
 
             for i, param_group in enumerate(optimizer_gp.param_groups):
                 lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
@@ -289,7 +282,7 @@ class COVGPNN(GPController):
             for step, (train_x, train_y) in enumerate(valid_dataloader):
                 optimizer_gp.zero_grad()                
                 optimizer_all.zero_grad()
-                optimizer_nn.zero_grad()
+                
                 output = self.model(train_x)
                 loss = -mll(output, train_y)
                 valid_loss += loss.item()
@@ -300,9 +293,10 @@ class COVGPNN(GPController):
             self.writer.add_scalar(valid_loss_tag, valid_loss, epoch)
             if c_loss > last_loss:
                 if no_progress_epoch >= 15:
-                    if include_simts_loss:                        
-                        if no_progress_epoch > 30:
-                            done = True   
+                    if include_simts_loss:     
+                        if epoch > 500:                   
+                            if no_progress_epoch > 30:
+                                done = True   
                     else:
                         done = True 
             else:

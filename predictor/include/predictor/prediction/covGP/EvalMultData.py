@@ -40,29 +40,16 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
         
         lateral_error = []
         longitudinal_error = []
-        pred = real_data.tar_pred[timeStep]  # (VehiclePrediction) at current timestep, what is GP prediction
+        pred = real_data.tar_pred[timeStep]  
         ego_states = real_data.ego_states[timeStep]
         tar_states = real_data.tar_states[timeStep] 
-        # data_skip = True
+    
 
-        # if ego_states.p.s > 15.0 or ego_states.p.s < 3.0:
-        #     data_skip = False
-        
-        # del_s  = wrap_del_s(tar_states.p.s, ego_states.p.s, track)
-        # if abs(del_s) > 1.5:
-        #     continue
-        
-        # if (tar_states.p.s - ego_states.p.s) < 3.0 and  (tar_states.p.s - ego_states.p.s) > 0.0:
-        # # if abs(tar_states.p.s - ego_states.p.s) < track.track_length/2-0.2:
-        #     data_skip = False
-        # if data_skip: 
-        #     continue
-
-        if pred is not None and (pred.x is not None or pred.s is not None):
+        if pred is not None and (pred.x is not None or pred.s is not None) and (real_data.tar_pred[timeStep].xy_cov is not None):
             N = len(pred.s) if pred.s else len(pred.x)
             if N + timeStep  < len(real_data.tar_states):
                 samps += 1
-                    
+                
                 covs = np.vstack([real_data.tar_pred[timeStep].xy_cov[:,0,0], real_data.tar_pred[timeStep].xy_cov[:,1,1]])
                 
                 total_cov_list.append(covs)
@@ -77,17 +64,6 @@ def multi_policy_lat_lon_error_covs(real_data : RealData):
                     else:
                         longitudinal = wrap_del_s(pred.s[i], ntar_st.p.s, track)
 
-                        
-                        # if abs(longitudinal) > track.track_length/4:
-                        #     if pred.s[i] > track.track_length/4 and tar_st.p.s < track.track_length/4:
-                        #         tmp = pred.s[i] - track.track_length/2
-                        #         longitudinal = tmp - tar_st.p.s
-                        #     elif pred.s[i] < track.track_length/4 and tar_st.p.s > track.track_length/4:
-                        #         tmp = tar_st.p.s - track.track_length/2
-                        #         longitudinal = pred.s[i] - tmp
-                        #     else:
-                        #         print("NA")
-                    
                         lateral = pred.x_tran[i] - ntar_st.p.x_tran                    
                     longitudinal_error.append(longitudinal)
                     lateral_error.append(lateral)
@@ -122,11 +98,7 @@ def get_process(policy_name, predictor_type = 0):
                     continue 
                 else:                        
                     lateral_error, longitudinal_error, pred_cov = multi_policy_lat_lon_error_covs(data)
-                    # lateral_error, longitudinal_error = multi_policy_lat_lon_error_covs(data, predictor_type)
-                    # for j in range(len(lateral_error[0,:])-3):
-                    # lateral_errors.append(np.sqrt(np.mean(lateral_error[:,-1] ** 2)))
                     lateral_errors.append(lateral_error[:,-1])
-                        # longitudinal_errors.append(np.sqrt(np.mean(longitudinal_error[:,-1] ** 2)))
                     longitudinal_errors.append(longitudinal_error[:,-1])
                     pred_covs.append(abs(pred_cov[:,0,-1])+abs(pred_cov[:,1,-1]))
   
