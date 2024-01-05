@@ -204,10 +204,10 @@ class COVGPNN(GPController):
                         out_dist = self.model.out_covs[i](train_y[:,i].cuda(), train_y[:,i].cuda())
                         out_dist = out_dist.evaluate()
                         latent_dist = latent_dist.evaluate()
-                        cov_loss -= mseloss(out_dist, latent_dist) 
+                        cov_loss += mseloss(out_dist, latent_dist) 
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss
-                variational_loss = mll(output, train_y)                
+                variational_loss = -mll(output, train_y)                
                 
                 if include_simts_loss: 
                     loss = cov_loss + variational_loss
