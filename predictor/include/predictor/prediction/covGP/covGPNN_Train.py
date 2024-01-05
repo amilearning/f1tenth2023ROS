@@ -17,14 +17,20 @@ from predictor.prediction.covGP.covGPNN_dataGen import SampleGeneartorCOVGP
 
 
 # Training
-def covGPNN_train(dirs = None, real_data = False, args = None):
+def covGPNN_train(dirs = None, val_dirs = None, real_data = False, args = None):
    
     if args is None:
         print("ARGS should be given!!")
         return 
     sampGen = SampleGeneartorCOVGP(dirs, args = args, randomize=True, real_data = real_data)
- 
     # sampGen.plotStatistics()
+    valid_args = args.copy()
+    valid_args['add_noise_data'] = False
+    valid_args['add_aug_data'] = False
+  
+    valGEn = SampleGeneartorCOVGP(val_dirs, load_normalization_constant = True, args = valid_args, randomize=False, real_data = True, tsne = False)
+ 
+    
     
     if not dir_exists(dirs[0]):
         raise RuntimeError(
@@ -39,7 +45,7 @@ def covGPNN_train(dirs = None, real_data = False, args = None):
     # snapshot_name = 'traceGP_3000snapshot'
     # covgp_predictor.load_model(snapshot_name)
     # print(" model loaded")
-    covgp_predictor.train(sampGen, args = args)
+    covgp_predictor.train(sampGen, valGEn, args = args)
     covgp_predictor.set_evaluation_mode()
     trained_model = covgp_predictor.model, covgp_predictor.likelihood
 
@@ -96,11 +102,13 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         
         z_list = []
         input_list = []
+        output_list = []
         y_label = []
         for i in range(len(dirs)):
             dir = [dirs[i]]
             
-            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=True, real_data = True, tsne = True)
+            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=False, real_data = True, tsne = True)
+            # sampGen.plotStatistics()
             if sampGen.getNumSamples() < 1:
                 continue
             covgp_predictor = COVGPNN(args, sampGen, IndependentMultitaskGPModelApproximate, likelihood, enable_GPU=True)
@@ -110,16 +118,18 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
                 raise RuntimeError(
                     f"Directory: {dirs[0]} does not exist, need to train using `gen_training_data` first")
 
-            a_stacked_z, a_input = covgp_predictor.tsne_evaluate(sampGen)
+            a_stacked_z, a_input, a_output = covgp_predictor.tsne_evaluate(sampGen)
             covgp_predictor.set_evaluation_mode()        
             z_list.append(a_stacked_z)
             input_list.append(a_input)
+            output_list.append(a_output)
             a_y_label = torch.ones(a_stacked_z.shape[0])*(i%(len(dirs)))
             y_label.append(a_y_label)
 
 
         stacked_z = torch.vstack(z_list).cpu()
         stacked_input = torch.vstack(input_list).cpu()
+        stacked_output = torch.vstack(output_list).cpu()
         stacked_label = torch.hstack(y_label).cpu()
         # stacked_z = torch.vstack([a_stacked_z,b_stacked_z]).cpu()    
         # stacked_input = torch.vstack([a_input,b_input]).cpu()        
@@ -128,11 +138,40 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         model_to_save = dict()
         model_to_save['stacked_z'] = stacked_z
         model_to_save['stacked_input'] = stacked_input
+        model_to_save['stacked_output'] = stacked_output
         model_to_save['stacked_label'] = stacked_label    
         pickle_write(model_to_save,tsne_data_dir)
     
         print('Successfully saved data')
 
+    inputs = stacked_input.detach().cpu().numpy()
+    outputs = stacked_output.detach().cpu().numpy()
+    
+    inputs = inputs.reshape([-1,inputs.shape[1],inputs.shape[2]])
+    tar_ey = abs(inputs[:,1,9])
+    tar_ey[tar_ey>1.5]=0.0
+    idx= abs(inputs[:,1,9])>1.0
+    tar_ey[idx]=0.0
+    del_ey = abs(inputs[:,1,9]-inputs[:,6,9])
+    idx = inputs[:,0,9]>1.5
+    del_ey[inputs[:,0,9]>1.5] = 0.0
+    tar_epsi = inputs[:,2,9]
+    agglevel = del_ey    
+    agglevel = np.clip(agglevel, -30,30)
+    agglevel= abs((agglevel)/(np.max(agglevel) - np.min(agglevel)))
+    visualize= False
+    if visualize:
+        plt.plot(inputs[:,0,0])
+        plt.plot(inputs[:,1,0])
+        plt.plot(inputs[:,2,0])
+        plt.plot(agglevel)    
+        legend_txt = ['dels','ey','epsi','agglevel']
+        plt.legend(legend_txt)
+        plt.show()
+    
+
+
+ 
     ###################################
     ###################################
     ########## TSNE_analysis ##########
@@ -154,10 +193,15 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         if dim >2:
             fig = plt.figure()
             ax = fig.add_subplot(projection='3d')
-            ax.scatter(theta_2d[:, 0], theta_2d[:, 1],theta_2d[:, 2] ,c=stacked_label, cmap='viridis')
+            ax.scatter(theta_2d[:, 0], theta_2d[:, 1],theta_2d[:, 2] ,c=(agglevel), cmap='viridis')
         else:
+            
             fig, ax = plt.subplots()
-            scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1], c=stacked_label, cmap='viridis')            
+            scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1], c=(tar_ey), cmap='viridis')    
+            cbar = plt.colorbar(scatter_plot)
+            cbar.set_label('Aggresiveness', rotation=270, labelpad=15)
+
+            
             # labels = ["timid", "mild_100", "mild_200", "mild_300", "mild_500","mild_1000", "mild_5000", "reverse"]
             if eval_policy_names is None:
                 labels = [ "timid","blocking", "reverse"]

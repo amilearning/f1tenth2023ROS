@@ -229,7 +229,7 @@ for i in iterator:
     out_dist = out_dist.evaluate()
     latent_dist = latent_dist.evaluate()
     
-    cov_loss = mseloss(out_dist, latent_dist) 
+    cov_loss = -1*mseloss(out_dist, latent_dist) 
     # torch.sum((out_dist - latent_dist).evaluate())/(train_y.shape[0]**2)
     
 

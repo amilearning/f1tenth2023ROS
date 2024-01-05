@@ -51,19 +51,10 @@ class COVGPNN(GPController):
         self.valid_loader = None
         self.test_loader = None
         
-        
-
-    def setup_dataloaders(self,train_dataload,valid_dataload, test_dataloader):
-        self.train_loader = train_dataload
-        self.valid_loader = valid_dataload
-        self.test_loader = test_dataloader
-
 
     def pull_samples(self, holdout=150):        
         return 
        
-
-
     def outputToReal(self, output):
         if self.normalize:
             return output
@@ -72,9 +63,6 @@ class COVGPNN(GPController):
             return output * self.stds_y + self.means_y
         else:
             return output
-
-
-
 
     def cosine_loss(self, z: torch.tensor, z_hat: torch.tensor) -> torch.tensor:
         """ This function calculates the Cosine Loss for a given set of input tensors z and z_hat. The Cosine Loss is
@@ -94,32 +82,12 @@ class COVGPNN(GPController):
         return loss
 
 
-
-    def comput_hidden_norm_constat(self,sampGen: SampleGeneartorCOVGP, args = None):
-        train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
-        batch_size = args["batch_size"]
-        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        for step, (train_x, train_y) in enumerate(train_dataloader):                
-            train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                     
-            self.model.eval()            
-            torch.cuda.empty_cache()       
-            
-            #####################
-
-
-
-        ############3                
-        train_x_h , train_x_f = train_x[:,:,:int(train_x.shape[-1]/2)], train_x[:,:,int(train_x.shape[-1]/2):]                     
-        output, encode_future_embeds, fcst_future_embeds = self.model(train_x_h, train_x_f ,train=True, directGP = directGP)
-        variational_loss = -mll(output, train_y)
-
-
     def euclidean_loss(self, encode_future_embeds: torch.Tensor, fcst_future_embeds: torch.Tensor):        
         dist = torch.cdist(encode_future_embeds,fcst_future_embeds)
         return torch.trace(dist) / dist.shape[0]
         
     
-    def train(self,sampGen: SampleGeneartorCOVGP, args = None):
+    def train(self,sampGen: SampleGeneartorCOVGP,valGEn : SampleGeneartorCOVGP,  args = None):
         self.writer = SummaryWriter()
         directGP = args['direct_gp']
         include_simts_loss = args['include_simts_loss']
@@ -137,12 +105,14 @@ class COVGPNN(GPController):
 
         self.writer = SummaryWriter()
 
-        train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
+        train_dataset, _, _  = sampGen.get_datasets()
         batch_size = self.args["batch_size"]
         train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        valid_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         
-        self.test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+        valid_dataset, _, _  = valGEn.get_datasets()        
+        valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
+
 
         if self.enable_GPU:
             self.model = self.model.cuda()
@@ -173,8 +143,8 @@ class COVGPNN(GPController):
 
         optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},                                        
-                                          {'params': self.model.in_covs.parameters(), 'lr': 0.005},
-                                        {'params': self.model.out_covs.parameters(), 'lr': 0.005},                                        
+                                        {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
+                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},                                        
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
@@ -196,7 +166,7 @@ class COVGPNN(GPController):
         best_model = None
         best_likeli = None
 
-        # sys.setrecursionlimit(100000)
+        sys.setrecursionlimit(100000)
         # dummy_input = torch.randn(161,9,10).cuda()        
         # self.writer.add_graph(self.model, dummy_input)
         self.model.double()
@@ -224,16 +194,17 @@ class COVGPNN(GPController):
                     train_x_h  = train_x.double()          
              
                 output = self.model(train_x_h.cuda())                
-                latent_x = self.model.get_hidden(train_x_h.cuda())
+                
 
                 if include_simts_loss:   
+                    latent_x = self.model.get_hidden(train_x_h.cuda())
                     cov_loss = 0                          
                     for i in range(self.output_size):
                         latent_dist = self.model.in_covs[i](latent_x, latent_x)                     
                         out_dist = self.model.out_covs[i](train_y[:,i].cuda(), train_y[:,i].cuda())
                         out_dist = out_dist.evaluate()
                         latent_dist = latent_dist.evaluate()
-                        cov_loss += mseloss(out_dist, latent_dist) 
+                        cov_loss -= mseloss(out_dist, latent_dist) 
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss
                 variational_loss = -mll(output, train_y)                
@@ -252,10 +223,12 @@ class COVGPNN(GPController):
                      
                 train_loss += loss.item()    
                 variational_loss_sum += variational_loss.item()
-                latent_dist_loss_sum +=cov_loss.item()
-                self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
-                self.writer.add_scalar(gp_name+'/stat/latent_min', torch.min(latent_x), epoch*len(train_dataloader) + step)
-                self.writer.add_scalar(gp_name+'/stat/latent_std', torch.std(latent_x), epoch*len(train_dataloader) + step)
+                
+                if include_simts_loss: 
+                    latent_dist_loss_sum +=cov_loss.item()
+                    self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
+                    self.writer.add_scalar(gp_name+'/stat/latent_min', torch.min(latent_x), epoch*len(train_dataloader) + step)
+                    self.writer.add_scalar(gp_name+'/stat/latent_std', torch.std(latent_x), epoch*len(train_dataloader) + step)
 
             for i in range(self.output_size):                        
                 in_lengthscale = self.model.in_covs[i].lengthscale.item()
@@ -268,13 +241,13 @@ class COVGPNN(GPController):
                 lmodel_tag = gp_name+f'/lengthscale/model_{i}'
                 self.writer.add_scalar(lmodel_tag, model_lengthscale, epoch )                            
                 
-            for i, param_group in enumerate(optimizer_gp.param_groups):
-                lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
-                self.writer.add_scalar(lr_tag, param_group['lr'], epoch )                
+            # for i, param_group in enumerate(optimizer_gp.param_groups):
+            #     lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
+            #     self.writer.add_scalar(lr_tag, param_group['lr'], epoch )                
             varloss_tag = gp_name+'/Loss/variational_loss'
             self.writer.add_scalar(varloss_tag, variational_loss_sum/ len(train_dataloader), epoch)
-            reconloss_tag = gp_name +'/Loss/reconloss'
-            self.writer.add_scalar(reconloss_tag, recon_loss_sum / len(train_dataloader), epoch )
+            # reconloss_tag = gp_name +'/Loss/reconloss'
+            # self.writer.add_scalar(reconloss_tag, recon_loss_sum / len(train_dataloader), epoch )
             latent_dist_loss_tag = gp_name+'/Loss/latent_dist_loss'
             self.writer.add_scalar(latent_dist_loss_tag, latent_dist_loss_sum/ len(train_dataloader) , epoch)
             train_loss_tag = gp_name+'/Loss/total_train_loss' 
@@ -309,9 +282,9 @@ class COVGPNN(GPController):
             if c_loss > last_loss:
                 if no_progress_epoch >= 15:
                     if include_simts_loss:     
-                        if epoch > 500:                   
-                            if no_progress_epoch > 30:
-                                done = True   
+                        # if epoch > 100:                   
+                        if no_progress_epoch > 30:
+                            done = True   
                     else:
                         done = True 
             else:
@@ -329,85 +302,85 @@ class COVGPNN(GPController):
         self.likelihood = best_likeli
         print("test done")
     
-    def evaluate(self):       
-        import matplotlib.pyplot as plt
-        self.set_evaluation_mode()        
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            # This contains predictions for both outcomes as a list
-            # for step, (train_x, train_y) in enumerate(self.test_loader):                               
-            (self.test_x, self.test_y) = next(iter(self.test_loader))
-            predictions = self.likelihood(self.likelihood(self.model(self.test_x)))
+    # def evaluate(self):       
+    #     import matplotlib.pyplot as plt
+    #     self.set_evaluation_mode()        
+    #     with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    #         # This contains predictions for both outcomes as a list
+    #         # for step, (train_x, train_y) in enumerate(self.test_loader):                               
+    #         (self.test_x, self.test_y) = next(iter(self.test_loader))
+    #         predictions = self.likelihood(self.likelihood(self.model(self.test_x)))
 
-        mean = predictions.mean.cpu()
-        variance = predictions.variance.cpu()
-        std = predictions.stddev.cpu()
-        # self.means_x = self.means_x.cpu()
-        # self.means_y = self.means_y.cpu()
-        # self.stds_x = self.stds_x.cpu()
-        # self.stds_y = self.stds_y.cpu()
-        self.test_y = self.test_y.cpu()
+    #     mean = predictions.mean.cpu()
+    #     variance = predictions.variance.cpu()
+    #     std = predictions.stddev.cpu()
+    #     # self.means_x = self.means_x.cpu()
+    #     # self.means_y = self.means_y.cpu()
+    #     # self.stds_x = self.stds_x.cpu()
+    #     # self.stds_y = self.stds_y.cpu()
+    #     self.test_y = self.test_y.cpu()
 
-        f, ax = plt.subplots(self.output_size, 1, figsize=(15, 10))
-        titles = ['xtran', 'epsi', 'vlong']
-        for i in range(self.output_size):
-            # unnormalized_mean = self.stds_y[0, i] * mean[:, i] + self.means_y[0, i]
-            # unnormalized_mean = unnormalized_mean.detach().numpy()
-            unnormalized_mean = mean[:,i].detach().numpy()
-            # cov = np.sqrt((variance[:, i] * (self.stds_y[0, i] ** 2)))
-            cov = std[:,i]
-            cov = cov.detach().numpy()
-            '''lower, upper = prediction.confidence_region()
-            lower = lower.detach().numpy()
-            upper = upper.detach().numpy()'''
-            lower = unnormalized_mean - 2 * cov
-            upper = unnormalized_mean + 2 * cov
-            # tr_y = self.stds_y[0, i] * self.test_y[:50, i] + self.means_y[0, i]
-            tr_y = self.test_y[:, i]
-            # Plot training data as black stars
-            ax[i].plot(tr_y, 'k*')
-            # Predictive mean as blue line
-            # ax[i].scatter(np.arange(len(unnormalized_mean)), unnormalized_mean)
-            ax[i].errorbar(np.arange(len(unnormalized_mean)), unnormalized_mean, yerr=cov, fmt="o", markersize=4, capsize=8)
-            # Shade in confidence
-            # ax[i].fill_between(np.arange(len(unnormalized_mean)), lower, upper, alpha=0.5)
-            ax[i].legend(['Observed Data', 'Predicted Data'])
-            ax[i].set_title(titles[i])
-        plt.show()
+    #     f, ax = plt.subplots(self.output_size, 1, figsize=(15, 10))
+    #     titles = ['xtran', 'epsi', 'vlong']
+    #     for i in range(self.output_size):
+    #         # unnormalized_mean = self.stds_y[0, i] * mean[:, i] + self.means_y[0, i]
+    #         # unnormalized_mean = unnormalized_mean.detach().numpy()
+    #         unnormalized_mean = mean[:,i].detach().numpy()
+    #         # cov = np.sqrt((variance[:, i] * (self.stds_y[0, i] ** 2)))
+    #         cov = std[:,i]
+    #         cov = cov.detach().numpy()
+    #         '''lower, upper = prediction.confidence_region()
+    #         lower = lower.detach().numpy()
+    #         upper = upper.detach().numpy()'''
+    #         lower = unnormalized_mean - 2 * cov
+    #         upper = unnormalized_mean + 2 * cov
+    #         # tr_y = self.stds_y[0, i] * self.test_y[:50, i] + self.means_y[0, i]
+    #         tr_y = self.test_y[:, i]
+    #         # Plot training data as black stars
+    #         ax[i].plot(tr_y, 'k*')
+    #         # Predictive mean as blue line
+    #         # ax[i].scatter(np.arange(len(unnormalized_mean)), unnormalized_mean)
+    #         ax[i].errorbar(np.arange(len(unnormalized_mean)), unnormalized_mean, yerr=cov, fmt="o", markersize=4, capsize=8)
+    #         # Shade in confidence
+    #         # ax[i].fill_between(np.arange(len(unnormalized_mean)), lower, upper, alpha=0.5)
+    #         ax[i].legend(['Observed Data', 'Predicted Data'])
+    #         ax[i].set_title(titles[i])
+    #     plt.show()
 
 
     
-    def pred_eval(self,sampGen: SampleGeneartorCOVGP):
+    # def pred_eval(self,sampGen: SampleGeneartorCOVGP):
         
         
-        train_dataset, val_dataset, test_dataset  = sampGen.get_datasets()
-        batch_size = self.args["batch_size"]
-        dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)  
+    #     train_dataset, _, _  = sampGen.get_datasets()
+    #     batch_size = sampGen.getNumSamples()        
+    #     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)  
 
-        if self.enable_GPU:
-            self.model = self.model.cuda()
-            self.likelihood = self.likelihood.cuda()
-        # Find optimal model hyper-parameters
-        self.model.eval()
-        self.likelihood.eval()
+    #     if self.enable_GPU:
+    #         self.model = self.model.cuda()
+    #         self.likelihood = self.likelihood.cuda()
+    #     # Find optimal model hyper-parameters
+    #     self.model.eval()
+    #     self.likelihood.eval()
         
-        z_tmp_list = []
-        input_list = []
-        dist_thres = np.inf  ## 
-        vx_thres = -1*np.inf
-        for step, (data_x, data_y) in enumerate(dataloader):    
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                latent_x = self.model.get_hidden(data_x)
+    #     z_tmp_list = []
+    #     input_list = []
+    #     dist_thres = np.inf  ## 
+    #     vx_thres = -1*np.inf
+    #     for step, (data_x, data_y) in enumerate(dataloader):    
+    #         with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    #             latent_x = self.model.get_hidden(data_x)
                 
-                delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
-                vx_avg, tmp = torch.max(data_x[:,3,:],dim=1)
-                filtered_idx = (vx_avg > vx_thres)*(delta_s_avg<dist_thres)*(delta_s_avg>-1*dist_thres)
-                selected_latent_x = latent_x[filtered_idx,:]
-                selected_data_x = data_x[filtered_idx,:,:]
+    #             delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
+    #             vx_avg, tmp = torch.max(data_x[:,3,:],dim=1)
+    #             filtered_idx = (vx_avg > vx_thres)*(delta_s_avg<dist_thres)*(delta_s_avg>-1*dist_thres)
+    #             selected_latent_x = latent_x[filtered_idx,:]
+    #             selected_data_x = data_x[filtered_idx,:,:]
 
-                z_tmp_list.append(selected_latent_x.view(selected_latent_x.shape[0],-1))
-                input_list.append(selected_data_x)
-                stacked_z_tmp = torch.cat(z_tmp_list, dim=0)
-                input_list_tmp= torch.cat(input_list, dim=0)
+    #             z_tmp_list.append(selected_latent_x.view(selected_latent_x.shape[0],-1))
+    #             input_list.append(selected_data_x)
+    #             stacked_z_tmp = torch.cat(z_tmp_list, dim=0)
+    #             input_list_tmp= torch.cat(input_list, dim=0)
 
     def tsne_evaluate(self,sampGen: SampleGeneartorCOVGP):
         
@@ -425,11 +398,12 @@ class COVGPNN(GPController):
         
         z_tmp_list = []
         input_list = []
+        output_list = []
         dist_thres = np.inf  ## 
         vx_thres = -1*np.inf
         for step, (data_x, data_y) in enumerate(dataloader):    
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                latent_x = self.model.get_hidden(data_x)
+                latent_x = self.model.get_hidden(data_x.double())
                 
                 
                 delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
@@ -437,13 +411,17 @@ class COVGPNN(GPController):
                 filtered_idx = (vx_avg > vx_thres)*(delta_s_avg<dist_thres)*(delta_s_avg>-1*dist_thres)
                 selected_latent_x = latent_x[filtered_idx,:]
                 selected_data_x = data_x[filtered_idx,:,:]
+                selected_data_y = data_y[filtered_idx,:]
+                
 
                 z_tmp_list.append(selected_latent_x.view(selected_latent_x.shape[0],-1))
                 input_list.append(selected_data_x)
-                stacked_z_tmp = torch.cat(z_tmp_list, dim=0)
+                output_list.append(selected_data_y)
+                stacked_z_tmp = torch.cat(z_tmp_list, dim=0)                
                 input_list_tmp= torch.cat(input_list, dim=0)
+                output_list_tmp= torch.cat(output_list, dim=0)
 
-        return stacked_z_tmp, input_list_tmp
+        return stacked_z_tmp, input_list_tmp, output_list_tmp
 
 
 

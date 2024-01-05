@@ -442,6 +442,7 @@ class COVGPNNModel(gpytorch.Module):
             gp_input = x_h.float()
            
         else:             
+            x_h = x_h.double()
             latent_x = self.encdecnn(x_h)   
             gp_input = latent_x
             # latent_x = self.scale_to_bounds(latent_x)

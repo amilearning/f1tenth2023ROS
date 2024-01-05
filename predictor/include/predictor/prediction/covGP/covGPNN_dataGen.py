@@ -75,6 +75,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         invalid_data_count = 0
         # pre_load_data_name = "preload_data"
         # if not dest_path.exists()      
+        
         if args['eval'] is False:  
             if pre_load_data_name is not None:       
                 pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')              
@@ -160,7 +161,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     
                                     valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                     if tsne:
-                                        if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.5:
+                                        # if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.5:
+                                        del_s_tmp = wrap_del_s(tar_st.p.s, ego_st.p.s,track_)
+                                        if tar_st.v.v_long > 10.05 or del_s_tmp > 2.0:
                                             valid_data = False
                                         
                                     if valid_data:                              
@@ -540,19 +543,21 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
     def load_normalizing_consant(self, tensor_sample, tensor_output, name ='normalizing'):        
         model = pickle_read(os.path.join(model_dir, name + '_normconstant.pkl'))        
-        means_x = model['mean_sample']
-        means_y = model['mean_output']
-        stds_x = model['std_sample']
-        stds_y = model['std_output']   
-        if len(tensor_sample.shape) ==2 :
-            self.normalized_sample = (tensor_sample - means_x.repeat(tensor_sample.shape[0],1))/stds_x         
-        elif len(tensor_sample.shape) ==3:
-            self.normalized_sample = (tensor_sample - means_x.repeat(tensor_sample.shape[0],1,1))/stds_x      
+        self.means_x = model['mean_sample']
+        self.means_y = model['mean_output']
+        self.stds_x = model['std_sample']
+        self.stds_y = model['std_output']   
 
-        if len(tensor_output.shape) ==2 :
-            self.normalized_output = (tensor_output - means_y.repeat(tensor_output.shape[0],1))/stds_y         
-        elif len(tensor_output.shape) ==3:
-            self.normalized_output = (tensor_output - means_y.repeat(tensor_output.shape[0],1,1))/stds_y      
+        if tensor_sample is not None:            
+            if len(tensor_sample.shape) ==2 :
+                self.normalized_sample = (tensor_sample - self.means_x.repeat(tensor_sample.shape[0],1))/self.stds_x         
+            elif len(tensor_sample.shape) ==3:
+                self.normalized_sample = (tensor_sample - self.means_x.repeat(tensor_sample.shape[0],1,1))/self.stds_x      
+        if tensor_output is not None:
+            if len(tensor_output.shape) ==2 :
+                self.normalized_output = (tensor_output - self.means_y.repeat(tensor_output.shape[0],1))/self.stds_y         
+            elif len(tensor_output.shape) ==3:
+                self.normalized_output = (tensor_output - self.means_y.repeat(tensor_output.shape[0],1,1))/self.stds_y      
 
         # self.independent = model['independent'] TODO uncomment        
         print('Successfully loaded normalizing constants', name)
@@ -691,12 +696,19 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # labels = labels[perm]
         samp_len = self.getNumSamples()            
         dataset =  torch.utils.data.TensorDataset(inputs,labels) 
-        train_size = int(0.99 * samp_len)
-        val_size = int(0.005 * samp_len)
+        train_size = int(1.0 * samp_len)
+        val_size = int(0.01 * samp_len)
         test_size = samp_len - train_size - val_size
-        train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
-        val_dataset = train_dataset
-        return train_dataset, val_dataset, test_dataset
+        
+        # train_indices = list(range(0, train_size))
+        # valid_indices = list(range(train_size, train_size+val_size))
+        # test_indices = list(range(train_size+val_size, samp_len))
+
+        train_dataset = dataset
+        # train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+        # val_dataset = train_dataset
+
+        return train_dataset, dataset, dataset
         # return train_dataset, val_dataset, test_dataset, self.means_y, self.stds_y
 
 
@@ -710,6 +722,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # self.output_data
         # y_label = torch.stack(self.output_data).detach().cpu().numpy()
         # self.normalized_sample[]
+        x_label=torch.stack(self.samples).detach().cpu().numpy()        
         y_label=torch.stack(self.output_data).detach().cpu().numpy()
         # y_label = self.normalized_output.detach().cpu().numpy()
         debug_t = np.array(self.debug_t)

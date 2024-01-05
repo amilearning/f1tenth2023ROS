@@ -20,7 +20,7 @@ args_ = {
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': False,
+    'add_noise_data': True,
     'add_aug_data' : False,
     'model_name' : None,
     'eval' : False,
@@ -29,18 +29,23 @@ args_ = {
 
 
 
-def main_train(train_policy_names = None):
+def main_train(train_policy_names = None, valid_policy_names = None):
     train_dirs = []
     for i in range(len(train_policy_names)):
         test_folder = os.path.join(real_dir, train_policy_names[i])
         train_dirs.append(test_folder)
+
+    val_dirs = []
+    for i in range(len(valid_policy_names)):
+        test_folder = os.path.join(real_dir, valid_policy_names[i])
+        val_dirs.append(test_folder)
         
     print("1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print("naiveGP init")
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
     args_['model_name'] = 'naiveGP'
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    # covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
     print("naiveGP train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -49,7 +54,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
-    # covGPNN_train(train_dirs, real_data = True, args= args_)
+    # covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
     print(" nosimtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -59,7 +64,7 @@ def main_train(train_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
     args_['model_name'] = 'simtsGP'
-    covGPNN_train(train_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs,val_dirs, real_data = True, args= args_)
     print("simtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -81,21 +86,22 @@ def main():
     ####################################################
     train_policy_names = ['centerline_train',
                           'blocking_train']             
-    train_policy_names = ['centerline_eval']               
     
-    main_train(train_policy_names)
+    valid_policy_names = ['centerline_eval',
+                          'blocking_eval']             
+                 
+    main_train(train_policy_names, valid_policy_names)
     ####################################################    
     ############ TSNE ##################################
     args_['add_noise_data'] = False
-    tsne_policy_names = ['centerline_tsne',                         
-                         'blocking_tsne',
-                         'reverse_tsne'
+    tsne_policy_names = ['blocking_tsne',                         
+                         'centerline_tsne'
                          ] 
     
     args_['model_name'] ='simtsGP'
-    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = tsne_policy_names, perplexity = 50, load_data=False)
+    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = tsne_policy_names, perplexity = 20, load_data=False)
     args_['model_name'] ='nosimtsGP'
-    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 50, load_data=False)
+    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 20, load_data=False)
     
     ####################################################
     eval_policy_names = ['centerline_eval',
