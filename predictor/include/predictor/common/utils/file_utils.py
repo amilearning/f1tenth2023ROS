@@ -32,10 +32,17 @@ def create_dir(path='', verbose=False):
         return None
 
 
+
 def pickle_write(data, path):
-    dbfile = open(path, 'wb')
-    pickle.dump(data, dbfile)
-    dbfile.close()
+    # Extract the directory from the path
+    directory = os.path.dirname(path)
+
+    # Ensure the directory exists
+    os.makedirs(directory, exist_ok=True)
+
+    # Write the data to the file
+    with open(path, 'wb') as dbfile:
+        pickle.dump(data, dbfile)
 
 
 def pickle_read(path):

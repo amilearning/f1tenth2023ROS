@@ -28,7 +28,7 @@ def covGPNN_train(dirs = None, val_dirs = None, real_data = False, args = None):
     valid_args['add_noise_data'] = False
     valid_args['add_aug_data'] = False
   
-    valGEn = SampleGeneartorCOVGP(val_dirs, load_normalization_constant = True, args = valid_args, randomize=False, real_data = True, tsne = False)
+    valGEn = SampleGeneartorCOVGP(val_dirs, load_normalization_constant = True, args = valid_args, randomize=False, real_data = real_data, tsne = False)
  
     
     
@@ -68,7 +68,7 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
 
     dirs = []
     for i in range(len(eval_policy_names)):
-        eval_folder = os.path.join(real_dir, eval_policy_names[i])
+        eval_folder = os.path.join(train_dir, eval_policy_names[i])
         dirs.append(eval_folder)
 
 
@@ -107,7 +107,7 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         for i in range(len(dirs)):
             dir = [dirs[i]]
             
-            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=False, real_data = True, tsne = True)
+            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=False, real_data = False, tsne = True)
             # sampGen.plotStatistics()
             if sampGen.getNumSamples() < 1:
                 continue

@@ -259,20 +259,23 @@ class MultiPredPostEval:
 ###################### HISTOGRAM OF LAT AND LONG ERROR ###################
 ##########################################################################       
         n_bins = 50
-        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+        # fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True, squeeze=False) 
         for idx, policy in enumerate(drivign_policies):
             subsets = error_df[error_df['DrivingPolicy'] == policy]            
             for ptype in predictor_types:     
                 subset = subsets[subsets['PredictorType'] == ptype]
                 # Plot a histogram for the subset
-                axes[idx].hist(subset['Lat_Error'], bins=n_bins, alpha=0.4, label=ptype)
+                # axes[idx].hist(subset['Lat_Error'], bins=n_bins, alpha=0.4, label=ptype)
+                axes[0, idx].hist(subset['Lat_Error'], bins=n_bins, alpha=0.4, label=ptype)
+                
 
-            axes[idx].axvline(0, color='gray', linestyle='--')
+            axes[0,idx].axvline(0, color='gray', linestyle='--')
             max_error = np.max(np.abs(subsets['Lat_Error']))
-            axes[idx].set_xlim(-max_error, max_error)            
-            axes[idx].set_title(f'Lateral Error by {policy}')
-            axes[idx].set_xlabel('Lateral Error')
-            axes[idx].set_ylabel('Frequency')
+            axes[0,idx].set_xlim(-max_error, max_error)            
+            axes[0,idx].set_title(f'Lateral Error by {policy}')
+            axes[0,idx].set_xlabel('Lateral Error')
+            axes[0,idx].set_ylabel('Frequency')
 
         plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
         plt.tight_layout()
@@ -280,19 +283,20 @@ class MultiPredPostEval:
         file_path = os.path.join(fig_dir, f"lat_hist_{policy}_{current_time}.png")
         plt.savefig(file_path) 
 ##########################################################################        
-        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+        
+        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True, squeeze=False) 
         for idx, policy in enumerate(drivign_policies):
             subsets = error_df[error_df['DrivingPolicy'] == policy]            
             for ptype in predictor_types:     
                 subset = subsets[subsets['PredictorType'] == ptype]                
-                axes[idx].hist(subset['Lon_Error'], bins=n_bins, alpha=0.4, label=ptype)
+                axes[0,idx].hist(subset['Lon_Error'], bins=n_bins, alpha=0.4, label=ptype)
             
-            axes[idx].axvline(0, color='gray', linestyle='--')
+            axes[0,idx].axvline(0, color='gray', linestyle='--')
             max_error = np.max(np.abs(subsets['Lon_Error']))
-            axes[idx].set_xlim(-max_error, max_error)            
-            axes[idx].set_title(f'Longitudinal Error by {policy}')
-            axes[idx].set_xlabel('Longitudinal Error')
-            axes[idx].set_ylabel('Frequency')
+            axes[0,idx].set_xlim(-max_error, max_error)            
+            axes[0,idx].set_title(f'Longitudinal Error by {policy}')
+            axes[0,idx].set_xlabel('Longitudinal Error')
+            axes[0,idx].set_ylabel('Frequency')
 
         plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
         plt.tight_layout()
@@ -322,17 +326,21 @@ class MultiPredPostEval:
 ##########################################################################
         
         plt.figure()
-        nosim = np.array(self.error_data['centerline_eval']['0']['cov'])
+        nosim = np.array(self.error_data['test']['0']['cov'])
         nosim = nosim[:,-1]
-        gp = np.array(self.error_data['centerline_eval']['3']['cov'])
+        gp = np.array(self.error_data['test']['3']['cov'])
         gp = gp[:,-1]
-        sim = np.array(self.error_data['centerline_eval']['4']['cov'])
+        sim = np.array(self.error_data['test']['4']['cov'])
         sim = sim[:,-1]
-        tarey = np.array(self.error_data['centerline_eval']['4']['tarey'])
+        tarey = np.array(self.error_data['test']['4']['tarey'])
         plt.plot(tarey)        
-        dels = np.array(self.error_data['blocking_eval']['4']['dels'])
+        dels = np.array(self.error_data['test']['4']['dels'])
         plt.plot(dels)      
 
+########################################
+    
+
+        ####################
         plt.plot(nosim)
         plt.plot(gp)
         plt.plot(sim)
@@ -463,20 +471,29 @@ class MultiPredPostEval:
             create_dir(path=tmp_dir)   
             dir = [self.dirs[j]]                        
            
-            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=False, real_data = True, tsne = True)
+            sampGen = SampleGeneartorCOVGP(dir, load_normalization_constant = True, args = args, randomize=False, real_data = False, tsne = True)
             
-            input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list = sampGen.get_eval_data(dir,real_data = True, noise = False)            
+            input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list, track_list = sampGen.get_eval_data(dir,real_data = False, noise = False)            
             pred_tar_state_list = []
             self.tv_pred = None ## Assume each directory contains single time race
             self.ego_warm_start()
             
+
             
-            for i in range(len(input_buffer_list)):                
+            for i in range(len(input_buffer_list)):    
+                self.predictor_withoutCOV.track = track_list[i]
+                self.gp_mpcc_ego_controller.track = track_list[i]
+                self.cav_predictor.track = track_list[i]
+                self.mpcc_predictor.track = track_list[i]
+                self.predictor_naivegp.track = track_list[i]
+                self.predictor.track = track_list[i]
+                            
                 with torch.no_grad(), gpytorch.settings.fast_pred_var():
                     input_buffer = input_buffer_list[i]
                     ego_state = ego_state_list[i]
                     tar_state = tar_state_list[i]
-                    
+                    self.track_info.track = track_list[i]
+
                     _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(ego_state, tv_state=tar_state, tv_pred=self.tv_pred)                    
                     ego_pred = self.gp_mpcc_ego_controller.get_prediction()
                     ego_pred = ego_pred_list[i]
@@ -493,7 +510,9 @@ class MultiPredPostEval:
                         self.tv_pred = self.predictor.get_eval_prediction(input_buffer, ego_state, tar_state, ego_pred)
                     else: 
                         print("select predictor")
-                    
+                
+            
+
                     if self.tv_pred.s is not None:
                         # self.track_info.track.global_to_local([self.tv_pred.x, self.tv_pred.y, self.tv_pred.psi])                        
                         lon_error = np.array(gt_tar_state_list[i].s) - np.array(self.tv_pred.s) 
@@ -510,13 +529,14 @@ class MultiPredPostEval:
                             lat_error.append(lat)
                         lon_error = np.array(lon_error)
                         lat_error = np.array(lat_error)
+                        
                     
-                    
-                    
+                    # if i < 10:
+                    #     continue
 
                     ## semi-wrapping for track length
-                    lon_error[lon_error < -self.track_info.track.track_length/4] += self.track_info.track.track_length/2            
-                    lon_error[lon_error >= self.track_info.track.track_length/4] -= self.track_info.track.track_length/2    
+                    lon_error[lon_error < -self.track_info.track.track_length/2] += self.track_info.track.track_length            
+                    lon_error[lon_error >= self.track_info.track.track_length/2] -= self.track_info.track.track_length    
 
                     self.error_data[driving_policy_name][str(predictor_type)]['lon'].append(lon_error)
                     self.error_data[driving_policy_name][str(predictor_type)]['lat'].append(lat_error)

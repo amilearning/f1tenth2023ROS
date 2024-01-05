@@ -1,6 +1,6 @@
-from barcgp.common.pytypes import *
-from barcgp.controllers.utils.controllerTypes import *
-from barcgp.dynamics.models.model_types import DynamicBicycleConfig
+from predictor.common.pytypes import *
+from predictor.controllers.utils.controllerTypes import *
+from predictor.dynamics.models.model_types import DynamicBicycleConfig
 
 from enum import Enum
 import math
