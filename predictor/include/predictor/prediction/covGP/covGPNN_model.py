@@ -207,7 +207,7 @@ class COVGPNN(GPController):
                         cov_loss -= mseloss(out_dist, latent_dist) 
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss
-                variational_loss = -mll(output, train_y)                
+                variational_loss = mll(output, train_y)                
                 
                 if include_simts_loss: 
                     loss = cov_loss + variational_loss
