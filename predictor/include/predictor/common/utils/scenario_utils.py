@@ -981,8 +981,8 @@ def wrap_s_np(s_,track_length):
 
 def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack):                        
 
-    half_track = track.track_length/2
-    full_track = track.track_length
+    half_track = track.track_length/4
+    full_track = track.track_length/2
     if len(tar_s.shape)  < 1:
         tar_s = tar_s.unsqueeze(dim=1)
         ego_s = ego_s.unsqueeze(dim=1)

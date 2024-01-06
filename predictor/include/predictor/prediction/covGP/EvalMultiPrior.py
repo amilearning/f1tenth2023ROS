@@ -87,7 +87,8 @@ class MultiPredPostEval:
 
         self.driving_policies = [dir.split('/')[-1] for dir in self.dirs]
         prediction_types  = 5  # List of prediction types
-        self.error_data = {policy: {str(ptype): {"lon": [], "lat": [], "cov": [], "tarey": [], "egoey": [], "tares": [], "egoes": [], "dels":[]} 
+        self.error_data = {policy: {str(ptype): {"lon": [], "lat": [], "cov": [], "tarey": [], "egoey": [], "tares": [], "egoes": [], "dels":[],
+                                                 "ego_x": [], "ego_y": [], "tar_x": [], "tar_y": []} 
                         for ptype in range(prediction_types)} 
                 for policy in self.driving_policies}
         
@@ -132,7 +133,7 @@ class MultiPredPostEval:
         ### EVAL init  ########
         
         if args['load_eval_data']:
-            load_data_name = 'error_dict_20240103_130834.pkl'
+            load_data_name = 'error_dict_20240106_143042.pkl'
             eval_data_load = os.path.join(multiEval_dir, load_data_name)
             if os.path.exists(eval_data_load):
                 self.error_data = pickle_read(eval_data_load)
@@ -151,13 +152,73 @@ class MultiPredPostEval:
                 self.save_errors()            
         
         self.plot_errors()
+        cov_range_ = [0.0, self.error_df['COV'].max()]
+        self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'blocking_eval')
+        self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'reverse_eval')
+        self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'centerline_eval')
+        
+        
 
         
     def save_errors(self):  
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         pickle_write(self.error_data, os.path.join(multiEval_dir, f"error_dict_{current_time}.pkl"))            
 
-    
+    def trajectory_cov_plot(self,cov_range, drivingpolicy = 'centerline_eval'):
+        color_min = cov_range[0]
+        color_max = cov_range[1]
+        import plotly.graph_objs as go        
+        ego_x = np.array(self.error_data[drivingpolicy]['4']['ego_x'])
+        ego_y = np.array(self.error_data[drivingpolicy]['4']['ego_y'])
+        target_x = np.array(self.error_data[drivingpolicy]['4']['tar_x'])
+        target_y = np.array(self.error_data[drivingpolicy]['4']['tar_y'])
+        cov = np.array(self.error_data[drivingpolicy]['4']['cov'])[:,-1]
+        
+        marker_size = 14  
+        trace1 = go.Scatter(x=ego_x, y=ego_y, mode='markers', name='Ego',
+                            marker=dict(color = 'black', symbol='diamond', size=10))
+        trace2 = go.Scatter(x=target_x, y=target_y, mode='markers', name='Target',
+                            marker=dict(color=cov, colorscale='Rainbow', size=marker_size,
+                                        cmin=color_min, cmax=color_max, 
+                                         colorbar=dict(title='COV')))
+
+
+
+        fig = go.Figure(data=[trace1, trace2])
+        
+        # steps = []
+        # for i in range(len(ego_x)):            
+        #     step = dict(
+        #         method="update",
+        #             args=[{"x": [ego_x[:i], target_x[:i]], "y": [ego_y[:i], target_y[:i]]}],
+        #         label=str(i)
+        #     )
+        #     steps.append(step)
+        
+        steps = []
+        sampling= 20
+        # for j in range(int(len(ego_x)/sampling)): 
+        for i in range(len(ego_x)):                     
+            step = dict(
+                method="update",
+                    # args=[{"x": [ego_x[j*sampling:i], target_x[j*sampling:i]], "y": [ego_y[j*sampling:i], target_y[j*sampling:i]]}],
+                    args=[{"x": [ego_x[:i], target_x[:i]], "y": [ego_y[:i], target_y[:i]]}],
+                label=str(i)
+            )
+            steps.append(step)
+
+        sliders = [dict(
+            active=10,
+            currentvalue={"prefix": "Index: "},
+            pad={"t": 50},
+            steps=steps
+        )]
+
+        fig.update_layout(sliders=sliders, overwrite = True)
+        fig.update_layout(coloraxis_colorbar=dict(x=1.05), overwrite = True)        
+        fig.show()
+       
+        
     def plot_errors(self):
 
         predictor_labels = {
@@ -174,21 +235,25 @@ class MultiPredPostEval:
         # Iterate through the nested dictionary and create records
         for policy, ptypes in self.error_data.items():
             for ptype, errors in ptypes.items():
-                for lon_error, lat_error, covs in zip(errors["lon"], errors["lat"], errors["cov"]):
+                for lon_error, lat_error, covs, egox,egoy,tarx,tary in zip(errors["lon"], errors["lat"], errors["cov"], errors["ego_x"], errors["ego_y"], errors["tar_x"] ,errors["tar_y"] ):
                     # Create a dictionary for each record
                     record = {
                         "DrivingPolicy": policy,
                         "PredictorType": predictor_labels[ptype],
-                        "Lon_Error": lon_error[-1],
-                        "Lat_Error": lat_error[-1],
-                        "COV"      : covs[-1]
+                        "Lon_Error": abs(lon_error[-1]),
+                        "Lat_Error": abs(lat_error[-1]),                        
+                        "COV"      : covs[-1],
+                        "egox"     : egox,
+                        "egoy"     : egoy,
+                        "tarx"     : tarx,
+                        "tary"     : tary,
                     }
                     # Add the record to the list
                     records.append(record)
 
         # Convert the records to a pandas DataFrame
         error_df = pd.DataFrame(records)
-
+        self.error_df = error_df
         predictor_types = error_df['PredictorType'].unique()
         drivign_policies = error_df['DrivingPolicy'].unique()
 
@@ -205,9 +270,12 @@ class MultiPredPostEval:
 
         # Flatten the MultiIndex columns
         stats_df.columns = [' '.join(col).strip() for col in stats_df.columns.values]
+        for col in stats_df.columns:
+            if col not in ['DrivingPolicy', 'PredictorType']:
+                stats_df[col] = stats_df[col].apply(lambda x: f'{x:.5f}')
 
         print(stats_df)
-        plt.figure(figsize=(10, 3))
+        plt.figure(figsize=(20, 10))
         # Hide axes
         ax = plt.gca()
         ax.get_xaxis().set_visible(False)
@@ -219,8 +287,8 @@ class MultiPredPostEval:
                         colLabels=stats_df.columns,
                         loc='center',
                         cellLoc='center', colLoc='center')        
-        tbl.auto_set_font_size(False)
-        tbl.set_fontsize(12)
+        # tbl.auto_set_font_size(False)
+        # tbl.set_fontsize(6)
         tbl.scale(1.2, 1.2)  # You can adjust the scale to fit your needs        
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         file_path = os.path.join(fig_dir, f"stats_{current_time}.png")
@@ -469,14 +537,27 @@ class MultiPredPostEval:
             pred_tar_state_list = []
             self.tv_pred = None ## Assume each directory contains single time race
             self.ego_warm_start()
-            
-            
+            ############### ############################################################
+            # TODO : need to dynamically assign track if there are many 
+            self.predictor_withoutCOV.track = self.track_info.track
+            self.cav_predictor.track = self.track_info.track
+            self.mpcc_predictor.track = self.track_info.track
+            self.predictor_naivegp.track = self.track_info.track
+            self.predictor.track = self.track_info.track
+            ############### ############################################################
+
+
             for i in range(len(input_buffer_list)):                
                 with torch.no_grad(), gpytorch.settings.fast_pred_var():
                     input_buffer = input_buffer_list[i]
                     ego_state = ego_state_list[i]
                     tar_state = tar_state_list[i]
+                    half_track_length =self.track_info.track.track_length / 4
+                    full_track_length =self.track_info.track.track_length / 2
                     
+                    if ego_state.p.s > half_track_length and tar_state.p.s < half_track_length:
+                        tar_state.p.s = tar_state.p.s-full_track_length
+
                     _, problem, cur_obstacles = self.gp_mpcc_ego_controller.step(ego_state, tv_state=tar_state, tv_pred=self.tv_pred)                    
                     ego_pred = self.gp_mpcc_ego_controller.get_prediction()
                     ego_pred = ego_pred_list[i]
@@ -494,6 +575,8 @@ class MultiPredPostEval:
                     else: 
                         print("select predictor")
                     
+                    # self.tv_pred.update_global_pose_from_local(self.track_info.track)
+                  
                     if self.tv_pred.s is not None:
                         # self.track_info.track.global_to_local([self.tv_pred.x, self.tv_pred.y, self.tv_pred.psi])                        
                         lon_error = np.array(gt_tar_state_list[i].s) - np.array(self.tv_pred.s) 
@@ -504,8 +587,8 @@ class MultiPredPostEval:
                         for idx in range(len(self.tv_pred.x)):                                                    
                             tv_fren = self.track_info.track.global_to_local((self.tv_pred.x[idx], self.tv_pred.y[idx], self.tv_pred.psi[idx]))
                             if tv_fren is not None:
-                                lon = gt_tar_state_list[i].s[idx] - tv_fren[0] 
-                                lat = gt_tar_state_list[i].x_tran[idx] - tv_fren[1] 
+                                lon = gt_tar_state_list[i].s[idx] - tv_fren[0]
+                                lat = gt_tar_state_list[i].x_tran[idx] - tv_fren[1]
                             lon_error.append(lon)
                             lat_error.append(lat)
                         lon_error = np.array(lon_error)
@@ -520,7 +603,12 @@ class MultiPredPostEval:
 
                     self.error_data[driving_policy_name][str(predictor_type)]['lon'].append(lon_error)
                     self.error_data[driving_policy_name][str(predictor_type)]['lat'].append(lat_error)
-
+                    
+                    self.error_data[driving_policy_name][str(predictor_type)]['ego_x'].append(ego_state.x.x)
+                    self.error_data[driving_policy_name][str(predictor_type)]['ego_y'].append(ego_state.x.y)
+                    self.error_data[driving_policy_name][str(predictor_type)]['tar_x'].append(tar_state.x.x)
+                    self.error_data[driving_policy_name][str(predictor_type)]['tar_y'].append(tar_state.x.y)
+                    
                     self.error_data[driving_policy_name][str(predictor_type)]['egoey'].append(ego_state.p.x_tran)
                     self.error_data[driving_policy_name][str(predictor_type)]['tarey'].append(tar_state.p.x_tran)
                     self.error_data[driving_policy_name][str(predictor_type)]['egoes'].append(ego_state.p.s)

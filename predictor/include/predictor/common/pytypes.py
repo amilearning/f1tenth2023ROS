@@ -371,3 +371,21 @@ class VehiclePrediction(PythonMsg):
                     [[np.fabs(np.cos(angle)**2 * sey_cov[0, 0] + np.sin(angle)**2 * sey_cov[1, 1]), 0],[0,np.fabs(np.sin(angle)**2 * sey_cov[0, 0] + np.cos(angle)**2 * sey_cov[1, 1])]])
                 self.xy_cov[i] *= cov_factor
                 
+
+    def update_global_pose_from_local(self, track):
+        if len(self.s) <1:
+            return
+        is_same_length = len(self.s) == len(self.x_tran) == len(self.e_psi)
+        if is_same_length is False:
+            return 
+        self.x = array.array('d')
+        self.y = array.array('d')
+        self.psi = array.array('d')
+        for i in range(len(self.s)):
+            fren = [self.s[i], self.x_tran[i], self.e_psi[i]]            
+            global_pose = track.local_to_global(fren)
+            if global_pose is not None:
+                self.x.append(global_pose[0])
+                self.y.append(global_pose[0])
+                self.psi.append(global_pose[0])
+            

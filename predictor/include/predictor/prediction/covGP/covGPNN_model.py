@@ -523,6 +523,7 @@ class COVGPNNTrained(GPController):
     def insert_to_end(self, roll_input, tar_state, tar_curv, ego_state, track):        
         roll_input[:,:,:-1] = roll_input[:,:,1:]
         input_tmp = torch.zeros(roll_input.shape[0],roll_input.shape[1]).to('cuda')        
+        
         input_tmp[:,0] = tar_state[:,0]-ego_state[:,0]                      
         input_tmp[:,0] = torch_wrap_del_s(tar_state[:,0],ego_state[:,0], track)
         input_tmp[:,1] = tar_state[:,1]
@@ -584,7 +585,7 @@ class COVGPNNTrained(GPController):
                 tmp_delta = torch.distributions.Normal(mean, stddev).sample()            
                     
                 pred_delta = self.outputToReal(tmp_delta)
-       
+
             roll_tar_state[:,0] += pred_delta[:,0] 
             roll_tar_state[:,1] += pred_delta[:,1] 
             roll_tar_state[:,2] += pred_delta[:,2]
@@ -595,6 +596,7 @@ class COVGPNNTrained(GPController):
             roll_ego_state[:,1] = ego_prediction.x_tran[i+1]
             roll_ego_state[:,2] =  ego_prediction.e_psi[i+1]
             roll_ego_state[:,3] =  ego_prediction.v_long[i+1]
+
 
 
             for j in range(M):                          # tar 0 1 2 3 4 5       #ego 6 7 8 9 10 11

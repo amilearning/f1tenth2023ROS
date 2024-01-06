@@ -21,7 +21,7 @@ def states_to_encoder_input_torch(tar_st,ego_st, track:RadiusArclengthTrack):
     
     if len(delta_s.shape) == 1 :
         delta_s = delta_s[0]
-
+   
     input_data=torch.tensor([ delta_s,                        
                         tar_st.p.x_tran,
                         tar_st.p.e_psi,
@@ -271,7 +271,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
             else:
                 tmp_tar_st = scenario_data.tar_states[i+t+1].copy()  
                 roll_tar_st = self.gen_random_next_state(tar_st,simulator)           
-                roll_tar_st.p.s = tmp_tar_st.p.s
+                
                 if i >= self.time_horizon-1:
                     del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 
                     del_xtran = roll_tar_st.p.x_tran - tar_st.p.x_tran
@@ -324,14 +324,16 @@ class SampleGeneartorCOVGP(SampleGenerator):
     def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator, direction = 1, accel_mag= 0.0):        
         tmp_state = state.copy()
         if tmp_state.p.e_psi < 0:            
-            tmp_state.u.u_steer = -(np.random.rand(1)*0.2 +0.2)[0] * direction
+            tmp_state.u.u_steer = -(np.random.rand(1)*0.3+0.1)[0] * direction
         else:
-            tmp_state.u.u_steer = (np.random.rand(1)*0.2 +0.2)[0] * direction
+            tmp_state.u.u_steer = (np.random.rand(1)*0.3+0.1)[0] * direction
         tmp_state.u.u_a = accel_mag
         if abs(tmp_state.p.x_tran) > simulator.model.track.track_width*1.1:
             tmp_state.u.u_steer = -1*tmp_state.u.u_steer
             tmp_state.u.u_a = -accel_mag
         simulator.step(tmp_state) 
+        # noise in longitudinal direction
+        tmp_state.p.s = tmp_state.p.s +  (np.random.rand(1)*0.1)[0]
         simulator.model.track.update_curvature(tmp_state)      
         
         return tmp_state 
