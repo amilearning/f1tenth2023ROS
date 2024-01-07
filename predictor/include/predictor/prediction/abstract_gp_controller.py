@@ -140,7 +140,7 @@ class GPController(ABC):
 
     def standardize(self, input_):        
         if self.means_x is not None:    
-            return (input_ - self.means_x) / self.stds_x
+            return (input_ - self.means_x) / (self.stds_x+1e-11)
         else:
             return input_
        

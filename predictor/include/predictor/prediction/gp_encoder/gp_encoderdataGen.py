@@ -158,7 +158,7 @@ class SampleGeneartorGPContEncoder(SampleGenerator):
 
     def data_validation(self,ego_st: VehicleState,tar_st: VehicleState,ntar_st: VehicleState,track : RadiusArclengthTrack):
         valid_data = True
-        if ego_st.p.s > track.track_length/2.0+0.5 or tar_st.p.s > track.track_length/2.0+0.5:
+        if ego_st.p.s > track.track_length+0.5 or tar_st.p.s > track.track_length+0.5:
             valid_data = False
         
         if abs(ego_st.p.x_tran) > track.track_width or abs(tar_st.p.x_tran) > track.track_width:

@@ -6,10 +6,10 @@ from predictor.common.utils.scenario_utils import policy_generator, wrap_del_s
 from predictor.common.utils.file_utils import *
 def states_to_encoder_input_torch(tar_st,ego_st, track:RadiusArclengthTrack):
     tar_s = tar_st.p.s
-    tar_s = wrap_s_np(tar_s,track.track_length/2)
+    tar_s = wrap_s_np(tar_s,track.track_length)
 
     ego_s = ego_st.p.s
-    ego_s = wrap_s_np(ego_s,track.track_length/2)
+    ego_s = wrap_s_np(ego_s,track.track_length)
     ######### doubled track ##########
     # if tar_s > track.track_length/2.0:
     #     tar_s -=  track.track_length/2.0
@@ -19,9 +19,10 @@ def states_to_encoder_input_torch(tar_st,ego_st, track:RadiusArclengthTrack):
     # delta_s = tar_s - ego_s
     delta_s = wrap_del_s(tar_s, ego_s, track)
     
-    if len(delta_s.shape) == 1 :
+    if len(np.array(delta_s).shape) == 1 :
         delta_s = delta_s[0]
-   
+    if tar_st.lookahead.curvature[0] is None: 
+        print(1)
     input_data=torch.tensor([ delta_s,                        
                         tar_st.p.x_tran,
                         tar_st.p.e_psi,
@@ -121,19 +122,17 @@ class SampleGeneartorCOVGP(SampleGenerator):
                     if filename.endswith(".pkl"):
                         dbfile = open(os.path.join(ab_p, filename), 'rb')
                         if real_data:
-                            scenario_data: SimData = pickle.load(dbfile)                                
+                            scenario_data: RealData = pickle.load(dbfile)                                
                             track_ = scenario_data.track
                         else:
-                            scenario_data: RealData = pickle.load(dbfile)                                                            
+                            scenario_data: SimData = pickle.load(dbfile)                                                            
                             track_ = scenario_data.scenario_def.track
                         # scenario_data: RealData = pickle.load(dbfile)                        
                         N = scenario_data.N              
                         ######################## random Policy ############################
                         if real_data:
                             policy_name = ab_p.split('/')[-1]
-                        else:
-                            policy_name = ab_p.split('/')[-2]
-                        
+               
                         tar_dynamics_simulator = DynamicsSimulator(0, tar_dynamics_config, track=track_)                                                      
                         ###################################################################
                         if N > self.time_horizon+1:
@@ -231,15 +230,15 @@ class SampleGeneartorCOVGP(SampleGenerator):
     def get_additional_samples(self,is_augment, t, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator : DynamicsSimulator, sample_num = 10):
         gp_outputs, samples = self.extend_dat(is_augment, t,sample_num, self.time_horizon*3,scenario_data,track,simulator)
         # # if is_augment:
-        original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
-        original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
-        x2 = range(self.time_horizon*3)
-        for i in range(len(samples)):
-            x = range(i,i+len(samples[i][1,:]))
-            plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
-        x = range(self.time_horizon*2)
-        plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
-        plt.plot(x2,original_dat2[1,:],'r')
+        # original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
+        # original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
+        # x2 = range(self.time_horizon*3)
+        # for i in range(len(samples)):
+        #     x = range(i,i+len(samples[i][1,:]))
+        #     plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
+        # x = range(self.time_horizon*2)
+        # plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
+        # plt.plot(x2,original_dat2[1,:],'r')
         
 
         return gp_outputs, samples
@@ -442,6 +441,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         tar_state_list = []
         gt_tar_state_list = []
         ego_pred_list= []
+        track_list = []
         invalid_count= 0
         for ab_p in abs_path:
             for filename in os.listdir(ab_p):
@@ -529,6 +529,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             tar_state_list.append(tar_state.copy())
                             gt_tar_state_list.append(tar_pred.copy())
                             ego_pred_list.append(ego_pred.copy())
+                            track_list.append(track_)
                             encoder_input = None
                             ego_state = None
                             tar_state = None
@@ -536,7 +537,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                             
         print("invalid_count = " + str(invalid_count))
         print("valid eval data len = " + str(len(input_buffer_list)))
-        return input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list
+        return input_buffer_list, ego_state_list, tar_state_list, gt_tar_state_list, ego_pred_list, track_list
 
     def load_pre_data(self,pre_data_dir):        
         model = pickle_read(pre_data_dir)
@@ -555,9 +556,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
         mean = torch.mean(data,dim=0)
         std = torch.std(data,dim=0)        
         if len(data.shape) ==2 :
-            new_data = (data - mean.repeat(data.shape[0],1))/std         
+            new_data = (data - mean.repeat(data.shape[0],1))/(std         + 1e-11)
         elif len(data.shape) ==3:
-            new_data = (data - mean.repeat(data.shape[0],1,1))/std         
+            new_data = (data - mean.repeat(data.shape[0],1,1))/(std         + 1e-11)
         return new_data, mean, std
 
 
@@ -570,14 +571,14 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
         if tensor_sample is not None:            
             if len(tensor_sample.shape) ==2 :
-                self.normalized_sample = (tensor_sample - self.means_x.repeat(tensor_sample.shape[0],1))/self.stds_x         
+                self.normalized_sample = (tensor_sample - self.means_x.repeat(tensor_sample.shape[0],1))/(self.stds_x + 1e-11)         
             elif len(tensor_sample.shape) ==3:
-                self.normalized_sample = (tensor_sample - self.means_x.repeat(tensor_sample.shape[0],1,1))/self.stds_x      
+                self.normalized_sample = (tensor_sample - self.means_x.repeat(tensor_sample.shape[0],1,1))/(self.stds_x + 1e-11)
         if tensor_output is not None:
             if len(tensor_output.shape) ==2 :
-                self.normalized_output = (tensor_output - self.means_y.repeat(tensor_output.shape[0],1))/self.stds_y         
+                self.normalized_output = (tensor_output - self.means_y.repeat(tensor_output.shape[0],1))/(self.stds_y + 1e-11)        
             elif len(tensor_output.shape) ==3:
-                self.normalized_output = (tensor_output - self.means_y.repeat(tensor_output.shape[0],1,1))/self.stds_y      
+                self.normalized_output = (tensor_output - self.means_y.repeat(tensor_output.shape[0],1,1))/(self.stds_y+ 1e-11)      
 
         # self.independent = model['independent'] TODO uncomment        
         print('Successfully loaded normalizing constants', name)
@@ -662,8 +663,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
         if del_s is None:
             print("NA")
-        if del_s < 0.05: 
-            valid_data = False
+        # if del_s < 0.05: 
+        #     valid_data = False
         
         # del_epsi = ntar_st.p.e_psi-  tar_st.p.e_psi
         # if abs(del_epsi) > 0.2: 
@@ -674,12 +675,12 @@ class SampleGeneartorCOVGP(SampleGenerator):
         #     valid_data = False
 
         del_vlong = ntar_st.v.v_long-  tar_st.v.v_long
-        if abs(del_vlong) > 0.5: 
-            valid_data = False
+        # if abs(del_vlong) > 0.5: 
+        #     valid_data = False
 
         real_dt = ntar_st.t - tar_st.t 
-        if (real_dt < 0.05 or real_dt > 0.2):            
-            valid_data = False
+        # if (real_dt < 0.05 or real_dt > 0.2):            
+        #     valid_data = False
 
         return valid_data
     
@@ -748,10 +749,13 @@ class SampleGeneartorCOVGP(SampleGenerator):
         debug_t = np.array(self.debug_t)
         titles = ["del_s", "del_ey", "del_epsi", "del_vx", "dt"]
         fig, axs = plt.subplots(5, 1, figsize=(10, 10))
-
+        n_sample_to_plot = 1000
+        selected_indices = list(range(y_label.shape[0]))
+        if y_label.shape[0] > n_sample_to_plot:            
+            selected_indices = random.sample(selected_indices, n_sample_to_plot)
         # Plot each column in a separate subplot
         for i in range(4):
-            axs[i].plot(y_label[:, i])
+            axs[i].plot(y_label[selected_indices,i])
             axs[i].set_title(titles[i])
             axs[i].set_xlabel('Sample Number')
             axs[i].set_ylabel('Value')

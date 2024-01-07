@@ -10,12 +10,12 @@ from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import smoothPlotResults, SimData, ScenarioGenParams, ScenarioGenerator
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
-from predictor.h2h_configs_sim import *
+from predictor.h2h_configs import *
 from predictor.common_control import run_pid_warmstart
 
 total_runs = 1
 target_policy_name = 'mild_5000'
-folder_name = 'mild_5000_0'
+folder_name = 'mild_5001_0'
 # policy_dir = os.path.join(train_dir, 'test_ws')
 track_types = ['straight','curve', 'chicane']
 T = 20

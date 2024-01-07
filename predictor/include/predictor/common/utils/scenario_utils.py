@@ -936,8 +936,8 @@ def interp_state(state1, state2, t):
 
 def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
 
-    half_track = track.track_length/4
-    full_track = track.track_length/2
+    half_track = track.track_length/2
+    full_track = track.track_length
     tmp_tar_s = tar_s 
     
     if abs(tar_s + full_track - ego_s) < abs(tar_s - ego_s):
@@ -967,7 +967,7 @@ def wrap_del_s(tar_s, ego_s, track: RadiusArclengthTrack):
 #     tv_state.p.s -= self.track_length
 
 def wrap_s_np(s_,track_length):
-    if len(s_.shape)<1:
+    if len(np.array(s_).shape) <1:
         while(s_ <0):
             s_+=track_length
         while(s_ > track_length):
@@ -981,8 +981,8 @@ def wrap_s_np(s_,track_length):
 
 def torch_wrap_del_s(tar_s: torch.tensor, ego_s: torch.tensor, track: RadiusArclengthTrack):                        
 
-    half_track = track.track_length/4
-    full_track = track.track_length/2
+    half_track = track.track_length/2
+    full_track = track.track_length
     if len(tar_s.shape)  < 1:
         tar_s = tar_s.unsqueeze(dim=1)
         ego_s = ego_s.unsqueeze(dim=1)
