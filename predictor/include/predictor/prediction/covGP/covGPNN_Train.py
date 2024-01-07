@@ -142,7 +142,8 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         model_to_save['stacked_z'] = stacked_z
         model_to_save['stacked_input'] = stacked_input
         model_to_save['stacked_output'] = stacked_output
-        model_to_save['stacked_label'] = stacked_label    
+        model_to_save['stacked_label'] = stacked_label
+        model_to_save['cov_label'] = cov_label
         pickle_write(model_to_save,tsne_data_dir)
     
         print('Successfully saved data')
