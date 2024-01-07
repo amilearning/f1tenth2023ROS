@@ -200,38 +200,31 @@ mpcc_timid_params = MPCCApproxFullModelParams(
     num_std_deviations= 0.1, # 0.01
 
     N=N,
-    Qc=1000.0, # e_cont , countouring error  10 for blocking 300 for non blockign
-    # Qc=10.0, # e_cont , countouring error  10 for blocking 300 for non blockign
-    
-    Ql=1000.0, #500.0  # e_lag, lag error 
-    Q_theta= 100, # progress speed  v_proj_prev 
-
-
-    # Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    
-    R_d=2.0, # u_a, u_a_dot 
-    R_delta=10.0, # 20.0 # u_delta, u_delta_dot
+    Qc=75,
+    Ql=500.0,
+    Q_theta=30.0,
+    Q_xref=0.0,
+    R_d=5.0,
+    R_delta=25.0,
 
     slack=True,
-    l_cs=5, # obstacle_slack
-    Q_cs=2.0, # # obstacle_slack_e
+    l_cs=10,
+    Q_cs=2.0,
     Q_vmax=200.0,
-    vlong_max_soft=1.1, ##0.8 reference speed .. only activate if speed exceeds it     
-    Q_ts=500.0, # track boundary
-    Q_cs_e=8.0, # obstacle slack
-    l_cs_e=35.0,  # obstacle slack
+    vlong_max_soft=1.0,
+    Q_ts=500.0,
+    Q_cs_e=8.0,
+    l_cs_e=35.0,
 
-
-    u_a_max=1.55,
-    vx_max=1.65,    
-    u_a_min=-2.0,
-    u_steer_max=0.43,
-    u_steer_min=-0.43,
+    u_a_max=0.45,
+    vx_max=1.65,
+    u_a_min=-1,
+    u_steer_max=0.435,
+    u_steer_min=-0.435,
     u_a_rate_max=10,
     u_a_rate_min=-10,
-    u_steer_rate_max=1,
-    u_steer_rate_min=-1
+    u_steer_rate_max=2,
+    u_steer_rate_min=-2
 
 )
 

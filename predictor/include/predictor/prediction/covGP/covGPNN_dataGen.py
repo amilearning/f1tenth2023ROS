@@ -202,14 +202,14 @@ class SampleGeneartorCOVGP(SampleGenerator):
 
                                 
                                 if self.add_noise_data:
-                                    if t < scenario_data.N-self.time_horizon*3 and t%3 ==0:
+                                    if t < scenario_data.N-self.time_horizon*3 and t%5 ==0:
                                         aug_gp_outputs, aug_samples = self.get_additional_samples(False, t,scenario_data, track_, tar_dynamics_simulator)
                                         
                                         self.output_data.extend(aug_gp_outputs)
                                         self.samples.extend(aug_samples)
 
                                 if self.add_aug_data:
-                                    if t < scenario_data.N-self.time_horizon*3 and t%3 ==0:
+                                    if t < scenario_data.N-self.time_horizon*3 and t%5 ==0:
                                         aug_gp_outputs, aug_samples = self.get_additional_samples(self.add_aug_data, t,scenario_data, track_, tar_dynamics_simulator)
                                         self.output_data.extend(aug_gp_outputs)
                                         self.samples.extend(aug_samples)
@@ -231,15 +231,15 @@ class SampleGeneartorCOVGP(SampleGenerator):
     def get_additional_samples(self,is_augment, t, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator : DynamicsSimulator, sample_num = 10):
         gp_outputs, samples = self.extend_dat(is_augment, t,sample_num, self.time_horizon*3,scenario_data,track,simulator)
         # # if is_augment:
-        # original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
-        # original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
-        # x2 = range(self.time_horizon*3)
-        # for i in range(len(samples)):
-        #     x = range(i,i+len(samples[i][1,:]))
-        #     plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
-        # x = range(self.time_horizon*2)
-        # plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
-        # plt.plot(x2,original_dat2[1,:],'r')
+        original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
+        original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
+        x2 = range(self.time_horizon*3)
+        for i in range(len(samples)):
+            x = range(i,i+len(samples[i][1,:]))
+            plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
+        x = range(self.time_horizon*2)
+        plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
+        plt.plot(x2,original_dat2[1,:],'r')
         
 
         return gp_outputs, samples
@@ -270,7 +270,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                 roll_tar_st.v.v_long += np.random.randn(1)*0.01                
             else:
                 tmp_tar_st = scenario_data.tar_states[i+t+1].copy()  
-                roll_tar_st = self.gen_random_next_state(tar_st,simulator)           
+                roll_tar_st = self.gen_random_next_state(tar_st,simulator, next_tar_state = tmp_tar_st)           
                 
                 if i >= self.time_horizon-1:
                     del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 
@@ -321,19 +321,37 @@ class SampleGeneartorCOVGP(SampleGenerator):
         return dat
 
     
-    def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator, direction = 1, accel_mag= 0.0):        
+    def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator,next_tar_state = None,  direction = 1, accel_mag= 0.0):        
+    
         tmp_state = state.copy()
         if tmp_state.p.e_psi < 0:            
-            tmp_state.u.u_steer = -(np.random.rand(1)*0.3+0.1)[0] * direction
+            tmp_state.u.u_steer = tmp_state.u.u_steer -(np.random.rand(1)*0.05)[0] * direction
         else:
-            tmp_state.u.u_steer = (np.random.rand(1)*0.3+0.1)[0] * direction
+            tmp_state.u.u_steer = tmp_state.u.u_steer + (np.random.rand(1)*0.05)[0] * direction
+        
+        # noisy_steer = np.clip(np.random.randn(1)*0.4,-0.43, 0.43)[0]
+        # # noisy_steer = tmp_state.u.u_steer + steer_noise[0] * direction
+        
         tmp_state.u.u_a = accel_mag
-        if abs(tmp_state.p.x_tran) > simulator.model.track.track_width*1.1:
-            tmp_state.u.u_steer = -1*tmp_state.u.u_steer
+        if tmp_state.p.x_tran > simulator.model.track.track_width*0.5:
+            tmp_state.u.u_steer = -1*abs(np.random.randn(1)[0]*0.5)                
             tmp_state.u.u_a = -accel_mag
+        elif tmp_state.p.x_tran < -1*simulator.model.track.track_width*0.7:
+            tmp_state.u.u_steer = abs(np.random.randn(1)[0]*0.5)
+            tmp_state.u.u_a = -accel_mag
+        if next_tar_state is not None:
+            tmp_state.u.u_steer = next_tar_state.u.u_steer #+ np.random.randn(1)[0]*0.00001
+        
+        tmp_state.u.u_steer = np.clip(tmp_state.u.u_steer, -0.43, 0.43)
         simulator.step(tmp_state) 
         # noise in longitudinal direction
-        tmp_state.p.s = tmp_state.p.s +  (np.random.rand(1)*0.1)[0]
+        s_noise = np.clip(np.random.randn(1)*0.08, -0.032, 0.032)[0]
+        if next_tar_state is None:
+            tmp_state.p.s = tmp_state.p.s + s_noise
+        else:            
+            tmp_state.p.s = next_tar_state.p.s + s_noise
+
+
         simulator.model.track.update_curvature(tmp_state)      
         
         return tmp_state 

@@ -20,7 +20,7 @@ args_ = {
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': False,
+    'add_noise_data': True,
     'add_aug_data' : False,
     'model_name' : None,
     'eval' : False,
@@ -116,9 +116,8 @@ def main():
     tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
     
     ####################################################
-    eval_policy_names = ['centerline_eval',
-                         'blocking_eval',
-                         'reverse_eval']     
+    eval_policy_names = ['centerline_test',
+                         'blocking_test']     
     
     gen_eval_data(eval_policy_names)
     ####################################################

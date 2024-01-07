@@ -120,7 +120,9 @@ class MultiPredPostEval:
 
 
         ############################## MPCC Predictor ##################################
-        self.mpcc_predictor = MPCCPredictor(N=self.n_nodes, track=self.track_info.track, vehicle_config= mpcc_timid_params, cov=.01)
+        # self.mpcc_predictor = MPCCPredictor(N=self.n_nodes, track=self.track_info.track, vehicle_config= mpcc_timid_params, cov=.01)
+        self.mpcc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
+        
         ############################## ContantAngularVelocity Predictor ##################################
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
         ############################## SIMTSGP Predictor ####################################        
@@ -154,7 +156,7 @@ class MultiPredPostEval:
         self.plot_errors()
         cov_range_ = [0.0, self.error_df['COV'].max()]
         self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'blocking_eval')
-        self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'reverse_eval')
+        # self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'reverse_eval')
         self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'centerline_eval')
         
         
@@ -389,105 +391,104 @@ class MultiPredPostEval:
 ##########################################################################
 ##########################################################################
         
-        plt.figure()
-        nosim = np.array(self.error_data['centerline_eval']['0']['cov'])
-        nosim = nosim[:,-1]
-        gp = np.array(self.error_data['centerline_eval']['3']['cov'])
-        gp = gp[:,-1]
-        sim = np.array(self.error_data['centerline_eval']['4']['cov'])
-        sim = sim[:,-1]
-        tarey = np.array(self.error_data['centerline_eval']['4']['tarey'])
-        plt.plot(tarey)        
-        dels = np.array(self.error_data['blocking_eval']['4']['dels'])
-        plt.plot(dels)      
+        # plt.figure()
+        # nosim = np.array(self.error_data['centerline_eval']['0']['cov'])
+        # nosim = nosim[:,-1]
+        # gp = np.array(self.error_data['centerline_eval']['3']['cov'])
+        # gp = gp[:,-1]
+        # sim = np.array(self.error_data['centerline_eval']['4']['cov'])
+        # sim = sim[:,-1]
+        # tarey = np.array(self.error_data['centerline_eval']['4']['tarey'])
+        # plt.plot(tarey)        
+        # dels = np.array(self.error_data['blocking_eval']['4']['dels'])
+        # plt.plot(dels)      
 
-        plt.plot(nosim)
-        plt.plot(gp)
-        plt.plot(sim)
-        plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
-        file_path = os.path.join(fig_dir, f"cov_centerline_{current_time}.png")
-        plt.savefig(file_path)   
+        # plt.plot(nosim)
+        # plt.plot(gp)
+        # plt.plot(sim)
+        # plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
+        # file_path = os.path.join(fig_dir, f"cov_centerline_{current_time}.png")
+        # plt.savefig(file_path)   
 
-        plt.figure()
-        nosim = np.array(self.error_data['blocking_eval']['0']['cov'])
-        nosim = nosim[:,-1]
-        gp = np.array(self.error_data['blocking_eval']['3']['cov'])
-        gp = gp[:,-1]
-        sim = np.array(self.error_data['blocking_eval']['4']['cov'])
-        sim = sim[:,-1]
-        tarey = np.array(self.error_data['blocking_eval']['4']['tarey'])
-        plt.plot(tarey)   
-        dels = np.array(self.error_data['blocking_eval']['4']['dels'])
-        plt.plot(dels)      
+        # plt.figure()
+        # nosim = np.array(self.error_data['blocking_eval']['0']['cov'])
+        # nosim = nosim[:,-1]
+        # gp = np.array(self.error_data['blocking_eval']['3']['cov'])
+        # gp = gp[:,-1]
+        # sim = np.array(self.error_data['blocking_eval']['4']['cov'])
+        # sim = sim[:,-1]
+        # tarey = np.array(self.error_data['blocking_eval']['4']['tarey'])
+        # plt.plot(tarey)   
+        # dels = np.array(self.error_data['blocking_eval']['4']['dels'])
+        # plt.plot(dels)      
 
-        plt.plot(nosim)
-        plt.plot(gp)
-        plt.plot(sim)
-        plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
-        file_path = os.path.join(fig_dir, f"cov_blocking_{current_time}.png")
-        plt.savefig(file_path)   
+        # plt.plot(nosim)
+        # plt.plot(gp)
+        # plt.plot(sim)
+        # plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
+        # file_path = os.path.join(fig_dir, f"cov_blocking_{current_time}.png")
+        # plt.savefig(file_path)   
 
-        plt.figure()
-        nosim = np.array(self.error_data['reverse_eval']['0']['cov'])
-        nosim = nosim[:,-1]
-        gp = np.array(self.error_data['reverse_eval']['3']['cov'])
-        gp = gp[:,-1]
-        sim = np.array(self.error_data['reverse_eval']['4']['cov'])
-        sim = sim[:,-1]
-        tarey = np.array(self.error_data['reverse_eval']['4']['tarey'])
-        plt.plot(tarey)   
-        dels = np.array(self.error_data['blocking_eval']['4']['dels'])
-        plt.plot(dels)      
-
-        plt.plot(nosim)
-        plt.plot(gp)
-        plt.plot(sim)
-        plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
-        file_path = os.path.join(fig_dir, f"cov_revrse_{current_time}.png")
-        plt.savefig(file_path)   
+        # plt.figure()
+        # nosim = np.array(self.error_data['reverse_eval']['0']['cov'])
+        # nosim = nosim[:,-1]
+        # gp = np.array(self.error_data['reverse_eval']['3']['cov'])
+        # gp = gp[:,-1]
+        # sim = np.array(self.error_data['reverse_eval']['4']['cov'])
+        # sim = sim[:,-1]
+        # tarey = np.array(self.error_data['reverse_eval']['4']['tarey'])
+        # plt.plot(tarey)   
+        # dels = np.array(self.error_data['blocking_eval']['4']['dels'])
+        # plt.plot(dels)      
+        # plt.plot(nosim)
+        # plt.plot(gp)
+        # plt.plot(sim)
+        # plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
+        # file_path = os.path.join(fig_dir, f"cov_revrse_{current_time}.png")
+        # plt.savefig(file_path)   
         
 
 
-        plt.figure()
-        nosim = np.array(self.error_data['centerline_eval']['0']['lat'])
-        nosim = nosim[:,-1]
-        gp = np.array(self.error_data['centerline_eval']['3']['lat'])
-        gp = gp[:,-1]
-        sim = np.array(self.error_data['centerline_eval']['4']['lat'])
-        sim = sim[:,-1]
-        tarey = np.array(self.error_data['blocking_eval']['4']['tarey'])
-        plt.plot(tarey)        
-        dels = np.array(self.error_data['blocking_eval']['4']['dels'])
-        plt.plot(dels)      
+        # plt.figure()
+        # nosim = np.array(self.error_data['centerline_eval']['0']['lat'])
+        # nosim = nosim[:,-1]
+        # gp = np.array(self.error_data['centerline_eval']['3']['lat'])
+        # gp = gp[:,-1]
+        # sim = np.array(self.error_data['centerline_eval']['4']['lat'])
+        # sim = sim[:,-1]
+        # tarey = np.array(self.error_data['blocking_eval']['4']['tarey'])
+        # plt.plot(tarey)        
+        # dels = np.array(self.error_data['blocking_eval']['4']['dels'])
+        # plt.plot(dels)      
           
 
-        plt.plot(nosim)
-        plt.plot(gp)
-        plt.plot(sim)
-        plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
-        file_path = os.path.join(fig_dir, f"lattime_centerline_{current_time}.png")
-        plt.savefig(file_path)   
+        # plt.plot(nosim)
+        # plt.plot(gp)
+        # plt.plot(sim)
+        # plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
+        # file_path = os.path.join(fig_dir, f"lattime_centerline_{current_time}.png")
+        # plt.savefig(file_path)   
 
 
-        plt.figure()
-        nosim = np.array(self.error_data['blocking_eval']['0']['lat'])
-        nosim = nosim[:,-1]
-        gp = np.array(self.error_data['blocking_eval']['3']['lat'])
-        gp = gp[:,-1]
-        sim = np.array(self.error_data['blocking_eval']['4']['lat'])
-        sim = sim[:,-1]
-        tarey = np.array(self.error_data['blocking_eval']['4']['tarey'])
-        plt.plot(tarey)        
-        dels = np.array(self.error_data['blocking_eval']['4']['dels'])
-        plt.plot(dels)        
+        # plt.figure()
+        # nosim = np.array(self.error_data['blocking_eval']['0']['lat'])
+        # nosim = nosim[:,-1]
+        # gp = np.array(self.error_data['blocking_eval']['3']['lat'])
+        # gp = gp[:,-1]
+        # sim = np.array(self.error_data['blocking_eval']['4']['lat'])
+        # sim = sim[:,-1]
+        # tarey = np.array(self.error_data['blocking_eval']['4']['tarey'])
+        # plt.plot(tarey)        
+        # dels = np.array(self.error_data['blocking_eval']['4']['dels'])
+        # plt.plot(dels)        
 
-        plt.plot(nosim)
-        plt.plot(gp)
-        plt.plot(sim)
+        # plt.plot(nosim)
+        # plt.plot(gp)
+        # plt.plot(sim)
        
-        plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
-        file_path = os.path.join(fig_dir, f"lattime_blocking_{current_time}.png")
-        plt.savefig(file_path)   
+        # plt.legend(['tarey','dels','nosim', 'gp', 'sim'])
+        # file_path = os.path.join(fig_dir, f"lattime_blocking_{current_time}.png")
+        # plt.savefig(file_path)   
 
 
 
@@ -514,7 +515,8 @@ class MultiPredPostEval:
             args['model_name'] = None # CAV Predictor
         elif predictor_type ==2:
             args['model_name'] = None # MPCC Predictor
-            self.mpcc_predictor.set_warm_start(self.cur_tar_state)
+            # self.mpcc_predictor.set_warm_start(self.cur_tar_state)
+            self.mpcc_predictor.set_warm_start()
         elif predictor_type ==3: 
             args['model_name'] = 'naiveGP'
         elif predictor_type ==4:
@@ -579,8 +581,8 @@ class MultiPredPostEval:
                   
                     if self.tv_pred.s is not None:
                         # self.track_info.track.global_to_local([self.tv_pred.x, self.tv_pred.y, self.tv_pred.psi])                        
-                        lon_error = np.array(gt_tar_state_list[i].s) - np.array(self.tv_pred.s) 
-                        lat_error = np.array(gt_tar_state_list[i].x_tran) - np.array(self.tv_pred.x_tran)
+                        lon_error = np.array(gt_tar_state_list[i].s) - np.array(self.tv_pred.s[:len(gt_tar_state_list[i].x_tran)]) 
+                        lat_error = np.array(gt_tar_state_list[i].x_tran) - np.array(self.tv_pred.x_tran[:len(gt_tar_state_list[i].x_tran)])
                     else: 
                         lon_error = [] #np.array(gt_tar_state_list[i].s) - np.array(gt_tar_state_list[i].s)
                         lat_error = [] #np.array(gt_tar_state_list[i].x_tran) - np.array(gt_tar_state_list[i].x_tran)
