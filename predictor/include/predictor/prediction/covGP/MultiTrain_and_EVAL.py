@@ -47,7 +47,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
     args_['model_name'] = 'naiveGP'
-    # covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
     print("naiveGP train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -56,7 +56,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
-    # covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
+    covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
     print(" nosimtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -81,7 +81,7 @@ def gen_eval_data(eval_policy_names):
     ########## Generate Prediction data for each predictor ########   
     rospy.init_node("MultiPredPostEval") 
     args_['eval'] = True
-    args_['load_eval_data'] = True
+    # args_['load_eval_data'] = False
     MultiPredPostEval(eval_dirs, args_)
 
 def main():  
@@ -89,22 +89,31 @@ def main():
     ####################################################
     # train_policy_names = ['centerline_train',
     #                       'blocking_train']  
-    train_policy_names = ['centerline_train']             
+    train_policy_names = ['centerline_train','blocking_train']             
     
-    valid_policy_names = ['centerline_eval']             
+    valid_policy_names = ['centerline_eval','blocking_eval']             
                  
-    # main_train(train_policy_names, valid_policy_names)
+    main_train(train_policy_names, valid_policy_names)
     ####################################################    
     ############ TSNE ##################################
     args_['add_noise_data'] = False
-    tsne_policy_names = ['blocking_tsne',                         
-                         'centerline_tsne'
-                         ] 
+    # tsne_policy_names = ['blocking_tsne',                         
+    #                      'centerline_tsne'
+    #                      ] 
+    tsne_policy_names = ['centerline_tsne',
+                        'blocking_tsne','highcenter_tsne']
+                        # ,
+                        # 'reverse_tsne',
+                        # 'highblocking_tsne']
+    # ,
+    #                     'reverse_tsne',
+    #                     'highblocking_tsne']  
+ 
     
-    # args_['model_name'] ='simtsGP'
-    # tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = tsne_policy_names, perplexity = 20, load_data=False)
-    # args_['model_name'] ='nosimtsGP'
-    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 20, load_data=False)
+    args_['model_name'] ='simtsGP'
+    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
+    args_['model_name'] ='nosimtsGP'
+    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
     
     ####################################################
     eval_policy_names = ['centerline_eval',

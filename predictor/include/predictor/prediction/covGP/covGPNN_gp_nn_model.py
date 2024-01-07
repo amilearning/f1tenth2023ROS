@@ -245,7 +245,16 @@ class CausalCNNEncoder(torch.nn.Module):
             [nn.Conv1d(reduced_size, component_dims, k, padding=k-1) for k in kernel_list]
         )
         
-        # self.predictor = nn.Linear(90, component_dims).to(self.device)
+        # self.predictor = nn.Linear(component_dims, component_dims).to(self.device)
+        # self.predictor = nn.Sequential(
+        #     nn.Linear(90, 120),# First layer with input size 90, output size 128                
+        #     nn.ReLU(),        
+        #     nn.Linear(120, 240),  # First layer with input size 90, output size 128                
+        #     nn.ReLU(),                 
+        #     nn.Linear(240, 120),  # First layer with input size 90, output size 128                
+        #     nn.ReLU(),                 
+        #     nn.Linear(120, component_dims)
+        # ).to(self.device)
         # self.repr_dropout = torch.nn.Dropout(p=0.1)
         
     def print_para(self):
@@ -253,9 +262,10 @@ class CausalCNNEncoder(torch.nn.Module):
         return list(self.multi_cnn.parameters())[0].clone()    
         
     def forward(self, x_h):
-
+        ################## SUPER SIMPLE NONLINEAR MAPPING #############################
         # latent_x = self.predictor(x_h.reshape(x_h.shape[0],-1))
         # return latent_x
+        ################## SUPER SIMPLE NONLINEAR MAPPING DONE ########################
 
         # x_h = x_h.transpose(2,1)
         x_h = self.input_fc(x_h)        
@@ -276,6 +286,7 @@ class CausalCNNEncoder(torch.nn.Module):
 
         
         latent_x = trend_h[:,-1,:]     
+        # latent_x = self.predictor(latent_x)
 
         
         return latent_x

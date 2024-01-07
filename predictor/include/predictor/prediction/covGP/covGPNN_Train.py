@@ -104,6 +104,7 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         input_list = []
         output_list = []
         y_label = []
+        covout_list= []
         for i in range(len(dirs)):
             dir = [dirs[i]]
             
@@ -118,11 +119,12 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
                 raise RuntimeError(
                     f"Directory: {dirs[0]} does not exist, need to train using `gen_training_data` first")
 
-            a_stacked_z, a_input, a_output = covgp_predictor.tsne_evaluate(sampGen)
+            a_stacked_z, a_input, a_output, cov_output= covgp_predictor.tsne_evaluate(sampGen)
             covgp_predictor.set_evaluation_mode()        
             z_list.append(a_stacked_z)
             input_list.append(a_input)
             output_list.append(a_output)
+            covout_list.append(cov_output)
             a_y_label = torch.ones(a_stacked_z.shape[0])*(i%(len(dirs)))
             y_label.append(a_y_label)
 
@@ -131,6 +133,7 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
         stacked_input = torch.vstack(input_list).cpu()
         stacked_output = torch.vstack(output_list).cpu()
         stacked_label = torch.hstack(y_label).cpu()
+        cov_label = torch.hstack(covout_list).cpu()
         # stacked_z = torch.vstack([a_stacked_z,b_stacked_z]).cpu()    
         # stacked_input = torch.vstack([a_input,b_input]).cpu()        
         # y_label = torch.hstack([a_y_label,b_y_label]).cpu().numpy()
@@ -146,12 +149,13 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
 
     inputs = stacked_input.detach().cpu().numpy()
     outputs = stacked_output.detach().cpu().numpy()
+    cov_label = cov_label.detach().cpu().numpy()
     
     inputs = inputs.reshape([-1,inputs.shape[1],inputs.shape[2]])
     tar_ey = abs(inputs[:,1,9])
-    tar_ey[tar_ey>1.5]=0.0
-    idx= abs(inputs[:,1,9])>1.0
-    tar_ey[idx]=0.0
+    # tar_ey[tar_ey>1.5]=0.0
+    # idx= abs(inputs[:,1,9])>1.0
+    # tar_ey[idx]=0.0
     del_ey = abs(inputs[:,1,9]-inputs[:,6,9])
     idx = inputs[:,0,9]>1.5
     del_ey[inputs[:,0,9]>1.5] = 0.0
@@ -172,37 +176,53 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
 
 
  
+    
+    
+
+   
+
     ###################################
     ###################################
     ########## TSNE_analysis ##########
     ###################################
     ###################################
-    from sklearn.manifold import TSNE
     import matplotlib.pyplot as plt
+    if stacked_z.shape[1]< 3:
+        plt.plot(stacked_z.squeeze(),stacked_label,'*')
+        plt.show()
+        return
+
+    from sklearn.manifold import TSNE
+    
+    from sklearn.decomposition import PCA
     for i in range(1):
         ###################################        
-        dim = 2        
+        dim = 2
         perplexity_ = perplexity
-        n_iter_ = 20000        
+        n_iter_ = 40000        
 
-        tsne_model = TSNE(n_components=dim,perplexity=perplexity_, verbose= 2,n_iter=n_iter_)        
+
         print("t-SNE optimization begin")
+        tsne_model = TSNE(n_components=dim,perplexity=perplexity_, verbose= 2,n_iter=n_iter_)                
         theta_2d = tsne_model.fit_transform(stacked_z)
         print("t-SNE optimization done")
         
-        if dim >2:
-            fig = plt.figure()
-            ax = fig.add_subplot(projection='3d')
-            ax.scatter(theta_2d[:, 0], theta_2d[:, 1],theta_2d[:, 2] ,c=(agglevel), cmap='viridis')
-        else:
-            
-            fig, ax = plt.subplots()
-            scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1], c=(tar_ey), cmap='viridis')    
-            cbar = plt.colorbar(scatter_plot)
-            cbar.set_label('Aggresiveness', rotation=270, labelpad=15)
+        # data_np = stacked_z.numpy()
+        # pca = PCA(n_components=dim)
+        # pca.fit(data_np)
+        # theta_2d = pca.transform(data_np)
 
-            
-            # labels = ["timid", "mild_100", "mild_200", "mild_300", "mild_500","mild_1000", "mild_5000", "reverse"]
+        def draw_tsne(label_idx, label_):
+            if dim >2:
+                fig = plt.figure()
+                ax = fig.add_subplot(projection='3d')
+                scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1],theta_2d[:, 2] ,c=(label_), cmap='viridis')
+            else:            
+                fig, ax = plt.subplots()
+                scatter_plot = ax.scatter(theta_2d[:, 0], theta_2d[:, 1], c=(label_), cmap='viridis')    
+            cbar = plt.colorbar(scatter_plot)
+            cbar.set_label('Target_ey', rotation=270, labelpad=15)
+
             if eval_policy_names is None:
                 labels = [ "timid","blocking", "reverse"]
             else:
@@ -211,10 +231,19 @@ def tsne_analysis(args = None , snapshot_name = 'covGP',  eval_policy_names = No
 
             plt.legend(handles=scatter_plot.legend_elements()[0], labels=labels, title='Legend')
 
-            
+            label_map = ['cov', 'tarey', 'label']
             current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_path = os.path.join(fig_dir, f"tsne_{snapshot_name}_{current_time}.png")
+            file_path = os.path.join(fig_dir, f"{label_map[label_idx]}_tsne_{snapshot_name}_{current_time}_{dim}.png")
             plt.savefig(file_path)
+            
+        # draw_tsne(2, stacked_label, 3)
+        draw_tsne(0, cov_label)        
+        draw_tsne(1, tar_ey)
+        draw_tsne(2, stacked_label)
+        
+        # draw_tsne(1, tar_ey, 3)
+        # draw_tsne(0, cov_label, 3)
+        # draw_tsne(2, stacked_label, 3)
             # cbar = plt.colorbar()
             # cbar.set_label('Color Bar Label')
             # for i in range(10):

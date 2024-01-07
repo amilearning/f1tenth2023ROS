@@ -192,10 +192,10 @@ likelihood.train()
 #                                 ], lr=0.01)
 
 
-optimizer = torch.optim.Adam([{'params': model.feature_extractor.parameters(), 'lr': 0.01},                                            
+optimizer = torch.optim.Adam([{'params': model.feature_extractor.parameters(), 'lr': 0.02},                                            
                                 {'params': model.gplayer.hyperparameters(), 'lr': 0.01},
-                                {'params': model.incov.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
-                                {'params': model.outcov.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
+                                {'params': model.incov.parameters(), 'lr': 0.02, 'weight_decay':1e-8},
+                                {'params': model.outcov.parameters(), 'lr': 0.02, 'weight_decay':1e-8},
                                 {'params': model.gplayer.variational_parameters()},
                                 {'params': likelihood.parameters()},
                                 ], lr=0.01)
@@ -214,7 +214,7 @@ iterator = tqdm.tqdm(range(training_iterations))
 best_valid_loss = 0
 best_epoch = 0
 no_progress_count = 0
-
+relu = torch.nn.ReLU()
 for i in iterator:
     torch.cuda.empty_cache()  
     # Zero backprop gradients
@@ -228,8 +228,17 @@ for i in iterator:
     out_dist = model.outcov[0](train_y,train_y)
     out_dist = out_dist.evaluate()
     latent_dist = latent_dist.evaluate()
+    latent_std = torch.std(latetn_x)    
+    stddev_loss = relu(latent_std-2)
     
-    cov_loss = -1*mseloss(out_dist, latent_dist) 
+    
+
+    std_loss =  torch.log((model.outcov[0].lengthscale+1e-9)/(model.incov[0].lengthscale + 1e-9))*1e-1
+    # if latent_std > 2.0:
+    std_loss += stddev_loss*1e-2
+    
+    # torch.mean(abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist))
+    cov_loss = mseloss(out_dist, latent_dist) 
     # torch.sum((out_dist - latent_dist).evaluate())/(train_y.shape[0]**2)
     
 
@@ -248,7 +257,7 @@ for i in iterator:
     # latent_max = torch.max(latent_x)
     # latent_min = torch.min(latent_x)
     # latent_mean = torch.mean(latent_x)
-    # writer.add_scalar("stat/latent_std", latent_std, i)                    
+    writer.add_scalar("stat/latent_std", latent_std, i)                    
     # writer.add_scalar("stat/latent_max", latent_max, i)                    
     # writer.add_scalar("stat/latent_min", latent_min, i)                    
     # writer.add_scalar("stat/latent_mean", latent_mean, i)                    
@@ -267,6 +276,7 @@ for i in iterator:
     
     # cov_loss = mseloss(latent_dist,out_dist)*10.0
     writer.add_scalar("loss/cov_loss", cov_loss.item(), i)                    
+    writer.add_scalar("loss/std_loss", std_loss.item(), i)   
     # cos = cosine_loss(latent_dist, out_dist)
      
     variation_loss = -mll(output, train_y)
@@ -289,7 +299,7 @@ for i in iterator:
         #     optimizer.step()
         #     no_progress_count = 0
         # else:
-        loss = cov_loss + variation_loss
+        loss = cov_loss + variation_loss + std_loss
         writer.add_scalar("loss/total_loss", loss.item(), i)                    
         loss.backward()
         # optimizer.step()

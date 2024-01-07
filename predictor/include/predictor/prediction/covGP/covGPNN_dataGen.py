@@ -161,9 +161,9 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                     
                                     valid_data = self.data_validation(dat[:,:self.time_horizon],tar_st,next_tar_st,track_)                                                        
                                     if tsne:
-                                        # if tar_st.v.v_long < 0.05 or abs(ego_st.p.s - tar_st.p.s) > 1.5:
                                         del_s_tmp = wrap_del_s(tar_st.p.s, ego_st.p.s,track_)
-                                        if tar_st.v.v_long > 10.05 or del_s_tmp > 2.0:
+                                        if tar_st.v.v_long < 0.05 or abs(del_s_tmp) > 1.0:                                            
+                                        # if tar_st.v.v_long > 10.05 or del_s_tmp > 50.0:
                                             valid_data = False
                                         
                                     if valid_data:                              

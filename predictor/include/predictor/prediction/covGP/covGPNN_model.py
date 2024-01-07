@@ -141,15 +141,17 @@ class COVGPNN(GPController):
         #                                 {'params': self.model.out_covs[3].parameters(), 'lr': 0.01, 'weight_decay':1e-8}                                        
         #                                 ], lr=0.005)
 
-        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
+        # optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.01, 'weight_decay':1e-9},                                          
+        optimizer_all = torch.optim.Adam([{'params': self.model.encdecnn.parameters(), 'lr': 0.05, 'weight_decay':1e-9},                                          
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},                                        
+                                        # {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
+                                        # {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},                                        
                                         {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
-                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},                                        
+                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8}, 
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
         
-      
 
         scheduler = lr_scheduler.StepLR(optimizer_gp, step_size=3000, gamma=0.9)
         
@@ -163,6 +165,7 @@ class COVGPNN(GPController):
         no_progress_epoch = 0
         done = False
         epoch = 0
+        nn_only_epoch = 0
         best_model = None
         best_likeli = None
 
@@ -179,6 +182,8 @@ class COVGPNN(GPController):
             c_loss = 0
             recon_loss_sum = 0
             latent_dist_loss_sum = 0
+            std_loss_sum = 0
+            cosine_loss_sum = 0
             cov_loss = 0 
             variational_loss_sum = 0 
             for step, (train_x, train_y) in enumerate(train_dataloader):                
@@ -187,6 +192,7 @@ class COVGPNN(GPController):
                 torch.cuda.empty_cache()   
                 optimizer_all.zero_grad()
                 optimizer_gp.zero_grad() 
+                
                 #####################           
                 if int(len(train_x.shape)) > 2:
                     train_x_h  = train_x[:,:,:int(train_x.shape[-1]/2)].double()
@@ -196,21 +202,31 @@ class COVGPNN(GPController):
                 output = self.model(train_x_h.cuda())                
                 
 
-                if include_simts_loss:   
+                if include_simts_loss: 
                     latent_x = self.model.get_hidden(train_x_h.cuda())
-                    cov_loss = 0                          
+                    cos_loss = 0 # self.cosine_loss(latent_x, train_y)
+                    cov_loss = 0    
+                    std_loss = 0                      
                     for i in range(self.output_size):
                         latent_dist = self.model.in_covs[i](latent_x, latent_x)                     
                         out_dist = self.model.out_covs[i](train_y[:,i].cuda(), train_y[:,i].cuda())
                         out_dist = out_dist.evaluate()
                         latent_dist = latent_dist.evaluate()
-                        cov_loss += mseloss(out_dist, latent_dist) 
+                        # abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist)
+                        # std_loss += #torch.mean(abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist))
+                        std_loss  += (self.model.out_covs[i].lengthscale+1e-9)/(self.model.in_covs[i].lengthscale + 1e-9)*1e-1                        
+                        
+                        cov_loss += mseloss(out_dist, latent_dist)                     
+                        
+                    latent_std = torch.std(latent_x)                                                   
+                    if latent_std > 2.0:
+                        std_loss += latent_std*0.1
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss
                 variational_loss = -mll(output, train_y)                
                 
-                if include_simts_loss: 
-                    loss = cov_loss + variational_loss
+                if include_simts_loss:                     
+                    loss = cov_loss + variational_loss + std_loss
                 else:
                     loss = variational_loss
 
@@ -218,7 +234,7 @@ class COVGPNN(GPController):
 
                 if directGP:
                     optimizer_gp.step()
-                else:
+                else:                          
                     optimizer_all.step()
                      
                 train_loss += loss.item()    
@@ -226,6 +242,9 @@ class COVGPNN(GPController):
                 
                 if include_simts_loss: 
                     latent_dist_loss_sum +=cov_loss.item()
+                    std_loss_sum += std_loss.item()
+                    cosine_loss_sum += 0 # cos_loss.item()
+                    
                     self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
                     self.writer.add_scalar(gp_name+'/stat/latent_min', torch.min(latent_x), epoch*len(train_dataloader) + step)
                     self.writer.add_scalar(gp_name+'/stat/latent_std', torch.std(latent_x), epoch*len(train_dataloader) + step)
@@ -244,10 +263,14 @@ class COVGPNN(GPController):
             # for i, param_group in enumerate(optimizer_gp.param_groups):
             #     lr_tag = gp_name+f'/Lr/learning_rate{i+1}'
             #     self.writer.add_scalar(lr_tag, param_group['lr'], epoch )                
+                
+            cosine_tag = gp_name+'/Loss/cosine_loss'
+            self.writer.add_scalar(cosine_tag, cosine_loss_sum/ len(train_dataloader), epoch)
             varloss_tag = gp_name+'/Loss/variational_loss'
             self.writer.add_scalar(varloss_tag, variational_loss_sum/ len(train_dataloader), epoch)
-            # reconloss_tag = gp_name +'/Loss/reconloss'
-            # self.writer.add_scalar(reconloss_tag, recon_loss_sum / len(train_dataloader), epoch )
+            std_loss_tag = gp_name +'/Loss/std_loss'
+            self.writer.add_scalar(std_loss_tag, std_loss_sum / len(train_dataloader), epoch )
+            
             latent_dist_loss_tag = gp_name+'/Loss/latent_dist_loss'
             self.writer.add_scalar(latent_dist_loss_tag, latent_dist_loss_sum/ len(train_dataloader) , epoch)
             train_loss_tag = gp_name+'/Loss/total_train_loss' 
@@ -266,6 +289,7 @@ class COVGPNN(GPController):
                 torch.cuda.empty_cache()   
                 optimizer_gp.zero_grad()                
                 optimizer_all.zero_grad()
+                
                 if int(len(test_x.shape)) > 2:
                     test_x  = test_x[:,:,:int(test_x.shape[-1]/2)].double()
                 else:    
@@ -282,9 +306,9 @@ class COVGPNN(GPController):
             if c_loss > last_loss:
                 if no_progress_epoch >= 15:
                     if include_simts_loss:     
-                        # if epoch > 100:                   
-                        if no_progress_epoch > 30:
-                            done = True   
+                        if epoch > nn_only_epoch:                   
+                            if no_progress_epoch > 30:
+                                done = True   
                     else:
                         done = True 
             else:
@@ -399,11 +423,15 @@ class COVGPNN(GPController):
         z_tmp_list = []
         input_list = []
         output_list = []
+        cov_list = []
         dist_thres = np.inf  ## 
         vx_thres = -1*np.inf
         for step, (data_x, data_y) in enumerate(dataloader):    
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
                 latent_x = self.model.get_hidden(data_x.double())
+                out = self.model(data_x.double())
+                out_std = out.stddev[:,1]
+                # out.stddev
                 
                 
                 delta_s_avg = torch.mean(data_x[:,0,:],dim=1)
@@ -417,11 +445,13 @@ class COVGPNN(GPController):
                 z_tmp_list.append(selected_latent_x.view(selected_latent_x.shape[0],-1))
                 input_list.append(selected_data_x)
                 output_list.append(selected_data_y)
+                cov_list.append(out_std[filtered_idx])
                 stacked_z_tmp = torch.cat(z_tmp_list, dim=0)                
                 input_list_tmp= torch.cat(input_list, dim=0)
                 output_list_tmp= torch.cat(output_list, dim=0)
+                cov_list_tmp= torch.cat(cov_list, dim=0)
 
-        return stacked_z_tmp, input_list_tmp, output_list_tmp
+        return stacked_z_tmp, input_list_tmp, output_list_tmp, cov_list_tmp
 
 
 
