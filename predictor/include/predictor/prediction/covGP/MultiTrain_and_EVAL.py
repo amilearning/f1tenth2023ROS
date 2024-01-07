@@ -20,7 +20,7 @@ args_ = {
     "include_simts_loss" : True,
     "direct_gp" : False,
     "n_epoch" : 10000,
-    'add_noise_data': True,
+    'add_noise_data': False,
     'add_aug_data' : False,
     'model_name' : None,
     'eval' : False,
@@ -89,9 +89,9 @@ def main():
     ####################################################
     # train_policy_names = ['centerline_train',
     #                       'blocking_train']  
-    train_policy_names = ['centerline_train','blocking_train']             
+    train_policy_names = ['centerline_train'] # ,'blocking_train']             
     
-    valid_policy_names = ['centerline_eval','blocking_eval']             
+    valid_policy_names = ['centerline_eval'] #,'blocking_eval']             
                  
     main_train(train_policy_names, valid_policy_names)
     ####################################################    
