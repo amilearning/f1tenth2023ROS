@@ -107,7 +107,7 @@ def main():
                         # 'highblocking_tsne']
     # ,
     #                     'reverse_tsne',
-    #                     'highblocking_tsne']  
+    ##                    'highblocking_tsne']  
  
     
     args_['model_name'] ='simtsGP'
