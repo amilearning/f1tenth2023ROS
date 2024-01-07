@@ -118,7 +118,7 @@ def main():
     ####################################################
     eval_policy_names = ['centerline_eval',
                          'blocking_eval',
-                         'reverse_eval']     
+                         'highcenter_tsne']     
     
     gen_eval_data(eval_policy_names)
     ####################################################
