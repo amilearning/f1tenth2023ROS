@@ -20,7 +20,7 @@ from predictor.prediction.torch_utils import get_curvature_from_keypts_torch
 import time
 import torch.optim.lr_scheduler as lr_scheduler
 from predictor.common.utils.scenario_utils import torch_wrap_del_s
-
+from predictor.prediction.torch_utils import torch_wrap_s
 class COVGPNN(GPController):
     def __init__(self, args, sample_generator: SampleGeneartorCOVGP, model_class: Type[gpytorch.models.GP],
                  likelihood: gpytorch.likelihoods.Likelihood,
@@ -538,7 +538,7 @@ class COVGPNNTrained(GPController):
         
         # numeric mean and covariance calculation.
         # cov_start_time = time.time()
-        pred = self.mean_and_cov_from_list(preds, M) 
+        pred = self.mean_and_cov_from_list(preds, M, track= track) 
         # cov_end_time = time.time()
         # cov_elapsed_time = cov_end_time - cov_start_time
         # print(f"COV Elapsed time: {cov_elapsed_time} seconds")    
@@ -555,7 +555,7 @@ class COVGPNNTrained(GPController):
         input_tmp = torch.zeros(roll_input.shape[0],roll_input.shape[1]).to('cuda')        
         
         input_tmp[:,0] = tar_state[:,0]-ego_state[:,0]                      
-        input_tmp[:,0] = torch_wrap_del_s(tar_state[:,0],ego_state[:,0], track)
+        input_tmp[:,0] = torch_wrap_del_s(tar_state[:,0],ego_state[:,0], track)        
         input_tmp[:,1] = tar_state[:,1]
         input_tmp[:,2] = tar_state[:,2]
         input_tmp[:,3] = tar_state[:,3]
@@ -616,35 +616,38 @@ class COVGPNNTrained(GPController):
                     
                 pred_delta = self.outputToReal(tmp_delta)
 
-            roll_tar_state[:,0] += pred_delta[:,0] 
-            roll_tar_state[:,1] += pred_delta[:,1] 
+            roll_tar_state[:,0] += pred_delta[:,0]
+            roll_tar_state[:,0] = torch_wrap_s(roll_tar_state[:,0], track.track_length/2.0)
+            roll_tar_state[:,1] += pred_delta[:,1]
             roll_tar_state[:,2] += pred_delta[:,2]
-            roll_tar_state[:,3] += pred_delta[:,3]  
+            roll_tar_state[:,3] += pred_delta[:,3]
             roll_tar_curv[:,0] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach(),track)
             roll_tar_curv[:,1] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach()+target_state.lookahead.dl*2,track)                        
             roll_ego_state[:,0] = ego_prediction.s[i+1]
+            roll_ego_state[:,0] = torch_wrap_s(roll_ego_state[:,0], track.track_length/2.0)
             roll_ego_state[:,1] = ego_prediction.x_tran[i+1]
             roll_ego_state[:,2] =  ego_prediction.e_psi[i+1]
             roll_ego_state[:,3] =  ego_prediction.v_long[i+1]
 
-
+            
 
             for j in range(M):                          # tar 0 1 2 3 4 5       #ego 6 7 8 9 10 11
                 prediction_samples[j].s.append(roll_tar_state[j,0].cpu().numpy())
                 prediction_samples[j].x_tran.append(roll_tar_state[j,1].cpu().numpy())                    
                 prediction_samples[j].e_psi.append(roll_tar_state[j,2].cpu().numpy())
                 prediction_samples[j].v_long.append(roll_tar_state[j,3].cpu().numpy())
-        
+            
         # end_time = time.time()
         # elapsed_time = end_time - start_time
         # print(f"Time taken for GP(over horizons) call: {elapsed_time} seconds")
 
         for i in range(M):
-            prediction_samples[i].s = array.array('d', prediction_samples[i].s)
+            prediction_samples[i].s = array.array('d', prediction_samples[i].s)            
             prediction_samples[i].x_tran = array.array('d', prediction_samples[i].x_tran)
             prediction_samples[i].e_psi = array.array('d', prediction_samples[i].e_psi)
             prediction_samples[i].v_long = array.array('d', prediction_samples[i].v_long)            
-
+            
+        
         
         return prediction_samples
 

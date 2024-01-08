@@ -651,12 +651,14 @@ def torch_unwrap_s_single(s_,s_init,track_length):
 
 def torch_wrap_s(s_,track_length):
     # while(torch.min(s_) < 0):
-    below_zero_idx = (s_ < 0).nonzero()
-    s_[below_zero_idx] += track_length
+    while len((s_ < 0).nonzero()) !=0:
+        below_zero_idx = (s_ < 0).nonzero()    
+        s_[below_zero_idx] += track_length
     
     # while(torch.max(s_) >= track_length):
-    above_tracklength_idx = (s_ >= track_length).nonzero()
-    s_[above_tracklength_idx] -= track_length
+    while len((s_ >= track_length).nonzero()) !=0:
+        above_tracklength_idx = (s_ >= track_length).nonzero()
+        s_[above_tracklength_idx] -= track_length
     
     return s_
 
