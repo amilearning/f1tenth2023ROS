@@ -50,11 +50,11 @@ import torch
 import rospkg
 from collections import deque
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
-from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehiclePrediction, VehicleActuation
+from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
 from predictor.controllers.utils.controllerTypes import PIDParams
-from predictor.utils import LaptimeRecorder, pose_to_vehicleState, odom_to_vehicleState, state_prediction_to_marker, fill_global_info
+from predictor.utils import LaptimeRecorder, pose_to_vehicleState, odom_to_vehicleState, state_prediction_to_marker
 from predictor.path_generator import PathGenerator
-from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
+# from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
 from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from predictor.h2h_configs import *
@@ -70,8 +70,8 @@ pkg_dir = rospack.get_path('predictor')
 
 class Predictor:
     def __init__(self):       
-        self.n_nodes = rospy.get_param('~n_nodes', default=10)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
+        self.n_nodes = rospy.get_param('~n_nodes', default=12)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.2)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        
         ## 
         # Generate Racing track info 
@@ -105,7 +105,7 @@ class Predictor:
         self.ego_odom_ready = False
         self.tar_odom_ready = False
 
-        self.target_policy_name = "timid"  # aggressive_blocking , reverse, timid
+        self.target_policy_name = "aggressive_blocking"  # aggressive_blocking , reverse, timid
         
         # Service client 
         # self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
@@ -116,6 +116,7 @@ class Predictor:
         # self.ego_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         # self.target_vehicleState_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
         # self.target_predict_pub = rospy.Publisher(ego_vehicle_status_topic, Bool, queue_size=2)            
+        self.tar_pred_pub = rospy.Publisher("/gt_tar_pred",VehiclePredictionROS, queue_size= 2)
         
         # Subscribers
         self.tv_pred = None
@@ -244,11 +245,19 @@ class Predictor:
         # else:                        
         #     info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = "timid")
         tar_state_pred = self.gp_mpcc_ego_controller.get_prediction()
+
+        
+
+
+
         if tar_state_pred is not None and tar_state_pred.x is not None:
             if len(tar_state_pred.x) > 0:
                 tar_marker_color = [1.0, 0.0, 0.0]
                 tar_state_pred_marker = state_prediction_to_marker(tar_state_pred,tar_marker_color)
                 self.tar_pred_marker_pub.publish(tar_state_pred_marker)
+
+                tar_pred_msg = prediction_to_rosmsg(tar_state_pred)
+                self.tar_pred_pub.publish(tar_pred_msg)
 
         pp_cmd = AckermannDriveStamped()
         pp_cmd.header.stamp = self.cur_ego_pose.header.stamp   
@@ -261,7 +270,7 @@ class Predictor:
             if cmd_accel < 0.0:                
                 vel_cmd = pred_v_lon[6]
             else:            
-                vel_cmd = pred_v_lon[4]            
+                vel_cmd = pred_v_lon[5]            
             # vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
         
         

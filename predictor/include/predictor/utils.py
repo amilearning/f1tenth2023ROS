@@ -588,7 +588,7 @@ def prediction_to_marker(predictions):
         marker_ref.lifetime = rospy.Duration(0.2)
         # marker_ref.scale.x, marker_ref.scale.y, marker_ref.scale.z = (0.6, 0.4, 0.3)
         scale = 1
-        if predictions.xy_cov is not None:
+        if predictions.xy_cov is not None and len(predictions.xy_cov) != 0:
             x_cov = max(predictions.xy_cov[i][0,0],0.01)            
             y_cov = max(predictions.xy_cov[i][1,1],0.01)
         else:

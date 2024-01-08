@@ -231,15 +231,15 @@ class SampleGeneartorCOVGP(SampleGenerator):
     def get_additional_samples(self,is_augment, t, scenario_data: RealData or SimData, track: RadiusArclengthTrack, simulator : DynamicsSimulator, sample_num = 10):
         gp_outputs, samples = self.extend_dat(is_augment, t,sample_num, self.time_horizon*3,scenario_data,track,simulator)
         # # if is_augment:
-        original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
-        original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
-        x2 = range(self.time_horizon*3)
-        for i in range(len(samples)):
-            x = range(i,i+len(samples[i][1,:]))
-            plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
-        x = range(self.time_horizon*2)
-        plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
-        plt.plot(x2,original_dat2[1,:],'r')
+        # original_dat = self.get_data(t,self.time_horizon*2, scenario_data, track)
+        # original_dat2 = self.get_data(t,self.time_horizon*3, scenario_data, track)
+        # x2 = range(self.time_horizon*3)
+        # for i in range(len(samples)):
+        #     x = range(i,i+len(samples[i][1,:]))
+        #     plt.plot(x,samples[i][1,:], color='grey', alpha=0.1)
+        # x = range(self.time_horizon*2)
+        # plt.plot(x,original_dat[1,:], color='red', alpha=0.1)
+        # plt.plot(x2,original_dat2[1,:],'r')
         
 
         return gp_outputs, samples
@@ -270,7 +270,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
                 roll_tar_st.v.v_long += np.random.randn(1)*0.01                
             else:
                 tmp_tar_st = scenario_data.tar_states[i+t+1].copy()  
-                roll_tar_st = self.gen_random_next_state(tar_st,simulator, next_tar_state = tmp_tar_st)           
+                # roll_tar_st = self.gen_random_next_state(tar_st,simulator, next_tar_state = tmp_tar_st)           
+                roll_tar_st = self.gen_random_next_state(tar_st,simulator)           
                 
                 if i >= self.time_horizon-1:
                     del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 

@@ -54,7 +54,7 @@ from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVel
 from predictor.controllers.utils.controllerTypes import PIDParams
 from predictor.utils import LaptimeRecorder, shift_in_local_x, pose_to_vehicleState, state_to_debugmsg, odom_to_vehicleState, state_prediction_to_marker, fill_global_info
 from predictor.path_generator import PathGenerator
-from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
+
 from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
 from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from predictor.h2h_configs import *
@@ -72,8 +72,8 @@ pkg_dir = rospack.get_path('predictor')
 class Predictor:
     def __init__(self):       
         
-        self.n_nodes = rospy.get_param('~n_nodes', default=10)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                           
+        self.n_nodes = rospy.get_param('~n_nodes', default=12)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.2)                           
         self.dt = self.t_horizon / self.n_nodes*1.0        
         ## 
         # Generate Racing track info 

@@ -56,7 +56,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
-    covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
+    # covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
     print(" nosimtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -66,7 +66,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = True    
     args_['model_name'] = 'simtsGP'
-    covGPNN_train(train_dirs,val_dirs, real_data = True, args= args_)
+    # covGPNN_train(train_dirs,val_dirs, real_data = True, args= args_)
     print("simtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -89,9 +89,9 @@ def main():
     ####################################################
     # train_policy_names = ['centerline_train',
     #                       'blocking_train']  
-    train_policy_names = ['centerline_train'] # ,'blocking_train']             
+    train_policy_names = ['real_center_train'] # ,'blocking_train']             
     
-    valid_policy_names = ['centerline_eval'] #,'blocking_eval']             
+    valid_policy_names = ['real_center_train'] #,'blocking_eval']             
                  
     main_train(train_policy_names, valid_policy_names)
     ####################################################    
@@ -110,14 +110,15 @@ def main():
     #                     'highblocking_tsne']  
  
     
-    args_['model_name'] ='simtsGP'
-    tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
-    args_['model_name'] ='nosimtsGP'
-    tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
+    # args_['model_name'] ='simtsGP'
+    # tsne_analysis( args = args_, snapshot_name = 'simtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
+    # args_['model_name'] ='nosimtsGP'
+    # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
     
     ####################################################
-    eval_policy_names = ['centerline_test',
-                         'blocking_test']     
+    eval_policy_names = ['real_center_train'] 
+    #,
+    #                   'real_blocking_train']     
     
     gen_eval_data(eval_policy_names)
     ####################################################

@@ -47,12 +47,12 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from hmcl_msgs.srv import mpcc
 import torch 
 import rospkg
-from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehiclePrediction, VehicleActuation
+from predictor.common.pytypes import VehicleState, ParametricPose, BodyLinearVelocity, VehicleActuation
 from predictor.utils import pose_to_vehicleState, odom_to_vehicleState
 from predictor.path_generator import PathGenerator
-from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
-from predictor.controllers.headless_MPCC import MPCC_H2H_approx
-from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
+# from predictor.prediction.thetapolicy_predictor import ThetaPolicyPredictor
+# from predictor.controllers.headless_MPCC import MPCC_H2H_approx
+# from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData

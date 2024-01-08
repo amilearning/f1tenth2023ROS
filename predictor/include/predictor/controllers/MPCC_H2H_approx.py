@@ -60,8 +60,8 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.36  # TODO: change        
-        self.widthcar = 0.5  # Ratio of car length to width
+        self.lencar = 0.17  # TODO: change          # why width ? 
+        self.widthcar = 0.33  # why length?
 
         # MPCC params
         self.control_params = control_params
@@ -172,7 +172,7 @@ class MPCC_H2H_approx(AbstractController):
         self.u_ws = u_ws
 
     def step(self, ego_state: VehicleState, tv_state: VehicleState, tv_pred: VehiclePrediction = None,
-             policy: str = None, logger=None, num_lap=0):
+             policy: str = None, logger=None, num_lap=0, get_obs = False):
 
         # evaluate policy for behavior
         policy = self.policy_map.get(policy)
@@ -277,7 +277,11 @@ class MPCC_H2H_approx(AbstractController):
                 x_vals.append(obs.xc)
             logger(f"X current: {tv_state.x.x}")
             logger(f"X obs: {x_vals[0]}")
-        return info, blocking, exitflag
+        
+        if get_obs:
+            return info, blocking, exitflag, obstacle
+        else:
+            return info, blocking, exitflag
 
     def solve(self, state: VehicleState, s0, x_ref: np.array, xref_scale, obstacle: List[RectangleObstacle], blocking):
         if not self.initialized:
@@ -787,17 +791,27 @@ class MPCC_H2H_approx(AbstractController):
         """
         Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
         """
-        dist = tv_state.p.s - ego_state.p.s              
-        dist = wrap_del_s(tv_state.p.s, ego_state.p.s,self.track)  
-        
-        
+        # dist = tv_state.p.s - ego_state.p.s              
+        tar_s = tv_state.p.s
+        ego_s = ego_state.p.s
+        full_length = self.track_length/2.0
+        half_length = full_length /2.0
+        dist = wrap_del_s(tar_s, ego_s,self.track)  
+            
         # tv_state.p.s < ego_state.p.s 
-        if tv_state is not None and abs(dist) <4.0 and tv_state.p.s < ego_state.p.s :            
+        if tv_state is not None and dist > -3.0 and dist < 0.0:            
             blocking = True
-            xt = tv_state.p.x_tran
+            # print("blocking ~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            
+            if abs(tv_state.p.x_tran) > self.track.half_width/2:
+                xt = tv_state.p.x_tran*0.5
+            else:
+                xt = tv_state.p.x_tran
+
             x_ref = np.sign(xt) * min(self.track.half_width, abs(float(xt)))
         else:
             # non-blocking mode
+            # print("non blocking")
             x_ref = -20
             blocking = False
         return x_ref, blocking
