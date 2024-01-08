@@ -716,11 +716,11 @@ class GPController(ABC):
         for i in range(len(mean.s)):
             tmp_s = [k.s[i] for k in l_pred]
             del_s = np.max(tmp_s) - np.min(tmp_s)            
-            if del_s > 4.0:
+            
+            if del_s > track.track_length / 4:
                 tmp_s = np.where(tmp_s < track.track_length / 4, 
                  tmp_s + track.track_length / 2, 
                  tmp_s)
-           
             
             mean.s[i] = np.average(tmp_s)
             mean.x_tran[i] = np.average([k.x_tran[i] for k in l_pred])
