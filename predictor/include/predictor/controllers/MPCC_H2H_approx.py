@@ -61,7 +61,7 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.2     # TODO: change          # why width ? 
+        self.lencar = 0.23     # TODO: change          # why width ? 
         self.widthcar = 0.33  # why length?
 
         # MPCC params

@@ -94,17 +94,18 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
     # vlong_max_soft= 1.64, #3.3, ## reference speed .. only activate if speed exceeds it     
-    vlong_max_soft= 1.75, #3.3, ## reference speed .. only activate if speed exceeds it     
-    Q_ts=500.0, # track boundary
+    vlong_max_soft= 1.845, #3.3, ## reference speed .. only activate if speed exceeds it     
+    # Q_ts=500.0, # track boundary
+    Q_ts=1000.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
     num_std_deviations= 0.01,
 
-    u_a_max=2.0, #
+    u_a_max=1.5, #
     # vx_max= 1.75, 
     vx_max= 1.85, #3.5,    
-    u_a_min=-2.0,
+    u_a_min=-1.5,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
@@ -166,7 +167,7 @@ mpcc_tv_params = MPCCApproxFullModelParams(
 
 
     # Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    Q_xref=5000.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    Q_xref=500.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
     
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot

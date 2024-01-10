@@ -283,11 +283,12 @@ class Predictor:
             pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
             cmd_accel = self.gp_mpcc_ego_controller.x_pred[1,9]             
             if cmd_accel < 0.0:                
-                vel_cmd = pred_v_lon[6]
+                vel_cmd = pred_v_lon[6]                
             else:            
                 vel_cmd = pred_v_lon[4]             ## 4 working
             # vel_cmd = np.clip(vel_cmd, 0.5, 2.0)
-            
+        if vel_cmd < 0.3:
+            vel_cmd = 0.0
         pp_cmd.drive.speed = vel_cmd        
         pp_cmd.drive.steering_angle = self.cur_ego_state.u.u_steer
         self.ackman_pub.publish(pp_cmd)
