@@ -185,8 +185,7 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     num_std_deviations= 0.1, # 0.01
 
     u_a_max=1.75,
-    vx_max=1.65,    
-    # vx_max=1.7,    
+    vx_max=1.65,        
     u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
