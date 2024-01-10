@@ -20,7 +20,7 @@ class CovGPPredictor(BasePredictor):
             self.args = {                    
                 "batch_size": 150,
                 "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-                "input_dim": 9,
+                "input_dim": 10,
                 "n_time_step": 10, ## how much we see the past history 
                 "latent_dim": 9,
                 "gp_output_dim": 4,            

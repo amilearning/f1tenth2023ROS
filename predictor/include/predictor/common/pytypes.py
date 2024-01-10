@@ -165,16 +165,16 @@ class TrackLookahead(PythonMsg):
     '''
     t: float = field(default=None)  # time in seconds
 
-    l: float = field(default=None)  # length of lookahead in meters
-    dl: float = field(default=None)  # discretization step-size of the lookahead
+    l: float = field(default=3.0)  # length of lookahead in meters
+    dl: float = field(default=1.0)  # discretization step-size of the lookahead
     n: int = field(default=None)  # length of lookahead in array entries
 
     # TODO Add field for segmented lookahead?
     curvature: array.array = field(default=None)  # the curvature lookahead
 
     def __post_init__(self):
-        if self.l is None: self.l = 1.5
-        if self.dl is None: self.dl = 0.5
+        if self.l is None: self.l = 3.0
+        if self.dl is None: self.dl = 1.0     
         self.n = int(round(self.l / self.dl))
         dummyList = self.n * [1.0]
         self.curvature = array.array("d")

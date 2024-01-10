@@ -239,6 +239,7 @@ class Predictor:
             rospy.loginfo("state not ready")
             return 
         
+        
         self.use_predictions_from_module = True
 
         max_lap_reached = self.laprecorder.update_state(self.cur_ego_state.copy())

@@ -29,7 +29,7 @@ class COVGPNN(GPController):
             self.args = {                    
             "batch_size": 512,
             "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-            "input_dim": 9,
+            "input_dim": 10,
             "n_time_step": 10,
             "latent_dim": 4,
             "gp_output_dim": 4,
@@ -183,6 +183,7 @@ class COVGPNN(GPController):
             recon_loss_sum = 0
             latent_dist_loss_sum = 0
             std_loss_sum = 0
+            scale_loss_sum = 0
             cosine_loss_sum = 0
             cov_loss = 0 
             variational_loss_sum = 0 
@@ -206,7 +207,8 @@ class COVGPNN(GPController):
                     latent_x = self.model.get_hidden(train_x_h.cuda())
                     cos_loss = 0 # self.cosine_loss(latent_x, train_y)
                     cov_loss = 0    
-                    std_loss = 0                      
+                    std_loss = 0      
+                    scale_loss = 0                
                     for i in range(self.output_size):
                         latent_dist = self.model.in_covs[i](latent_x, latent_x)                     
                         out_dist = self.model.out_covs[i](train_y[:,i].cuda(), train_y[:,i].cuda())
@@ -214,7 +216,11 @@ class COVGPNN(GPController):
                         latent_dist = latent_dist.evaluate()
                         # abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist)
                         # std_loss += #torch.mean(abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist))
-                        std_loss  += (self.model.out_covs[i].lengthscale+1e-9)/(self.model.in_covs[i].lengthscale + 1e-9)*1e-1                        
+                        std_loss  += torch.log((self.model.out_covs[i].lengthscale)/(self.model.in_covs[i].lengthscale + 1e-12))*1e-1               
+                        # std_loss  += 1/(self.model.in_covs[i].lengthscale + 1e-9)*1e-1             +1/(self.model.out_covs[i].lengthscale + 1e-9)*1e-1   
+                        
+                        scale_loss += torch.log(1/self.model.gp_layer.covar_module.outputscale[i])
+                          
                         
                         cov_loss += mseloss(out_dist, latent_dist)                     
                         
@@ -226,7 +232,7 @@ class COVGPNN(GPController):
                 variational_loss = -mll(output, train_y)                
                 
                 if include_simts_loss:                     
-                    loss = cov_loss + variational_loss + std_loss
+                    loss = cov_loss + variational_loss + std_loss + scale_loss
                 else:
                     loss = variational_loss
 
@@ -243,6 +249,7 @@ class COVGPNN(GPController):
                 if include_simts_loss: 
                     latent_dist_loss_sum +=cov_loss.item()
                     std_loss_sum += std_loss.item()
+                    scale_loss_sum += scale_loss.item()
                     cosine_loss_sum += 0 # cos_loss.item()
                     
                     self.writer.add_scalar(gp_name+'/stat/latent_max', torch.max(latent_x), epoch*len(train_dataloader) + step)
@@ -250,6 +257,11 @@ class COVGPNN(GPController):
                     self.writer.add_scalar(gp_name+'/stat/latent_std', torch.std(latent_x), epoch*len(train_dataloader) + step)
 
             for i in range(self.output_size):                        
+                
+                outputscale_tar = self.model.gp_layer.covar_module.outputscale[i].item()
+                outputscale_tag = gp_name+f'/outputscale_{i}'
+                self.writer.add_scalar(outputscale_tag, outputscale_tar, epoch )    
+
                 in_lengthscale = self.model.in_covs[i].lengthscale.item()
                 lin_tag = gp_name+f'/lengthscale/in_{i}'
                 self.writer.add_scalar(lin_tag, in_lengthscale, epoch )    
@@ -270,6 +282,8 @@ class COVGPNN(GPController):
             self.writer.add_scalar(varloss_tag, variational_loss_sum/ len(train_dataloader), epoch)
             std_loss_tag = gp_name +'/Loss/std_loss'
             self.writer.add_scalar(std_loss_tag, std_loss_sum / len(train_dataloader), epoch )
+            scale_loss_sum_tag = gp_name +'/Loss/scale_loss'
+            self.writer.add_scalar(scale_loss_sum_tag, scale_loss_sum / len(train_dataloader), epoch )
             
             latent_dist_loss_tag = gp_name+'/Loss/latent_dist_loss'
             self.writer.add_scalar(latent_dist_loss_tag, latent_dist_loss_sum/ len(train_dataloader) , epoch)
@@ -309,6 +323,7 @@ class COVGPNN(GPController):
                         if epoch > nn_only_epoch:                   
                             if no_progress_epoch > 30:
                                 done = True   
+                                # done = False ## TODO: Delete
                     else:
                         done = True 
             else:
@@ -504,6 +519,17 @@ class COVGPNNTrained(GPController):
                 test_x = torch.randn(self.M,self.input_dim).cuda()
             else:
                 test_x = torch.randn(self.M,self.input_dim,self.n_time_step).cuda()
+            # CHeck the outputscale  and lengthscale
+            # tmp_lengthscale = self.model.gp_layer.covar_module.base_kernel.lengthscale
+        
+            # tmp_out = self.model.gp_layer.covar_module.outputscale
+            # xtran_scale = tmp_out[1]*2.0           
+            # self.model.gp_layer.covar_module.raw_outputscale[1].data.fill_(self.model.gp_layer.covar_module.raw_outputscale_constraint.inverse_transform(xtran_scale))
+            # xtran_scale = tmp_out[1]*1.5           
+            # self.model.gp_layer.covar_module.raw_outputscale[1].data.fill_(self.model.gp_layer.covar_module.raw_outputscale_constraint.inverse_transform(xtran_scale))
+            # xtran_scale2 = tmp_out[0]*1            
+            # self.model.gp_layer.covar_module.raw_outputscale[0].data.fill_(self.model.gp_layer.covar_module.raw_outputscale_constraint.inverse_transform(xtran_scale2))
+            
             pred = self.model(test_x)  # Do precomputation
         with torch.no_grad(), gpytorch.settings.fast_pred_var(), gpytorch.settings.trace_mode():
             self.trace_model = torch.jit.trace(COVGPNNModelWrapper(self.model), test_x)
@@ -561,9 +587,10 @@ class COVGPNNTrained(GPController):
         input_tmp[:,3] = tar_state[:,3]
         input_tmp[:,4] = tar_curv[:,0]
         input_tmp[:,5] = tar_curv[:,1]
-        input_tmp[:,6] = ego_state[:,1]
-        input_tmp[:,7] = ego_state[:,2] 
-        input_tmp[:,8] = ego_state[:,3]                                           
+        input_tmp[:,6] = tar_curv[:,2]
+        input_tmp[:,7] = ego_state[:,1]
+        input_tmp[:,8] = ego_state[:,2] 
+        input_tmp[:,9] = ego_state[:,3]                                           
         roll_input[:,:,-1] = input_tmp
         return roll_input.clone()
 
@@ -588,7 +615,7 @@ class COVGPNNTrained(GPController):
         roll_input = encoder_input.repeat(M,1,1).to('cuda') 
         roll_tar_state = torch.tensor([target_state.p.s, target_state.p.x_tran, target_state.p.e_psi, target_state.v.v_long]).to('cuda')        
         roll_tar_state = roll_tar_state.repeat(M,1)
-        roll_tar_curv = torch.tensor([target_state.lookahead.curvature[0], target_state.lookahead.curvature[2]]).to('cuda')        
+        roll_tar_curv = torch.tensor([target_state.lookahead.curvature[0], target_state.lookahead.curvature[1], target_state.lookahead.curvature[2]]).to('cuda')        
         roll_tar_curv = roll_tar_curv.repeat(M,1)
         roll_ego_state = torch.tensor([ego_state.p.s, ego_state.p.x_tran, ego_state.p.e_psi, ego_state.v.v_long]).to('cuda')
         roll_ego_state = roll_ego_state.repeat(M,1)
@@ -622,7 +649,8 @@ class COVGPNNTrained(GPController):
             roll_tar_state[:,2] += pred_delta[:,2]
             roll_tar_state[:,3] += pred_delta[:,3]
             roll_tar_curv[:,0] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach(),track)
-            roll_tar_curv[:,1] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach()+target_state.lookahead.dl*2,track)                        
+            roll_tar_curv[:,1] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach()+target_state.lookahead.dl*1,track)                        
+            roll_tar_curv[:,2] = get_curvature_from_keypts_torch(pred_delta[:,0].clone().detach()+target_state.lookahead.dl*2,track)                        
             roll_ego_state[:,0] = ego_prediction.s[i+1]
             roll_ego_state[:,0] = torch_wrap_s(roll_ego_state[:,0], track.track_length/2.0)
             roll_ego_state[:,1] = ego_prediction.x_tran[i+1]

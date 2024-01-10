@@ -583,8 +583,7 @@ def prediction_to_marker(predictions):
         marker_ref.pose.position.x = predictions.x[i]
         marker_ref.pose.position.y = predictions.y[i]
         marker_ref.pose.position.z = 0.0        
-        marker_ref.color.r, marker_ref.color.g, marker_ref.color.b = (1.0, i/10.0, 0.0)
-        marker_ref.color.a = 0.2     
+
         marker_ref.lifetime = rospy.Duration(0.2)
         # marker_ref.scale.x, marker_ref.scale.y, marker_ref.scale.z = (0.6, 0.4, 0.3)
         scale = 1
@@ -597,6 +596,20 @@ def prediction_to_marker(predictions):
         marker_ref.scale.x = 2*np.sqrt(x_cov)*scale
         marker_ref.scale.y = 2*np.sqrt(y_cov)*scale
         marker_ref.scale.z = 0.1
+        # high uncertainty will get red 
+        uncertainty_level = y_cov + x_cov
+        # print(uncertainty_level)
+        # uncertainty_level = max(uncertainty_level,0.2)
+        old_range_min, old_range_max = 0.0, 0.1+0.03*i
+        new_range_min, new_range_max = 0, 1
+        new_uncertainty = (uncertainty_level - old_range_min) * (new_range_max - new_range_min) / (old_range_max - old_range_min)
+        new_uncertainty = max(min(new_uncertainty, new_range_max), new_range_min)  # Clamping to the new range
+
+        
+
+        
+        marker_ref.color.r, marker_ref.color.g, marker_ref.color.b = (new_uncertainty, 1-new_uncertainty, 0.0)
+        marker_ref.color.a = 0.2     
         pred_path_marker_array.markers.append(marker_ref)
         
     return pred_path_marker_array

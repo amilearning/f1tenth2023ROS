@@ -67,8 +67,8 @@ class MultiPredPostEval:
     def __init__(self, dirs, args = None):
         self.dirs = dirs
         self.visualize = True
-        self.n_nodes = rospy.get_param('~n_nodes', default=10)
-        self.t_horizon = rospy.get_param('~t_horizon', default=1.0)                   
+        self.n_nodes = rospy.get_param('~n_nodes', default=12)
+        self.t_horizon = rospy.get_param('~t_horizon', default=1.2)                   
         self.torch_device = "cuda:0"   ## Specify the name of GPU 
         # self.torch_dtype  = torch.double
         self.dt = self.t_horizon / self.n_nodes*1.0        

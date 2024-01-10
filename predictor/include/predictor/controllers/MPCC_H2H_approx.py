@@ -23,6 +23,7 @@ from predictor.common.utils.file_utils import *
 from dataclasses import fields
 from predictor.common.utils.scenario_utils import wrap_del_s
 
+
 class MPCC_H2H_approx(AbstractController):
     """
     Using MPCC Lag and contouring approximation!
@@ -60,7 +61,7 @@ class MPCC_H2H_approx(AbstractController):
         self.lf = self.dynamics.model_config.wheel_dist_front
         self.lr = self.dynamics.model_config.wheel_dist_rear
 
-        self.lencar = 0.17  # TODO: change          # why width ? 
+        self.lencar = 0.2     # TODO: change          # why width ? 
         self.widthcar = 0.33  # why length?
 
         # MPCC params
@@ -118,7 +119,7 @@ class MPCC_H2H_approx(AbstractController):
 
         self.num_std_deviations = control_params.num_std_deviations
         self.policy_map = {None: self.no_blocking_policy, "aggressive_blocking": self.aggressive_blocking_policy, "mild_5000": self.aggressive_blocking_policy,
-                           "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy, "timid": self.no_blocking_policy, "reverse" : self.reverse_blocking_policy}
+                           "only_left": self.only_left_blocking_policy, "only_right": self.only_right_blocking_policy, "timid": self.no_blocking_policy, "reverse" : self.reverse_blocking_policy, "hj_policy" : self.hj_policy}
 
         self.optlevel = control_params.optlevel
 
@@ -184,6 +185,9 @@ class MPCC_H2H_approx(AbstractController):
             tv_state.p.s -= self.track_length
         x_ref_blocking, blocking = policy(ego_state, tv_state)        
         x_ref = np.tile(x_ref_blocking, (self.N,))        
+        # if ego_state.p.s > 12.0 or ego_state.p.s < 1.0:
+        #     xref_scale = 0 # max(ego_state.p.s - tv_state.p.s, 0) if tv_state is not None else 0
+        # else:
         xref_scale = max(ego_state.p.s - tv_state.p.s, 0) if tv_state is not None else 0
         
       
@@ -786,6 +790,51 @@ class MPCC_H2H_approx(AbstractController):
         pickle_write([self.control_params, self.track_name], os.path.join(self.install_dir, 'params.pkl'))
         self.solver = forcespro.nlp.Solver.from_directory(self.install_dir)
 
+    def hj_policy(self, ego_state: VehicleState, tv_state: VehicleState,
+                                   tv_prediction: VehiclePrediction = None):
+        """
+        Aggressive Blocking Policy. Will try to match x_tran of tv_state at all costs.
+        """
+        # dist = tv_state.p.s - ego_state.p.s              
+        tar_s = tv_state.p.s
+        ego_s = ego_state.p.s
+        full_length = self.track_length/2.0
+        half_length = full_length /4.0
+        dist = wrap_del_s(tar_s, ego_s,self.track)
+     
+        
+        # if ego_s > 10.0 or ego_s < 1.5:      
+        
+        # elif ego_s > 13.0:
+        #     blocking = True
+        #     # if tv_state is not None and dist > -3.0 and dist < 0.5:  
+        #     #     xt = tv_state.p.x_tran
+        #     #     x_ref = np.sign(xt) * min(self.track.half_width*1.5, abs(float(xt)))
+        #     # else:     
+        #     x_ref = self.track.half_width*0.6             
+                    
+        if tv_state is not None and dist > -3.0 and dist < 1.0:  
+            blocking = True
+            xt = tv_state.p.x_tran*1.0                
+            x_ref = np.sign(xt) * min(self.track.half_width*1.0, abs(float(xt)))
+            
+        else:
+            
+            x_ref = -20
+            blocking = False
+        # else:                     
+                
+        #         x_ref = -20
+        #         blocking = False
+        
+        # if ego_s > 13:
+        #     blocking = True
+        #     xt = tv_state.p.x_tran*1.5                
+        #     x_ref = np.sign(xt) * min(self.track.half_width*0.8, abs(float(xt)))
+        
+        return x_ref, blocking
+    
+
     def aggressive_blocking_policy(self, ego_state: VehicleState, tv_state: VehicleState,
                                    tv_prediction: VehiclePrediction = None):
         """
@@ -799,16 +848,16 @@ class MPCC_H2H_approx(AbstractController):
         dist = wrap_del_s(tar_s, ego_s,self.track)  
             
         # tv_state.p.s < ego_state.p.s 
-        if tv_state is not None and dist > -3.0 and dist < 0.0:            
+        if tv_state is not None and dist > -3.0 and dist < 0.5:            
             blocking = True
             # print("blocking ~~~~~~~~~~~~~~~~~~~~~~~~~~")
             
-            if abs(tv_state.p.x_tran) > self.track.half_width/2:
-                xt = tv_state.p.x_tran*0.5
+            if abs(tv_state.p.x_tran) < self.track.half_width/2:
+                xt = tv_state.p.x_tran*1.5
             else:
                 xt = tv_state.p.x_tran
 
-            x_ref = np.sign(xt) * min(self.track.half_width, abs(float(xt)))
+            x_ref = np.sign(xt) * min(self.track.half_width*1.5, abs(float(xt)))
         else:
             # non-blocking mode
             # print("non blocking")

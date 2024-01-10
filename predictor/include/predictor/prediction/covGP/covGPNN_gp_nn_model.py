@@ -300,7 +300,7 @@ class CNNModel(nn.Module):
         self.input_dim = args['input_dim']        
         self.output_dim = args['latent_dim'] 
         self.n_time_step = args['n_time_step']        
-        kernel_list=[2,3,4,5,6,7,8,9]        
+        kernel_list=[3,5,7,9]        
         self.net = CausalCNNEncoder(in_channels = self.input_dim, 
                                 reduced_size=50, 
                                 component_dims = self.output_dim, 
@@ -384,7 +384,7 @@ class COVGPNNModel(gpytorch.Module):
         # self.encdecnn = ENCDECModel(args)
                               
         # self.encdecnn = CNNModel(args)                        
-        kernel_list=[2,3,4,5,6,7,8,9]        
+        kernel_list=[3,5,7,9]        
         self.encdecnn = CausalCNNEncoder(in_channels = self.nn_input_dim, 
                                 reduced_size=50, 
                                 component_dims = args['latent_dim'] , 

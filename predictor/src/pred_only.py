@@ -191,9 +191,9 @@ class Predictor:
                 
         args = {   "batch_size": 1024,
                     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-                    "input_dim": 9,
+                    "input_dim": 10,
                     "n_time_step": 10,
-                    "latent_dim": 11,
+                    "latent_dim": 6,
                     "gp_output_dim": 4,
                     "inducing_points" : 200,
                     "train_nn" : False,
@@ -206,8 +206,8 @@ class Predictor:
                     'eval' : False,
                     'load_eval_data' : False
                     }        
-        self.gp_predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(1.0), input_predict_model = "naiveGP", args= args.copy())                            
-        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(1.0), input_predict_model = "simtsGP", args= args.copy())                    
+        self.gp_predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
+        self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
         
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 

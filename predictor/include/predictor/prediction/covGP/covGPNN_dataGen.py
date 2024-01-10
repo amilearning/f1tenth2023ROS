@@ -27,6 +27,7 @@ def states_to_encoder_input_torch(tar_st,ego_st, track:RadiusArclengthTrack):
                         tar_st.p.e_psi,
                         tar_st.v.v_long,
                         tar_st.lookahead.curvature[0],
+                        tar_st.lookahead.curvature[1],
                         tar_st.lookahead.curvature[2],
                         ego_st.p.x_tran,
                         ego_st.p.e_psi, 
@@ -73,6 +74,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.means_y = None
         self.stds_y = None
         invalid_data_count = 0
+        self.load_normalization_constant = load_normalization_constant
         # pre_load_data_name = "preload_data"
         # if not dest_path.exists()      
         
@@ -218,7 +220,17 @@ class SampleGeneartorCOVGP(SampleGenerator):
                     
                         dbfile.close()
             
-            
+            # if self.load_normalization_constant is False:
+            #     reverse_samples = []
+            #     reverse_gp_output = []
+            #     for idx, sample in enumerate(self.samples):
+            #         reverse_samples.append(-1*self.samples[idx])
+            #         reverse_gp_output.append(-1*self.output_data[idx])
+            #     self.output_data.extend(reverse_gp_output.copy())
+            #     self.samples.extend(reverse_samples.copy())
+
+
+
             if self.args['model_name'] == 'naiveGP':                
                 new_samples = []
                 for i in range(len(self.samples)):

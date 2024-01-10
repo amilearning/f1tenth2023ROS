@@ -1,6 +1,6 @@
-from barcgp.common.pytypes import *
-from barcgp.controllers.utils.controllerTypes import *
-from barcgp.dynamics.models.model_types import DynamicBicycleConfig
+from predictor.common.pytypes import *
+from predictor.controllers.utils.controllerTypes import *
+from predictor.dynamics.models.model_types import DynamicBicycleConfig
 
 from enum import Enum
 import math
@@ -93,8 +93,8 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     l_cs=5, # obstacle_slack
     Q_cs=2.0, # # obstacle_slack_e
     Q_vmax=200.0,
-    vlong_max_soft= 1.64, #3.3, ## reference speed .. only activate if speed exceeds it     
-    # vlong_max_soft= 2.15, #3.3, ## reference speed .. only activate if speed exceeds it     
+    # vlong_max_soft= 1.64, #3.3, ## reference speed .. only activate if speed exceeds it     
+    vlong_max_soft= 1.75, #3.3, ## reference speed .. only activate if speed exceeds it     
     Q_ts=500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
@@ -102,8 +102,8 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     num_std_deviations= 0.01,
 
     u_a_max=2.0, #
-    vx_max= 1.75, #3.5,    
-    # vx_max= 2.2, #3.5,    
+    # vx_max= 1.75, 
+    vx_max= 1.85, #3.5,    
     u_a_min=-2.0,
     u_steer_max=0.435,
     u_steer_min=-0.435,
@@ -166,7 +166,7 @@ mpcc_tv_params = MPCCApproxFullModelParams(
 
 
     # Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    Q_xref=500.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    Q_xref=5000.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
     
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot

@@ -11,11 +11,11 @@ from predictor.prediction.covGP.EvalMultiPrior import *
 args_ = {                    
     "batch_size": 1024,
     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-    "input_dim": 9,
+    "input_dim": 10,
     "n_time_step": 10,
-    "latent_dim": 11,
+    "latent_dim": 8,
     "gp_output_dim": 4,
-    "inducing_points" : 200,
+    "inducing_points" : 100,
     "train_nn" : False,
     "include_simts_loss" : True,
     "direct_gp" : False,
@@ -56,7 +56,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
-    covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
+    # covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
     print(" nosimtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -89,9 +89,9 @@ def main():
     ####################################################
     # train_policy_names = ['centerline_train',
     #                       'blocking_train']  
-    train_policy_names = ['real_center_train'] # ,'blocking_train']             
+    train_policy_names = ['dl_1_real_center_train'] # ,'blocking_train']             
     
-    valid_policy_names = ['real_center_eval'] #,'blocking_eval']             
+    valid_policy_names = ['dl_1_real_center_eval'] #,'blocking_eval']             
                  
     main_train(train_policy_names, valid_policy_names)
     ####################################################    
