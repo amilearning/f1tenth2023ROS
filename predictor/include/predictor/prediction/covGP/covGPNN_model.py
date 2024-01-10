@@ -216,10 +216,10 @@ class COVGPNN(GPController):
                         latent_dist = latent_dist.evaluate()
                         # abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist)
                         # std_loss += #torch.mean(abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist))
-                        std_loss  += torch.log((self.model.out_covs[i].lengthscale)/(self.model.in_covs[i].lengthscale + 1e-12))*1e-1               
+                        std_loss  += torch.log((self.model.out_covs[i].lengthscale)/(self.model.in_covs[i].lengthscale + 1e-12))*5e-2               
                         # std_loss  += 1/(self.model.in_covs[i].lengthscale + 1e-9)*1e-1             +1/(self.model.out_covs[i].lengthscale + 1e-9)*1e-1   
                         
-                        scale_loss += torch.log(1/self.model.gp_layer.covar_module.outputscale[i])
+                        scale_loss += torch.log(1/self.model.gp_layer.covar_module.outputscale[i])*1e-2
                           
                         
                         cov_loss += mseloss(out_dist, latent_dist)                     
@@ -232,7 +232,7 @@ class COVGPNN(GPController):
                 variational_loss = -mll(output, train_y)                
                 
                 if include_simts_loss:                     
-                    loss = cov_loss + variational_loss + std_loss + scale_loss
+                    loss = cov_loss + variational_loss + std_loss  + scale_loss
                 else:
                     loss = variational_loss
 
@@ -321,7 +321,7 @@ class COVGPNN(GPController):
                 if no_progress_epoch >= 15:
                     if include_simts_loss:     
                         if epoch > nn_only_epoch:                   
-                            if no_progress_epoch > 30:
+                            if no_progress_epoch > 100:
                                 done = True   
                                 # done = False ## TODO: Delete
                     else:
@@ -525,7 +525,7 @@ class COVGPNNTrained(GPController):
             # tmp_out = self.model.gp_layer.covar_module.outputscale
             # xtran_scale = tmp_out[1]*2.0           
             # self.model.gp_layer.covar_module.raw_outputscale[1].data.fill_(self.model.gp_layer.covar_module.raw_outputscale_constraint.inverse_transform(xtran_scale))
-            
+             
             # xtran_scale1 = tmp_out[0]*2.0           
             # self.model.gp_layer.covar_module.raw_outputscale[0].data.fill_(self.model.gp_layer.covar_module.raw_outputscale_constraint.inverse_transform(xtran_scale1))
             # xtran_scale = tmp_out[1]*1.5           

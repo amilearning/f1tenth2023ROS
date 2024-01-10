@@ -207,6 +207,7 @@ class Predictor:
                     'load_eval_data' : False
                     }        
         self.gp_predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
+        self.nosim_predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= args.copy())                            
         self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
         
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
@@ -418,9 +419,9 @@ class Predictor:
                 elif self.predictor_type == 3:
                     self.tv_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
                 elif self.predictor_type ==0:                    
-                    self.tv_pred = self.gt_tar_pred
-                    self.tv_pred.xy_cov = np.repeat(np.diag([0.01, 0.01])[np.newaxis, :, :], len(self.tv_pred.s), axis=0)
-                    # pred.xy_cov = np.repeat(np.diag([self.cov, self.cov])[np.newaxis, :, :], self.N, axis=0) 
+                    # self.tv_pred = self.gt_tar_pred
+                    # self.tv_pred.xy_cov = np.repeat(np.diag([0.01, 0.01])[np.newaxis, :, :], len(self.tv_pred.s), axis=0)                    
+                    self.tv_pred = self.nosim_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
                 else: 
                     print("select predictor")
                 
