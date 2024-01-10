@@ -842,7 +842,7 @@ class LaptimeRecorder():
         self.n_lap = 0
         self.init_s = 0
         self.track_length = track.track_length
-        self.num_max_lap = np.inf  # 5 for experiment
+        self.num_max_lap = 5 # np.inf for experiment
         print("track length is set as = " + str(self.track_length))        
         self.laptimes = []
         self.cumulative_laptime = 0.0

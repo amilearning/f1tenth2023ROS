@@ -104,7 +104,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
 
     u_a_max=1.5, #
     # vx_max= 1.75, 
-    vx_max= 1.85, #3.5,    
+    vx_max= 1.85, #
     u_a_min=-1.5,
     u_steer_max=0.435,
     u_steer_min=-0.435,
