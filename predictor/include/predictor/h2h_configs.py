@@ -96,7 +96,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     # vlong_max_soft= 1.64, #3.3, ## reference speed .. only activate if speed exceeds it     
     vlong_max_soft= 1.845, #3.3, ## reference speed .. only activate if speed exceeds it     
     # Q_ts=500.0, # track boundary
-    Q_ts=1000.0, # track boundary
+    Q_ts=1500.0, # track boundary
     Q_cs_e=8.0, # obstacle slack
     l_cs_e=35.0,  # obstacle slack
 
