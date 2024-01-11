@@ -13,6 +13,7 @@ args_ = {
     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
     "input_dim": 10,
     "n_time_step": 10,
+    "pred_horizon" : 12,
     "latent_dim": 8,
     "gp_output_dim": 4,
     "inducing_points" : 100,
@@ -93,7 +94,7 @@ def main():
     
     valid_policy_names = ['dl_1_blocking_eval', 'dl_1_real_center_eval'] #,'blocking_eval']             
                  
-    main_train(train_policy_names, valid_policy_names)
+    # main_train(train_policy_names, valid_policy_names)
     ####################################################    
     ############ TSNE ##################################
     args_['add_noise_data'] = False
@@ -116,7 +117,7 @@ def main():
     # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
     
     ####################################################
-    eval_policy_names = ['real_center_train'] 
+    eval_policy_names = ['dl_1_blocking_eval','dl_1_real_center_eval' ] 
     #,
     #                   'real_blocking_train']     
     

@@ -59,6 +59,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.args = args
         self.input_dim = args["input_dim"]        
         self.time_horizon = args["n_time_step"]
+        self.pred_horizon = args["pred_horizon"]
         self.add_noise_data = args["add_noise_data"]
         self.add_aug_data = args["add_aug_data"]
 
@@ -508,7 +509,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 continue
                             
                           
-                            for pred_j in range(t+self.time_horizon-1,t+self.time_horizon+self.time_horizon-1):
+                            for pred_j in range(t+self.time_horizon-1,t+self.time_horizon+self.pred_horizon-1):
                                 
                                 tar_pred.t = ego_state.t
                                 tar_pred.s.append(scenario_data.tar_states[pred_j].p.s)

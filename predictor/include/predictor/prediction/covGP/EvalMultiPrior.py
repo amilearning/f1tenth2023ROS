@@ -155,7 +155,7 @@ class MultiPredPostEval:
         
         self.plot_errors()
         cov_range_ = [0.0, self.error_df['COV'].max()]
-        self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'blocking_eval')
+        self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'dl_1_real_center_eval')
         # self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'reverse_eval')
         self.trajectory_cov_plot(cov_range = cov_range_,drivingpolicy = 'centerline_eval')
         
