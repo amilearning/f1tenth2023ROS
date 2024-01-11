@@ -600,7 +600,7 @@ def prediction_to_marker(predictions):
         uncertainty_level = y_cov + x_cov
         # print(uncertainty_level)
         # uncertainty_level = max(uncertainty_level,0.2)
-        old_range_min, old_range_max = 0.0, 0.1+0.03*i
+        old_range_min, old_range_max = 0.0, 0.1+0.02*i
         new_range_min, new_range_max = 0, 1
         new_uncertainty = (uncertainty_level - old_range_min) * (new_range_max - new_range_min) / (old_range_max - old_range_min)
         new_uncertainty = max(min(new_uncertainty, new_range_max), new_range_min)  # Clamping to the new range

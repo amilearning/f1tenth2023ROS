@@ -523,7 +523,7 @@ class COVGPNNTrained(GPController):
             # tmp_lengthscale = self.model.gp_layer.covar_module.base_kernel.lengthscale
         
             # tmp_out = self.model.gp_layer.covar_module.outputscale
-            # xtran_scale = tmp_out[1]*2.0           
+            # xtran_scale = tmp_out[1]*4.0           
             # self.model.gp_layer.covar_module.raw_outputscale[1].data.fill_(self.model.gp_layer.covar_module.raw_outputscale_constraint.inverse_transform(xtran_scale))
              
             # xtran_scale1 = tmp_out[0]*2.0           

@@ -105,7 +105,7 @@ class Predictor:
         self.ego_odom_ready = False
         self.tar_odom_ready = False
 
-        self.target_policy_name = "hj_policy"  # aggressive_blocking , reverse, timid
+        self.target_policy_name = "timid"  # aggressive_blocking , reverse, timid, hj_policy
         
         # Service client 
         # self.mpcc_srv = rospy.ServiceProxy('compute_mpcc',mpcc)
