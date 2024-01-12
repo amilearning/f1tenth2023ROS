@@ -97,8 +97,19 @@ class RealData():
     N: int
     ego_states: List[VehicleState]
     tar_states: List[VehicleState]
-    tar_pred: List[VehiclePrediction] = field(default=List[VehiclePrediction])
+    tar_pred: List[VehiclePrediction] = field(default=List[VehiclePrediction])    
     
+@dataclass
+class RealData2():
+    track: RadiusArclengthTrack
+    N: int
+    ego_states: List[VehicleState]
+    tar_states: List[VehicleState]
+    ego_pred: List[VehiclePrediction] = field(default=List[VehiclePrediction])    
+    tar_pred: List[VehiclePrediction] = field(default=List[VehiclePrediction])    
+    
+
+
 
 @dataclass
 class SimData():

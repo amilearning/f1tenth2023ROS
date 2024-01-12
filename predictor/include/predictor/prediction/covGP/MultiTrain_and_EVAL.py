@@ -117,7 +117,7 @@ def main():
     # tsne_analysis(args = args_, snapshot_name = 'nosimtsGP', eval_policy_names = tsne_policy_names, perplexity = 40, load_data=False)
     
     ####################################################
-    eval_policy_names = ['dl_1_blocking_eval','dl_1_real_center_eval' ] 
+    eval_policy_names = ['real_exp'] #,'dl_1_blocking_eval','dl_1_real_center_eval' ] 
     #,
     #                   'real_blocking_train']     
     

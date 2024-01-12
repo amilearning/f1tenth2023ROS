@@ -328,47 +328,47 @@ class MultiPredPostEval:
 ##########################################################################
 ###################### HISTOGRAM OF LAT AND LONG ERROR ###################
 ##########################################################################       
-        n_bins = 50
-        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
-        for idx, policy in enumerate(drivign_policies):
-            subsets = error_df[error_df['DrivingPolicy'] == policy]            
-            for ptype in predictor_types:     
-                subset = subsets[subsets['PredictorType'] == ptype]
-                # Plot a histogram for the subset
-                axes[idx].hist(subset['Lat_Error'], bins=n_bins, alpha=0.4, label=ptype)
+#         n_bins = 50
+#         fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+#         for idx, policy in enumerate(drivign_policies):
+#             subsets = error_df[error_df['DrivingPolicy'] == policy]            
+#             for ptype in predictor_types:     
+#                 subset = subsets[subsets['PredictorType'] == ptype]
+#                 # Plot a histogram for the subset
+#                 axes[idx].hist(subset['Lat_Error'], bins=n_bins, alpha=0.4, label=ptype)
 
-            axes[idx].axvline(0, color='gray', linestyle='--')
-            max_error = np.max(np.abs(subsets['Lat_Error']))
-            axes[idx].set_xlim(-max_error, max_error)            
-            axes[idx].set_title(f'Lateral Error by {policy}')
-            axes[idx].set_xlabel('Lateral Error')
-            axes[idx].set_ylabel('Frequency')
+#             axes[idx].axvline(0, color='gray', linestyle='--')
+#             max_error = np.max(np.abs(subsets['Lat_Error']))
+#             axes[idx].set_xlim(-max_error, max_error)            
+#             axes[idx].set_title(f'Lateral Error by {policy}')
+#             axes[idx].set_xlabel('Lateral Error')
+#             axes[idx].set_ylabel('Frequency')
 
-        plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
-        plt.tight_layout()
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(fig_dir, f"lat_hist_{policy}_{current_time}.png")
-        plt.savefig(file_path) 
-##########################################################################        
-        fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
-        for idx, policy in enumerate(drivign_policies):
-            subsets = error_df[error_df['DrivingPolicy'] == policy]            
-            for ptype in predictor_types:     
-                subset = subsets[subsets['PredictorType'] == ptype]                
-                axes[idx].hist(subset['Lon_Error'], bins=n_bins, alpha=0.4, label=ptype)
+#         plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
+#         plt.tight_layout()
+#         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         file_path = os.path.join(fig_dir, f"lat_hist_{policy}_{current_time}.png")
+#         plt.savefig(file_path) 
+# ##########################################################################        
+#         fig, axes = plt.subplots(1, len(drivign_policies), figsize=(20, 6), sharey=True)  # Adjust the figure size as needed
+#         for idx, policy in enumerate(drivign_policies):
+#             subsets = error_df[error_df['DrivingPolicy'] == policy]            
+#             for ptype in predictor_types:     
+#                 subset = subsets[subsets['PredictorType'] == ptype]                
+#                 axes[idx].hist(subset['Lon_Error'], bins=n_bins, alpha=0.4, label=ptype)
             
-            axes[idx].axvline(0, color='gray', linestyle='--')
-            max_error = np.max(np.abs(subsets['Lon_Error']))
-            axes[idx].set_xlim(-max_error, max_error)            
-            axes[idx].set_title(f'Longitudinal Error by {policy}')
-            axes[idx].set_xlabel('Longitudinal Error')
-            axes[idx].set_ylabel('Frequency')
+#             axes[idx].axvline(0, color='gray', linestyle='--')
+#             max_error = np.max(np.abs(subsets['Lon_Error']))
+#             axes[idx].set_xlim(-max_error, max_error)            
+#             axes[idx].set_title(f'Longitudinal Error by {policy}')
+#             axes[idx].set_xlabel('Longitudinal Error')
+#             axes[idx].set_ylabel('Frequency')
 
-        plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
-        plt.tight_layout()
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(fig_dir, f"lon_hist_{policy}_{current_time}.png")
-        plt.savefig(file_path)        
+#         plt.legend(bbox_to_anchor=(0.01, 0.95),title='Predictor Type', loc='upper left', borderaxespad=0)
+#         plt.tight_layout()
+#         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         file_path = os.path.join(fig_dir, f"lon_hist_{policy}_{current_time}.png")
+#         plt.savefig(file_path)        
 ##########################################################################
 ##########################################################################
         

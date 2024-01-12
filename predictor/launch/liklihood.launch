@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node pkg="predictor" type="liklihood_com_node.py" name="predictor_node" output="screen">        
+    </node>
+    
+   
+    
+</launch>
