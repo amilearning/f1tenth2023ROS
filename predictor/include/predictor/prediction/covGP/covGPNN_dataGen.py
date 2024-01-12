@@ -59,6 +59,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.args = args
         self.input_dim = args["input_dim"]        
         self.time_horizon = args["n_time_step"]
+        self.pred_horizon = args["pred_time_step"]
         self.add_noise_data = args["add_noise_data"]
         self.add_aug_data = args["add_aug_data"]
 
@@ -74,9 +75,19 @@ class SampleGeneartorCOVGP(SampleGenerator):
         self.means_y = None
         self.stds_y = None
         invalid_data_count = 0
-        # pre_load_data_name = "preload_data"
+        if self.args['model_name'] is None:
+            self.args['model_name'] = 'none'
+        if self.args["add_noise_data"]:
+            pre_load_data_name = self.args['model_name'] + '_preload_data'
+        else:
+            pre_load_data_name = self.args['model_name'] + '_preload_data_noisefree'
+        # if self.args['model_name'] =='naiveGP':
+        #     pre_load_data_name = "naive_gp_preload_data"
+        # else:
+        #     pre_load_data_name = "preload_data"
         # if not dest_path.exists()      
-        
+        pre_load_data_name = "preload_data"
+
         if args['eval'] is False:  
             if pre_load_data_name is not None:       
                 pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')              
@@ -85,19 +96,19 @@ class SampleGeneartorCOVGP(SampleGenerator):
             else:            
                 pre_data_dir = os.path.join(os.path.dirname(abs_path[0]),'preload')      
                 create_dir(pre_data_dir)        
-                pre_data_dir =os.path.join(pre_data_dir,"preload_data.pkl")        
+                pre_data_dir =os.path.join(pre_data_dir,pre_load_data_name+".pkl")        
                 
                 self.gen_samples_with_buffer(real_data = real_data, tsne = tsne, pre_data_dir = pre_data_dir)
 
             if len(self.samples) < 1 or self.samples is None:
                 return 
-        # self.plotStatistics()
+        
             if randomize:
                 self.samples, self.output_data = self.shuffle_in_out_data(self.samples, self.output_data)
             if args['model_name'] is not None:
                 self.input_output_normalizing(name = args['model_name'], load_constants=load_normalization_constant)
             print('Generated Dataset with', len(self.samples), 'samples!')
-       
+        # self.plotStatistics()   
         # if randomize:
         #     random.shuffle(self.samples)
     
@@ -269,7 +280,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                 roll_tar_st.v.v_long += np.random.randn(1)*0.01                
             else:
                 tmp_tar_st = scenario_data.tar_states[i+t+1].copy()  
-                roll_tar_st = self.gen_random_next_state(tar_st,simulator, next_tar_state = tmp_tar_st)           
+                roll_tar_st = self.gen_random_next_state(tar_st,simulator, next_tar_state=tmp_tar_st)           
                 
                 if i >= self.time_horizon-1:
                     del_s = wrap_del_s(roll_tar_st.p.s,tar_st.p.s, track)                 
@@ -307,7 +318,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                 roll_tar_st = scenario_data.tar_states[i+t].copy()                                      
             tar_st = roll_tar_st   
             dat[:,i]=states_to_encoder_input_torch(tar_st, ego_st, track)  
-            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=1.0, accel_mag = 1.0)  
+            roll_tar_st = self.gen_random_next_state(tar_st,simulator, direction=10.0, accel_mag = 1.0)  
 
         return torch.flip(dat, dims=[1])
     
@@ -323,6 +334,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
     def gen_random_next_state(self,state: VehicleState, simulator: DynamicsSimulator,next_tar_state = None,  direction = 1, accel_mag= 0.0):        
     
         tmp_state = state.copy()
+        tmp_state.u.u_a = accel_mag
+        # if direction == 1:
         if tmp_state.p.e_psi < 0:            
             tmp_state.u.u_steer = tmp_state.u.u_steer -(np.random.rand(1)*0.05)[0] * direction
         else:
@@ -331,24 +344,25 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # noisy_steer = np.clip(np.random.randn(1)*0.4,-0.43, 0.43)[0]
         # # noisy_steer = tmp_state.u.u_steer + steer_noise[0] * direction
         
-        tmp_state.u.u_a = accel_mag
-        if tmp_state.p.x_tran > simulator.model.track.track_width*0.5:
-            tmp_state.u.u_steer = -1*abs(np.random.randn(1)[0]*0.5)                
-            tmp_state.u.u_a = -accel_mag
-        elif tmp_state.p.x_tran < -1*simulator.model.track.track_width*0.7:
-            tmp_state.u.u_steer = abs(np.random.randn(1)[0]*0.5)
-            tmp_state.u.u_a = -accel_mag
-        if next_tar_state is not None:
-            tmp_state.u.u_steer = next_tar_state.u.u_steer #+ np.random.randn(1)[0]*0.00001
+        # else:
+        if tmp_state.p.x_tran > simulator.model.track.track_width*0.15:
+            tmp_state.u.u_steer = -1*abs(np.random.rand(1)[0]*0.43)                
+            # tmp_state.u.u_a = -accel_mag
+        elif tmp_state.p.x_tran < -1*simulator.model.track.track_width*0.15:
+            tmp_state.u.u_steer = abs(np.random.rand(1)[0]*0.43)
+          
+                # tmp_state.u.u_a = -accel_mag    
+        # if next_tar_state is not None:
+        #     tmp_state.u.u_steer = next_tar_state.u.u_steer #+ np.random.randn(1)[0]*0.00001
         
         tmp_state.u.u_steer = np.clip(tmp_state.u.u_steer, -0.43, 0.43)
         simulator.step(tmp_state) 
         # noise in longitudinal direction
-        s_noise = np.clip(np.random.randn(1)*0.08, -0.032, 0.032)[0]
-        if next_tar_state is None:
-            tmp_state.p.s = tmp_state.p.s + s_noise
-        else:            
+        s_noise = np.clip(np.random.randn(1)*0.1, -0.01, 0.01)[0]
+        if next_tar_state is not None:
             tmp_state.p.s = next_tar_state.p.s + s_noise
+              
+            
 
 
         simulator.model.track.update_curvature(tmp_state)      
@@ -458,7 +472,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                     # scenario_data: RealData = pickle.load(dbfile)                        
                     N = scenario_data.N   
                     if N > self.time_horizon+1:
-                        for t in range(N-1-self.time_horizon - self.time_horizon):                                                        
+                        for t in range(N-1-self.pred_horizon*2):                                                        
                         
                             # define empty torch with proper size 
                             encoder_input = torch.zeros(self.input_dim, self.time_horizon)                            
@@ -495,7 +509,7 @@ class SampleGeneartorCOVGP(SampleGenerator):
                                 continue
                             
                           
-                            for pred_j in range(t+self.time_horizon-1,t+self.time_horizon+self.time_horizon-1):
+                            for pred_j in range(t+self.time_horizon-1,t+self.time_horizon+self.pred_horizon-1):
                                 
                                 tar_pred.t = ego_state.t
                                 tar_pred.s.append(scenario_data.tar_states[pred_j].p.s)

@@ -451,6 +451,7 @@ class COVGPNNModel(gpytorch.Module):
             #     gp_input = x_h[:,:,-1].float()
             # else:
             gp_input = x_h.float()
+            
            
         else:             
             x_h = x_h.double()

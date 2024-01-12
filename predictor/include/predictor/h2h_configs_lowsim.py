@@ -24,7 +24,7 @@ class Controllers(Enum):
 # Time discretization
 dt = 0.1
 # Horizon length
-N = 15
+N = 10
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')
@@ -43,19 +43,19 @@ tar_L = 0.26
 tar_W = 0.173
 
 # Initial track conditions
-factor = 0.8  # v_long factor
+factor = 1.3  # v_long factor
 tarMin = VehicleState(t=0.0,
-                      p=ParametricPose(s=offset + 2.0, x_tran=-.3 * width, e_psi=-0.02),
-                      v=BodyLinearVelocity(v_long=1.8*factor))
+                      p=ParametricPose(s=offset + 1.0, x_tran=-.3 * width, e_psi=-0.02),
+                      v=BodyLinearVelocity(v_long=0.8*factor))
 tarMax = VehicleState(t=0.0,
-                      p=ParametricPose(s=offset + 2.2, x_tran=.3* width, e_psi=0.02),
-                      v=BodyLinearVelocity(v_long=1.81*factor))
+                      p=ParametricPose(s=offset + 4.2, x_tran=.3* width, e_psi=0.02),
+                      v=BodyLinearVelocity(v_long=1.0*factor))
 egoMin = VehicleState(t=0.0,
-                      p=ParametricPose(s=offset + 1.1, x_tran=-.3 * width, e_psi=-0.02),
-                      v=BodyLinearVelocity(v_long=1.79*factor))
+                      p=ParametricPose(s=offset + 0.2, x_tran=-.3 * width, e_psi=-0.02),
+                      v=BodyLinearVelocity(v_long=0.5*factor))
 egoMax = VehicleState(t=0.0,
-                      p=ParametricPose(s=offset + 1.2, x_tran=.3 * width, e_psi=0.02),
-                      v=BodyLinearVelocity(v_long=1.8*factor))
+                      p=ParametricPose(s=offset + 2.2, x_tran=.3 * width, e_psi=0.02),
+                      v=BodyLinearVelocity(v_long=1.0*factor))
 
 IKD_width = 1.0
 IKD_egoMin = VehicleState(t=0.0, p=ParametricPose(s=offset +0.2, x_tran=-0.8* IKD_width, e_psi=-math.pi/3), v=BodyLinearVelocity(v_long=0.1))
@@ -79,7 +79,7 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     N=N,
     Qc=50,
     Ql=500.0,
-    Q_theta=200.0,    
+    Q_theta=200.0,
     Q_xref=0.0,
     R_d=2.0,
     R_delta=20.0,
@@ -88,14 +88,14 @@ gp_mpcc_ego_params = MPCCApproxFullModelParams(
     l_cs=5,
     Q_cs=2.0,
     Q_vmax=200.0,
-    vlong_max_soft=2.8,
-    Q_ts=2000.0,
+    vlong_max_soft=1.6,
+    Q_ts=500.0,
     Q_cs_e=8.0,
     l_cs_e=35.0,
 
-    u_a_max=1.0,
-    vx_max=2.9,
-    u_a_min=-1.0,
+    u_a_max=0.8,
+    vx_max=1.8,
+    u_a_min=-1,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
@@ -123,14 +123,14 @@ mpcc_ego_params = MPCCApproxFullModelParams(
     l_cs=5,
     Q_cs=2.0,
     Q_vmax=200.0,
-    vlong_max_soft=2.8,
-    Q_ts=2000.0,
+    vlong_max_soft=1.6,
+    Q_ts=500.0,
     Q_cs_e=8.0,
     l_cs_e=35.0,
 
-    u_a_max=1.0,
-    vx_max=2.9,
-    u_a_min=-1.0,
+    u_a_max=0.8,
+    vx_max=1.8,
+    u_a_min=-1,
     u_steer_max=0.435,
     u_steer_min=-0.435,
     u_a_rate_max=10,
@@ -150,8 +150,8 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     Qc=50,
     Ql=500.0,
     Q_theta=200.0,
-    # Q_xref=400.0, ## for blocking 
-    Q_xref=0.0, ## for non blocking  
+    Q_xref=500.0, ## for blocking 
+    # Q_xref=0.0, ## for non blocking  
     R_d=5.0,
     R_delta=25.0,
 
@@ -159,13 +159,13 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     l_cs=5,
     Q_cs=2.0,
     Q_vmax=200.0,
-    vlong_max_soft=2.3,
+    vlong_max_soft=1.0,
     Q_ts=500.0,
     Q_cs_e=8.0,
     l_cs_e=35.0,
 
     u_a_max=0.55,
-    vx_max=2.5,
+    vx_max=1.2,
     u_a_min=-1,
     u_steer_max=0.435,
     u_steer_min=-0.435,

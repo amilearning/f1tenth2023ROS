@@ -37,7 +37,10 @@ class CurveTrack(RadiusArclengthTrack):
         else:
             cl_segs = np.array([[enter_straight_length, 0],
                                 [curve_length, s * curve_length / curve_swept_angle],
-                                [exit_straight_length, 0]])
+                                [exit_straight_length, 0],
+                                [1, 999],
+                                [1, 999]
+                                ])
         super().__init__(width, slack, cl_segs)
         self.phase_out = phase_out
         self.initialize()
@@ -70,7 +73,9 @@ class ChicaneTrack(RadiusArclengthTrack):
                             [curve1_length,          s1*curve1_length/curve1_swept_angle],
                             [mid_straight_length,    0],
                             [curve2_length,          s2*curve2_length/curve2_swept_angle],
-                            [exit_straight_length,   0]])
+                            [exit_straight_length,   0],
+                            [1, 999],
+                            [2, 999]])
 
         super().__init__(width, slack, cl_segs)
         self.phase_out = phase_out

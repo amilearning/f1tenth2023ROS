@@ -9,10 +9,11 @@ from predictor.prediction.covGP.EvalMultData import *
 from predictor.prediction.covGP.EvalMultiPrior import * 
 
 args_ = {                    
-    "batch_size": 20,
+    "batch_size": 512,
     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
     "input_dim": 9,
     "n_time_step": 10,
+    "pred_time_step": 15,
     "latent_dim": 11,
     "gp_output_dim": 4,
     "inducing_points" : 200,
@@ -45,7 +46,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = True
     args_["include_simts_loss"] = False
     args_['model_name'] = 'naiveGP'
-    covGPNN_train(train_dirs, val_dirs, real_data = False, args= args_)
+    # covGPNN_train(train_dirs, val_dirs, real_data = False, args= args_)
     print("naiveGP train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -54,7 +55,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["direct_gp"] = False
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
-    covGPNN_train(train_dirs, val_dirs, real_data = False, args= args_)
+    # covGPNN_train(train_dirs, val_dirs, real_data = False, args= args_)
     print(" nosimtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -86,18 +87,14 @@ def main():
     ####################################################
     ####################################################
     train_policy_names = [
-                          'aggressive_train',
-                          'mild_5000_train',
-                          'reverse_train',
-                          'timid_train'
+                          'new_timid_train',
+                          'new_aggressive_blocking_train'
                           ]             
         
     
     valid_policy_names = [
-                           'aggressive_eval',
-                           'mild_5000_eval',
-                           'reverse_eval',
-                           'timid_eval'
+                           'new_timid_val',
+                           'new_aggressive_blocking_val'
                           ]             
    
     
@@ -119,10 +116,8 @@ def main():
     
     ####################################################
     eval_policy_names =  [
-                           'aggressive_eval',
-                           'mild_5000_eval',
-                           'reverse_eval',
-                           'timid_eval'
+                           'new_timid_test',
+                           'new_aggressive_blocking_test',
                           ]   
 
     gen_eval_data(eval_policy_names)

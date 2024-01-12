@@ -146,8 +146,8 @@ class COVGPNN(GPController):
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},                                        
                                         # {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
                                         # {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},                                        
-                                        {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
-                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8}, 
+                                        {'params': self.model.in_covs.parameters(), 'lr': 0.0005, 'weight_decay':1e-8},
+                                        {'params': self.model.out_covs.parameters(), 'lr': 0.0005, 'weight_decay':1e-8}, 
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
@@ -214,12 +214,12 @@ class COVGPNN(GPController):
                         latent_dist = latent_dist.evaluate()
                         # abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist)
                         # std_loss += #torch.mean(abs(torch.eye(latent_dist.shape[0]).cuda()-out_dist) * (torch.eye(latent_dist.shape[0]).cuda()-latent_dist))
-                        std_loss  += (self.model.out_covs[i].lengthscale+1e-9)/(self.model.in_covs[i].lengthscale + 1e-9)*1e-1                        
+                        std_loss  += torch.log((self.model.out_covs[i].lengthscale)/(self.model.in_covs[i].lengthscale + 1e-9))*1e-2                       
                         
                         cov_loss += mseloss(out_dist, latent_dist)                     
                         
                     latent_std = torch.std(latent_x)                                                   
-                    if latent_std > 2.0:
+                    if latent_std > 3.0:
                         std_loss += latent_std*0.1
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss

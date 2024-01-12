@@ -209,9 +209,9 @@ class ScenarioGenerator:
         phase_out_ = False
         ccw_ = np.random.choice([True, False])
         enter_straight_length_ = np.random.uniform(0.05, 0.1)
-        exit_straight_length_ = np.random.uniform(5, 5.1)
+        exit_straight_length_ = np.random.uniform(10, 10.1)
         s_min = 1.5
-        s = np.random.uniform(s_min*10, s_min * 10.1)
+        s = np.random.uniform(s_min*15, s_min * 15.1)
         # s_min = 0.5 * self.width * abs(alpha) * 1.05
         # s = np.random.uniform(s_min, s_min * 2)
         return ScenarioDefinition(
@@ -231,7 +231,7 @@ class ScenarioGenerator:
         )
 
     def genStraight(self, ego_init_state, tar_init_state):
-        length_ = np.random.uniform(20, 25)
+        length_ = np.random.uniform(40, 45)
         return ScenarioDefinition(
             track_type='straight',
             track=StraightTrack(length=length_, width=self.width, slack=0.8, phase_out=False),
@@ -252,16 +252,16 @@ class ScenarioGenerator:
         alpha_2 = dir * alpha_2
         s_min_2 = 0.5 * self.width * np.pi * abs(alpha_2) # / np.pi
         s_2 = np.random.uniform(s_min_2, s_min_2 * 5.01)
-        mid_straght_length_ = np.random.uniform(0.1,0.5)
+        mid_straght_length_ = np.random.uniform(2.0,4.0)
         return ScenarioDefinition(
             track_type='chicane',
-            track=ChicaneTrack(enter_straight_length=0.5,
+            track=ChicaneTrack(enter_straight_length=3.0,
                                curve1_length=s_1,
                                curve1_swept_angle=alpha_1,
                                mid_straight_length=mid_straght_length_,
                                curve2_length=s_2,
                                curve2_swept_angle=alpha_2,
-                               exit_straight_length=2,
+                               exit_straight_length=10,
                                width=self.width,
                                slack=0.8,
                                phase_out=False,
