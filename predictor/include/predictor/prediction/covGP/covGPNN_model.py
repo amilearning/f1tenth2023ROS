@@ -146,8 +146,8 @@ class COVGPNN(GPController):
                                         {'params': self.model.gp_layer.hyperparameters(), 'lr': 0.005},                                        
                                         # {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
                                         # {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},                                        
-                                        {'params': self.model.in_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8},
-                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01, 'weight_decay':1e-8}, 
+                                        {'params': self.model.in_covs.parameters(), 'lr': 0.01},
+                                        {'params': self.model.out_covs.parameters(), 'lr': 0.01}, 
                                         {'params': self.model.gp_layer.variational_parameters()},
                                         {'params': self.likelihood.parameters()},
                                         ], lr=0.005)
@@ -225,14 +225,17 @@ class COVGPNN(GPController):
                         cov_loss += mseloss(out_dist, latent_dist)                     
                         
                     latent_std = torch.std(latent_x)                                                   
-                    if latent_std > 2.0:
-                        std_loss += latent_std*0.1
+                    # if latent_std > 2.0:
+                    #     std_loss += latent_std*0.1
+                    sig_slope = 10
+                    latent_std_loss =  0.1*torch.nn.functional.relu(sig_slope*(latent_std-2.0))
+
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss
                 variational_loss = -mll(output, train_y)                
                 
                 if include_simts_loss:                     
-                    loss = cov_loss + variational_loss + std_loss  + scale_loss
+                    loss = cov_loss + variational_loss+  std_loss +latent_std_loss # + scale_loss
                 else:
                     loss = variational_loss
 
