@@ -91,6 +91,25 @@ def main(args=None):
     max_val = likelihoods.max()
 
 
+    sns.set(style="white")
+
+    predictor_data = pred_likelihoods
+
+    num_predictor_types = len(predictor_data)
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    colors = ["red", "blue"]
+
+    for i, data in enumerate(predictor_data):
+        sns.histplot(data=data, kde=True, ax=ax, color=colors[i], alpha=0.5, label=f'{["DKL", "H-DKL"][i]}')
+
+    ax.set_xlabel('Negative Log Likelihood', fontsize=14)
+    ax.legend(fontsize=14)
+    ax.set_xlim(-1.4, 8)  # Adjust the limits as needed
+
+    plt.show()
+
+
     # fig, axs = plt.subplots(1, len(liklihood_traces_list), figsize=(12, 4))
     # for i, predictor_data in enumerate(liklihood_traces_list):
     #     # Extract x, y positions, and likelihood for the current predictor type
@@ -133,25 +152,6 @@ def main(args=None):
     # ax.set_ylabel('Frequency')
     # ax.legend()
     # plt.show()
-
-
-    sns.set(style="white")
-
-    predictor_data = pred_likelihoods
-
-    num_predictor_types = len(predictor_data)
-    fig, ax = plt.subplots(figsize=(8, 4))
-
-    colors = ["red", "blue"]
-
-    for i, data in enumerate(predictor_data):
-        sns.histplot(data=data, kde=True, ax=ax, color=colors[i], alpha=0.5, label=f'{["DKL", "H-DKL"][i]}')
-
-    ax.set_xlabel('Negative Log Likelihood', fontsize=14)
-    ax.legend(fontsize=14)
-    ax.set_xlim(-1.4, 8)  # Adjust the limits as needed
-
-    plt.show()
 
 
 
