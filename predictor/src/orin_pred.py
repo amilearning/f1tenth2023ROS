@@ -454,8 +454,8 @@ class Predictor:
                 
         end_time = time.time()
         execution_time = end_time - start_time
-        # if execution_time > 0.12:
-        print(f"Prediction execution time: {execution_time} seconds")
+        if execution_time > 0.12:
+            print(f"Prediction execution time: {execution_time} seconds")
 
     
 ###################################################################################

@@ -14,7 +14,7 @@ from predictor.prediction.gp_controllers import GPControllerTrained
 from predictor.common.tracks.radius_arclength_track import RadiusArclengthTrack
 from predictor.h2h_configs import *
 from predictor.controllers.PID import PIDLaneFollower
-from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
+# from predictor.controllers.MPCC_H2H_approx import MPCC_H2H_approx
 # from predictor.h2h_configs import nl_mpc_params, N
 from predictor.dynamics.models.model_types import DynamicBicycleConfig
 from predictor.simulation.dynamics_simulator import DynamicsSimulator

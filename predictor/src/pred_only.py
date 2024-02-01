@@ -50,7 +50,7 @@ from predictor.path_generator import PathGenerator
 
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
 
-from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor
+from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor
 from predictor.h2h_configs import *
 from predictor.common.utils.file_utils import *
 from predictor.common.utils.scenario_utils import RealData
@@ -213,8 +213,8 @@ class Predictor:
 
         ## constant angular velocity model 
         self.cav_predictor = ConstantAngularVelocityPredictor(N=self.n_nodes, cov= .01)            
-        self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
-        self.nmpc_predictor.set_warm_start()
+        # self.nmpc_predictor = NLMPCPredictor(N=self.n_nodes, track=self.track_info.track, cov=.01, v_ref=mpcc_tv_params.vx_max)
+        # self.nmpc_predictor.set_warm_start()
         
         # NLMPCPredictor(N, None, cov=.01, v_ref=mpcc_tv_params.vx_max),
         self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
@@ -413,8 +413,8 @@ class Predictor:
                     self.tv_pred = self.predictor.get_prediction(self.cur_ego_state, self.cur_tar_state, self.ego_pred)
                 elif self.predictor_type == 1:
                     self.tv_pred = self.cav_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)                                                                   
-                elif self.predictor_type == 2:
-                    self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
+                # elif self.predictor_type == 2:
+                #     self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
                 elif self.predictor_type == 3:
                     self.tv_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
                 elif self.predictor_type ==0:                    
