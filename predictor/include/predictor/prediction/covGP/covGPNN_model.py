@@ -631,7 +631,7 @@ class COVGPNNTrained(GPController):
         roll_ego_state = roll_ego_state.repeat(M,1)
 
         horizon = len(ego_prediction.s)    
-      
+        # start_time = time.time()
         for i in range(horizon-1):         
             # gp_start_time = time.time()  
             roll_input = self.insert_to_end(roll_input, roll_tar_state, roll_tar_curv, roll_ego_state, track)                      
@@ -653,7 +653,7 @@ class COVGPNNTrained(GPController):
                 tmp_delta = torch.distributions.Normal(mean, stddev).sample()            
                     
                 pred_delta = self.outputToReal(tmp_delta)
-            start_time = time.time()
+           
             roll_tar_state[:,0] += pred_delta[:,0]
             roll_tar_state[:,0] = torch_wrap_s(roll_tar_state[:,0], track.track_length/2.0)
             roll_tar_state[:,1] += pred_delta[:,1]
@@ -667,9 +667,6 @@ class COVGPNNTrained(GPController):
             roll_ego_state[:,1] = ego_prediction.x_tran[i+1]
             roll_ego_state[:,2] =  ego_prediction.e_psi[i+1]
             roll_ego_state[:,3] =  ego_prediction.v_long[i+1]
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            print(f"Time taken for GP(over horizons) call: {elapsed_time} seconds")
             
 
             for j in range(M):                          # tar 0 1 2 3 4 5       #ego 6 7 8 9 10 11
