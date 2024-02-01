@@ -191,9 +191,9 @@ class Predictor:
                     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
                     "input_dim": 10, # 9
                     "n_time_step": 10,
-                    "latent_dim": 6, # 11
+                    "latent_dim": 8, # 11
                     "gp_output_dim": 4,
-                    "inducing_points" : 200,
+                    "inducing_points" : 100,
                     "train_nn" : False,
                     "include_simts_loss" : True,
                     "direct_gp" : False,

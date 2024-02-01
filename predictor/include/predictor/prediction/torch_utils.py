@@ -79,16 +79,26 @@ def state2gpxylabel(ego_sim_state,tar_sim_state, theta = None):
 
 def get_curvature_from_keypts_torch(s,track):
     
-    s[s<0] += track.track_length
-    s[s>=track.track_length] -= track.track_length
-    # while s < 0: s += track.track_length
-    # while s >= track.track_length: s -= track.track_length
-    key_pts = torch.tensor(track.key_pts[:,3]).clone().detach().to(device="cuda")    
-    track_key_pts = torch.tensor(track.key_pts).clone().detach().to(device="cuda")    
+    # s[s<0] += track.track_length
+    # s[s>=track.track_length] -= track.track_length
+    track_key_pts = torch.tensor(track.key_pts).to(device="cuda")    
+    key_pts = track_key_pts[:,3]
+    # torch.tensor(track.key_pts[:,3]).to(device="cuda")    
     diff, idx  = (s[:,None] > key_pts[None,:]).min(dim=1)
-    # idx = idx-1
-    # return torch.tensor(track_key_pts[idx,5]).view(1,-1).to(device="cuda").clone().detach()    
-    return track_key_pts[idx, 5].view(1, -1).to(device="cuda").clone().detach()
+    return track_key_pts[idx, 5].view(1, -1).to(device="cuda").clone()
+
+# def get_curvature_from_keypts_torch(s,track):
+    
+#     s[s<0] += track.track_length
+#     s[s>=track.track_length] -= track.track_length
+#     # while s < 0: s += track.track_length
+#     # while s >= track.track_length: s -= track.track_length
+#     key_pts = torch.tensor(track.key_pts[:,3]).clone().detach().to(device="cuda")    
+#     track_key_pts = torch.tensor(track.key_pts).clone().detach().to(device="cuda")    
+#     diff, idx  = (s[:,None] > key_pts[None,:]).min(dim=1)
+#     # idx = idx-1
+#     # return torch.tensor(track_key_pts[idx,5]).view(1,-1).to(device="cuda").clone().detach()    
+#     return track_key_pts[idx, 5].view(1, -1).to(device="cuda").clone().detach()
 
 def statehistory2xy(ego_pred_states_history,tar_pred_states_history):
     n_step = len(ego_pred_states_history)

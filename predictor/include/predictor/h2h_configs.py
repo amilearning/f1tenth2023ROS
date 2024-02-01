@@ -23,7 +23,7 @@ class Controllers(Enum):
 # Time discretization
 dt = 0.1
 # Horizon length
-N = 10
+N = 12
 # Number of iterations to run PID (need N+1 because of NLMPC predictor warmstart)
 n_iter = N+1 
 # Track width (should be pre-determined from track generation '.npz')

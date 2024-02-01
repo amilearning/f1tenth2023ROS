@@ -24,7 +24,7 @@ class CovGPPredictor(BasePredictor):
                 "n_time_step": 10, ## how much we see the past history 
                 "latent_dim": 9,
                 "gp_output_dim": 4,            
-                "inducing_points" : 200,
+                "inducing_points" : 100,
                 "add_noise_data" : False,
                 'model_name' : None
                 }
@@ -71,7 +71,7 @@ class CovGPPredictor(BasePredictor):
 
         is_encoder_input_ready = self.append_vehicleState(ego_state,target_state)  
         if is_encoder_input_ready: ## encoder_is_ready = True            
-            pred = self.covgpnn_predict.get_true_prediction_par(self.encoder_input,  ego_state, target_state, ego_prediction, self.track, self.M)            
+            pred = self.covgpnn_predict.sample_traj_gp_par(self.encoder_input,  ego_state, target_state, ego_prediction, self.track, self.M)            
             pred.track_cov_to_local(self.track, self.N, self.cov_factor)  
         else:            
             pred = None # self.get_constant_vel_prediction_par(target_state) # self.gp.get_true_prediction_par(ego_state, target_state, ego_prediction, self.track, self.M)
