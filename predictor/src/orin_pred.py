@@ -189,9 +189,9 @@ class Predictor:
                 
         args = {   "batch_size": 1024,
                     "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
-                    "input_dim": 9,
+                    "input_dim": 10, # 9
                     "n_time_step": 10,
-                    "latent_dim": 11,
+                    "latent_dim": 6, # 11
                     "gp_output_dim": 4,
                     "inducing_points" : 200,
                     "train_nn" : False,

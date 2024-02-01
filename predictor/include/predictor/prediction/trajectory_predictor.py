@@ -18,7 +18,7 @@ from predictor.controllers.PID import PIDLaneFollower
 # from predictor.h2h_configs import nl_mpc_params, N
 from predictor.dynamics.models.model_types import DynamicBicycleConfig
 from predictor.simulation.dynamics_simulator import DynamicsSimulator
-from predictor.controllers.NL_MPC import NL_MPC
+# from predictor.controllers.NL_MPC import NL_MPC
 from predictor.controllers.utils.controllerTypes import *
 from predictor.dynamics.models.dynamics_models import CasadiDynamicBicycleFull
 from collections import deque
@@ -217,117 +217,117 @@ class MPCPredictor(BasePredictor):
 
 
 
-class NLMPCPredictor(BasePredictor):
-    def __init__(self, N:int, track : RadiusArclengthTrack, cov: float = 0, v_ref : int = 1.9):
-        super(NLMPCPredictor, self).__init__(N, track)
-        self.cov = cov
-        self.v_ref = v_ref
+# class NLMPCPredictor(BasePredictor):
+#     def __init__(self, N:int, track : RadiusArclengthTrack, cov: float = 0, v_ref : int = 1.9):
+#         super(NLMPCPredictor, self).__init__(N, track)
+#         self.cov = cov
+#         self.v_ref = v_ref
 
-    def set_warm_start(self):
-        self.cl_dynamics_config = DynamicBicycleConfig(dt=self.dt, model_name='dynamic_bicycle_cl',
-                                                       wheel_dist_front=0.165, wheel_dist_rear=0.165)
-        self.cl_dynamics_simulator = DynamicsSimulator(0, dynamics_config=self.cl_dynamics_config, track=self.track)
+#     def set_warm_start(self):
+#         self.cl_dynamics_config = DynamicBicycleConfig(dt=self.dt, model_name='dynamic_bicycle_cl',
+#                                                        wheel_dist_front=0.165, wheel_dist_rear=0.165)
+#         self.cl_dynamics_simulator = DynamicsSimulator(0, dynamics_config=self.cl_dynamics_config, track=self.track)
 
-        nl_mpc_params.vectorize_constraints()
+#         nl_mpc_params.vectorize_constraints()
 
-        self.nl_mpc_controller = NL_MPC(self.cl_dynamics_simulator.model, self.track, nl_mpc_params)
-        state_ref = np.tile(np.array([self.v_ref, 0, 0, 0, 0, 0]), (N + 1, 1))  # vref = 2.0
-        self.nl_mpc_controller.set_x_ref(state_ref)
-        self.nl_mpc_controller.initialize()
+#         self.nl_mpc_controller = NL_MPC(self.cl_dynamics_simulator.model, self.track, nl_mpc_params)
+#         state_ref = np.tile(np.array([self.v_ref, 0, 0, 0, 0, 0]), (N + 1, 1))  # vref = 2.0
+#         self.nl_mpc_controller.set_x_ref(state_ref)
+#         self.nl_mpc_controller.initialize()
 
-        state = VehicleState(t=0.0, p=ParametricPose(s=0, x_tran=0, e_psi=0), v=BodyLinearVelocity(v_long=1.2))
-        input = VehicleActuation(u_a=0.0, u_steer=0.0)
+#         state = VehicleState(t=0.0, p=ParametricPose(s=0, x_tran=0, e_psi=0), v=BodyLinearVelocity(v_long=1.2))
+#         input = VehicleActuation(u_a=0.0, u_steer=0.0)
 
-        state_history_tv = [self.cl_dynamics_simulator.model.state2qu(state)[0] for _ in range(N+1)]
-        input_history_tv = [self.cl_dynamics_simulator.model.input2u(input) for _ in range(N)]
-        self.nl_mpc_controller.set_warm_start(np.array(state_history_tv), np.array(input_history_tv))
+#         state_history_tv = [self.cl_dynamics_simulator.model.state2qu(state)[0] for _ in range(N+1)]
+#         input_history_tv = [self.cl_dynamics_simulator.model.input2u(input) for _ in range(N)]
+#         self.nl_mpc_controller.set_warm_start(np.array(state_history_tv), np.array(input_history_tv))
 
-    # def set_warm_start(self, state_history_vehiclestates : List[VehicleState], input_history_vehiclestates : List[VehicleActuation]):
-    #     self.cl_dynamics_config = DynamicBicycleConfig(dt=self.dt, model_name='dynamic_bicycle_cl',
-    #                                                    wheel_dist_front=0.13, wheel_dist_rear=0.13)
-    #     self.cl_dynamics_simulator = DynamicsSimulator(0, dynamics_config=self.cl_dynamics_config, track=self.track)
-    #
-    #     nl_mpc_params.vectorize_constraints()
-    #
-    #     self.nl_mpc_controller = NL_MPC(self.cl_dynamics_simulator.model, self.track, nl_mpc_params)
-    #     state_ref = np.tile(np.array([self.v_ref, 0, 0, 0, 0, 0]), (N + 1, 1))  # vref = 2.0
-    #     self.nl_mpc_controller.set_x_ref(state_ref)
-    #     self.nl_mpc_controller.initialize()
-    #
-    #     state_history_tv = [self.cl_dynamics_simulator.model.state2qu(state)[0] for state in state_history_vehiclestates]
-    #     input_history_tv = [self.cl_dynamics_simulator.model.input2u(input) for input in input_history_vehiclestates]
-    #     self.nl_mpc_controller.set_warm_start(np.array(state_history_tv), np.array(input_history_tv))
+#     # def set_warm_start(self, state_history_vehiclestates : List[VehicleState], input_history_vehiclestates : List[VehicleActuation]):
+#     #     self.cl_dynamics_config = DynamicBicycleConfig(dt=self.dt, model_name='dynamic_bicycle_cl',
+#     #                                                    wheel_dist_front=0.13, wheel_dist_rear=0.13)
+#     #     self.cl_dynamics_simulator = DynamicsSimulator(0, dynamics_config=self.cl_dynamics_config, track=self.track)
+#     #
+#     #     nl_mpc_params.vectorize_constraints()
+#     #
+#     #     self.nl_mpc_controller = NL_MPC(self.cl_dynamics_simulator.model, self.track, nl_mpc_params)
+#     #     state_ref = np.tile(np.array([self.v_ref, 0, 0, 0, 0, 0]), (N + 1, 1))  # vref = 2.0
+#     #     self.nl_mpc_controller.set_x_ref(state_ref)
+#     #     self.nl_mpc_controller.initialize()
+#     #
+#     #     state_history_tv = [self.cl_dynamics_simulator.model.state2qu(state)[0] for state in state_history_vehiclestates]
+#     #     input_history_tv = [self.cl_dynamics_simulator.model.input2u(input) for input in input_history_vehiclestates]
+#     #     self.nl_mpc_controller.set_warm_start(np.array(state_history_tv), np.array(input_history_tv))
 
-    def get_prediction(self, ego_state: VehicleState, target_state: VehicleState,
-                       ego_prediction: VehiclePrediction, tar_prediction=None):
-        self.nl_mpc_controller.step(target_state, env_state=None)
-        pred = self.nl_mpc_controller.get_prediction().copy()
-        pred.s = pred.s[:self.N]
-        pred.xy_cov = np.repeat(np.diag([self.cov, self.cov])[np.newaxis, :, :], self.N, axis=0)
-        return pred
-
-
+#     def get_prediction(self, ego_state: VehicleState, target_state: VehicleState,
+#                        ego_prediction: VehiclePrediction, tar_prediction=None):
+#         self.nl_mpc_controller.step(target_state, env_state=None)
+#         pred = self.nl_mpc_controller.get_prediction().copy()
+#         pred.s = pred.s[:self.N]
+#         pred.xy_cov = np.repeat(np.diag([self.cov, self.cov])[np.newaxis, :, :], self.N, axis=0)
+#         return pred
 
 
-class MPCCPredictor(BasePredictor):
-    def __init__(self, N:int, track : RadiusArclengthTrack, vehicle_config : MPCCApproxFullModelParams, cov: float = 0):
-        super(MPCCPredictor, self).__init__(N, track)
-        self.cov = cov               
 
 
-    def set_warm_start(self, cur_ego_state: VehicleState):
-        self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track)
-        self.mpcc_controller = MPCC_H2H_approx(self.vehicle_model, self.track, control_params = mpcc_timid_params, name="gp_mpcc_h2h_timid", track_name="test_track")        
-        # cur_ego_state = VehicleState(t=0.0, p=ParametricPose(s=0, x_tran=0, e_psi=0), v=BodyLinearVelocity(v_long=1.2))
-        # input = VehicleActuation(u_a=0.0, u_steer=0.0)
+# class MPCCPredictor(BasePredictor):
+#     def __init__(self, N:int, track : RadiusArclengthTrack, vehicle_config : MPCCApproxFullModelParams, cov: float = 0):
+#         super(MPCCPredictor, self).__init__(N, track)
+#         self.cov = cov               
 
-        #######################
-        cur_state_copy = cur_ego_state.copy()
-        x_ref = cur_state_copy.p.x_tran
-        pid_steer_params = PIDParams()
-        pid_steer_params.dt = self.dt
-        pid_steer_params.default_steer_params()
-        pid_steer_params.Kp = 1
-        pid_speed_params = PIDParams()
-        pid_speed_params.dt = self.dt
-        pid_speed_params.default_speed_params()
-        pid_controller_1 = PIDLaneFollower(cur_state_copy.v.v_long, x_ref, self.dt, pid_steer_params, pid_speed_params)
-        ego_dynamics_simulator = DynamicsSimulator(0.0, ego_dynamics_config, track=self.track) 
-        input_ego = VehicleActuation()
-        t = 0.0
-        state_history_ego = deque([], self.N); input_history_ego = deque([], self.N)
-        n_iter = self.N+1
-        approx = True
-        while n_iter > 0:
-            pid_controller_1.step(cur_state_copy)
-            ego_dynamics_simulator.step(cur_state_copy)            
-            self.track.update_curvature(cur_state_copy)
-            input_ego.t = t
-            cur_state_copy.copy_control(input_ego)
-            q, _ = ego_dynamics_simulator.model.state2qu(cur_state_copy)
-            u = ego_dynamics_simulator.model.input2u(input_ego)
-            if approx:
-                q = np.append(q, cur_state_copy.p.s)
-                q = np.append(q, cur_state_copy.p.s)
-                u = np.append(u, cur_state_copy.v.v_long)
-            state_history_ego.append(q)
-            input_history_ego.append(u)
-            t += self.dt
-            n_iter-=1
+
+#     def set_warm_start(self, cur_ego_state: VehicleState):
+#         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track)
+#         self.mpcc_controller = MPCC_H2H_approx(self.vehicle_model, self.track, control_params = mpcc_timid_params, name="gp_mpcc_h2h_timid", track_name="test_track")        
+#         # cur_ego_state = VehicleState(t=0.0, p=ParametricPose(s=0, x_tran=0, e_psi=0), v=BodyLinearVelocity(v_long=1.2))
+#         # input = VehicleActuation(u_a=0.0, u_steer=0.0)
+
+#         #######################
+#         cur_state_copy = cur_ego_state.copy()
+#         x_ref = cur_state_copy.p.x_tran
+#         pid_steer_params = PIDParams()
+#         pid_steer_params.dt = self.dt
+#         pid_steer_params.default_steer_params()
+#         pid_steer_params.Kp = 1
+#         pid_speed_params = PIDParams()
+#         pid_speed_params.dt = self.dt
+#         pid_speed_params.default_speed_params()
+#         pid_controller_1 = PIDLaneFollower(cur_state_copy.v.v_long, x_ref, self.dt, pid_steer_params, pid_speed_params)
+#         ego_dynamics_simulator = DynamicsSimulator(0.0, ego_dynamics_config, track=self.track) 
+#         input_ego = VehicleActuation()
+#         t = 0.0
+#         state_history_ego = deque([], self.N); input_history_ego = deque([], self.N)
+#         n_iter = self.N+1
+#         approx = True
+#         while n_iter > 0:
+#             pid_controller_1.step(cur_state_copy)
+#             ego_dynamics_simulator.step(cur_state_copy)            
+#             self.track.update_curvature(cur_state_copy)
+#             input_ego.t = t
+#             cur_state_copy.copy_control(input_ego)
+#             q, _ = ego_dynamics_simulator.model.state2qu(cur_state_copy)
+#             u = ego_dynamics_simulator.model.input2u(input_ego)
+#             if approx:
+#                 q = np.append(q, cur_state_copy.p.s)
+#                 q = np.append(q, cur_state_copy.p.s)
+#                 u = np.append(u, cur_state_copy.v.v_long)
+#             state_history_ego.append(q)
+#             input_history_ego.append(u)
+#             t += self.dt
+#             n_iter-=1
            
-        compose_history = lambda state_history, input_history: (np.array(state_history), np.array(input_history))
-        ego_warm_start_history = compose_history(state_history_ego, input_history_ego)
-        self.mpcc_controller.initialize()
-        self.mpcc_controller.set_warm_start(*ego_warm_start_history)
-        print("warm start done")
+#         compose_history = lambda state_history, input_history: (np.array(state_history), np.array(input_history))
+#         ego_warm_start_history = compose_history(state_history_ego, input_history_ego)
+#         self.mpcc_controller.initialize()
+#         self.mpcc_controller.set_warm_start(*ego_warm_start_history)
+#         print("warm start done")
 
-    def get_prediction(self, ego_state: VehicleState, target_state: VehicleState,
-                       ego_prediction: VehiclePrediction, tar_prediction=None):        
-        _, problem, cur_obstacles = self.mpcc_controller.step(ego_state = target_state, tv_state=ego_state, tv_pred=None)        
-        pred = self.mpcc_controller.get_prediction().copy()
-        pred.s = pred.s[:self.N]
-        pred.xy_cov = np.repeat(np.diag([self.cov, self.cov])[np.newaxis, :, :], self.N, axis=0)
-        return pred
+#     def get_prediction(self, ego_state: VehicleState, target_state: VehicleState,
+#                        ego_prediction: VehiclePrediction, tar_prediction=None):        
+#         _, problem, cur_obstacles = self.mpcc_controller.step(ego_state = target_state, tv_state=ego_state, tv_pred=None)        
+#         pred = self.mpcc_controller.get_prediction().copy()
+#         pred.s = pred.s[:self.N]
+#         pred.xy_cov = np.repeat(np.diag([self.cov, self.cov])[np.newaxis, :, :], self.N, axis=0)
+#         return pred
 
 class GPPredictor(BasePredictor):
     def __init__(self, N: int, track : RadiusArclengthTrack, policy_name: str, use_GPU: bool, M: int, model=None, cov_factor: float = 1):
