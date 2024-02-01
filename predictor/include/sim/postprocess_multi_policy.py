@@ -9,10 +9,10 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
-from barcgp.common.utils.file_utils import *
-from barcgp.common.utils.scenario_utils import MultiPolicyEvalData, EvalData, PostprocessData
+from predictor.common.utils.file_utils import *
+from predictor.common.utils.scenario_utils import MultiPolicyEvalData, EvalData, PostprocessData
 
-from barcgp.h2h_configs import *
+from predictor.h2h_configs import *
 
 total_runs = 100
 track_width = width

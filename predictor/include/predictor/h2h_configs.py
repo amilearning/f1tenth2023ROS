@@ -159,15 +159,15 @@ mpcc_tv_params = MPCCApproxFullModelParams(
 
    
     N=N,
-    Qc=300.0, # e_cont , countouring error  10 for blocking 300 for non blockign
-    # Qc=10.0, # e_cont , countouring error  10 for blocking 300 for non blockign
+    # Qc=300.0, # e_cont , countouring error  10 for blocking 300 for non blockign
+    Qc=10.0, # e_cont , countouring error  10 for blocking 300 for non blockign
     
     Ql=500.0, #500.0  # e_lag, lag error 
     Q_theta= 200, # progress speed  v_proj_prev 
 
 
-    Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    # Q_xref=500.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    # Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    Q_xref=500.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
     
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
