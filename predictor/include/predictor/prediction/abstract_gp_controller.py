@@ -707,6 +707,7 @@ class GPController(ABC):
         return tar_preds
 
 
+
     def mean_and_cov_from_list(self, l_pred: List[VehiclePrediction], M, track =  None):
         """
         Extracts sample mean trajectory and covariance from list of VehiclePredictions
@@ -714,30 +715,52 @@ class GPController(ABC):
         mean = l_pred[0].copy()
         mean.sey_cov = []
         for i in range(len(mean.s)):
-            tmp_s = [k.s[i] for k in l_pred]
-            del_s = np.max(tmp_s) - np.min(tmp_s)            
-            
-            if del_s > track.track_length / 4:
-                tmp_s = np.where(tmp_s < track.track_length / 4, 
-                 tmp_s + track.track_length / 2, 
-                 tmp_s)
-            
-            mean.s[i] = np.average(tmp_s)
+            mean.s[i] = np.average([k.s[i] for k in l_pred])
             mean.x_tran[i] = np.average([k.x_tran[i] for k in l_pred])
-            
-            # cov1 = np.sqrt(np.sum([(mean.s[i] - k.s[i]) ** 2 for k in l_pred]) / (M - 1))
-            cov1 = np.sqrt(np.sum([wrap_del_s(mean.s[i],k.s[i],track)**2 for k in l_pred]) / (M - 1))
+            cov1 = np.sqrt(np.sum([(mean.s[i] - k.s[i]) ** 2 for k in l_pred]) / (M - 1))
             cov2 = np.sqrt(np.sum([(mean.x_tran[i] - k.x_tran[i]) ** 2 for k in l_pred]) / (M - 1))
             mean.sey_cov.append(np.array([[cov1, 0], [0, cov2]])[:2, :2].flatten())
             mean.e_psi[i] = np.average([k.e_psi[i] for k in l_pred])
             mean.v_long[i] = np.average([k.v_long[i] for k in l_pred])
 
-        mean.s = array.array('d', mean.s)        
+        mean.s = array.array('d', mean.s)
         mean.x_tran = array.array('d', mean.x_tran)
         mean.sey_cov = array.array('d', np.array(mean.sey_cov).flatten())
         mean.e_psi = array.array('d', mean.e_psi)
         mean.v_long = array.array('d', mean.v_long)
         return mean
+
+    # def mean_and_cov_from_list(self, l_pred: List[VehiclePrediction], M, track =  None):
+    #     """
+    #     Extracts sample mean trajectory and covariance from list of VehiclePredictions
+    #     """
+    #     mean = l_pred[0].copy()
+    #     mean.sey_cov = []
+    #     for i in range(len(mean.s)):
+    #         tmp_s = [k.s[i] for k in l_pred]
+    #         del_s = np.max(tmp_s) - np.min(tmp_s)            
+            
+    #         if del_s > track.track_length / 4:
+    #             tmp_s = np.where(tmp_s < track.track_length / 4, 
+    #              tmp_s + track.track_length / 2, 
+    #              tmp_s)
+            
+    #         mean.s[i] = np.average(tmp_s)
+    #         mean.x_tran[i] = np.average([k.x_tran[i] for k in l_pred])
+            
+    #         # cov1 = np.sqrt(np.sum([(mean.s[i] - k.s[i]) ** 2 for k in l_pred]) / (M - 1))
+    #         cov1 = np.sqrt(np.sum([wrap_del_s(mean.s[i],k.s[i],track)**2 for k in l_pred]) / (M - 1))
+    #         cov2 = np.sqrt(np.sum([(mean.x_tran[i] - k.x_tran[i]) ** 2 for k in l_pred]) / (M - 1))
+    #         mean.sey_cov.append(np.array([[cov1, 0], [0, cov2]])[:2, :2].flatten())
+    #         mean.e_psi[i] = np.average([k.e_psi[i] for k in l_pred])
+    #         mean.v_long[i] = np.average([k.v_long[i] for k in l_pred])
+
+    #     mean.s = array.array('d', mean.s)        
+    #     mean.x_tran = array.array('d', mean.x_tran)
+    #     mean.sey_cov = array.array('d', np.array(mean.sey_cov).flatten())
+    #     mean.e_psi = array.array('d', mean.e_psi)
+    #     mean.v_long = array.array('d', mean.v_long)
+    #     return mean
 
     def get_true_prediction_par(self, ego_state: VehicleState, target_state: VehicleState,
                                 ego_prediction: VehiclePrediction, track: RadiusArclengthTrack, M=3):
