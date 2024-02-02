@@ -155,7 +155,7 @@ class Predictor:
 
         # Subscribers
         self.ego_pred_sub = rospy.Subscriber('/ego_pred', VehiclePredictionROS, self.ego_pred_callback)  
-        self.gt_tar_pred_sub = rospy.Subscriber('/gt_tar_pred', VehiclePredictionROS, self.gt_tar_pred_callback)  
+        self.gt_tar_pred_sub = rospy.Subscriber('/mpcc_pred', VehiclePredictionROS, self.gt_tar_pred_callback)  
         
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
         # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        

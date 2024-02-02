@@ -57,7 +57,7 @@ def main_train(train_policy_names = None, valid_policy_names = None):
     args_["include_simts_loss"] = False
     args_['model_name'] = 'nosimtsGP'
     covGPNN_train(train_dirs, val_dirs, real_data = True, args= args_)
-    # print(" nosimtsGPNN_train Done")
+    print(" nosimtsGPNN_train Done")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
 
@@ -89,10 +89,10 @@ def main():
     ####################################################
     # train_policy_names = ['centerline_train',
     #                       'blocking_train']  
-    # train_policy_names = ['dl_1_blocking_train', 'dl_1_real_center_train']
-    # valid_policy_names = ['dl_1_blocking_eval', 'dl_1_real_center_eval'] 
-    train_policy_names = [ 'dl_1_real_center_train']
-    valid_policy_names = [ 'dl_1_real_center_eval'] 
+    train_policy_names = ['dl_1_blocking_train', 'dl_1_real_center_train']
+    valid_policy_names = ['dl_1_blocking_eval', 'dl_1_real_center_eval'] 
+    # train_policy_names = [ 'dl_1_blocking_train']
+    # valid_policy_names = [ 'dl_1_blocking_train'] 
                  
     main_train(train_policy_names, valid_policy_names)
     ####################################################    
