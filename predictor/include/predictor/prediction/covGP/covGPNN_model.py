@@ -228,7 +228,7 @@ class COVGPNN(GPController):
                     # if latent_std > 2.0:
                     #     std_loss += latent_std*0.1
                     sig_slope = 10
-                    latent_std_loss =  0.1*torch.nn.functional.relu(sig_slope*(latent_std-2.0))
+                    latent_std_loss =  0.1*torch.nn.functional.relu(sig_slope*(latent_std-3.0))
 
                     ############# ############################ ####################        
                     # loss =    cov_mse #+ reconloss
