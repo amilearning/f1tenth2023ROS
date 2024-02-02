@@ -166,8 +166,8 @@ mpcc_tv_params = MPCCApproxFullModelParams(
     Q_theta= 200, # progress speed  v_proj_prev 
 
 
-    # Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
-    Q_xref=500.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    Q_xref=0.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
+    # Q_xref=500.0, #  reference tracking for blocking  500 for blocking, 0 for non blocking
     
     R_d=2.0, # u_a, u_a_dot 
     R_delta=20.0, # 20.0 # u_delta, u_delta_dot
