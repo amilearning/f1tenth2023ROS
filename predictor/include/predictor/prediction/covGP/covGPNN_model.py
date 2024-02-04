@@ -324,7 +324,7 @@ class COVGPNN(GPController):
                 if no_progress_epoch >= 15:
                     if include_simts_loss:     
                         if epoch > nn_only_epoch:                   
-                            if no_progress_epoch > 100:
+                            if no_progress_epoch > 30:
                                 done = True   
                                 # done = False ## TODO: Delete
                     else:

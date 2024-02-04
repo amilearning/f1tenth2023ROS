@@ -93,9 +93,10 @@ def main():
     # valid_policy_names = ['dl_1_blocking_eval', 'dl_1_real_center_eval'] 
     # train_policy_names = [ 'dl_1_blocking_train']
     # valid_policy_names = [ 'dl_1_blocking_train'] 
-    
-    train_policy_names = ['dl_1_blocking_train', 'dl_1_300_center_train']
-    valid_policy_names = ['dl_1_blocking_eval', 'dl_1_300_center_eval'] 
+    # train_policy_names = ['dl_1_blocking_train', 'dl_1_300_center_train']
+    # valid_policy_names = ['dl_1_blocking_eval', 'dl_1_300_center_train'] 
+    train_policy_names = ['dl_1_blocking_train', 'dl_1_300_center_train','hdkl']
+    valid_policy_names = ['dl_1_blocking_eval', 'dl_1_300_center_eval','hdkl_eval'] 
                  
     main_train(train_policy_names, valid_policy_names)
     ####################################################    

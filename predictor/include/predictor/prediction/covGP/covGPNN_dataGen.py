@@ -685,6 +685,8 @@ class SampleGeneartorCOVGP(SampleGenerator):
         # del_x_tran = ntar_st.p.x_tran-  tar_st.p.x_tran
         # if abs(del_x_tran) > 0.5: 
         #     valid_data = False
+        if abs(tar_st.v.v_long) < 0.2:
+            valid_data = False
 
         del_vlong = ntar_st.v.v_long-  tar_st.v.v_long
         if abs(del_vlong) > 0.5: 

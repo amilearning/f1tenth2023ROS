@@ -414,7 +414,7 @@ class COVGPNNModel(gpytorch.Module):
         )
 
         self.out_covs = torch.nn.ModuleList(
-            [gpytorch.kernels.MaternKernel(nu=1.5)for k in range(4)]
+            [gpytorch.kernels.MaternKernel(nu=1.5,lengthscale_constraint = gpytorch.constraints.Interval(lower_bound=0.01,upper_bound=1.0))for k in range(4)]
         )
 
 

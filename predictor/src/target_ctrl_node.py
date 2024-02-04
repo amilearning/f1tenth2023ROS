@@ -80,6 +80,8 @@ class Predictor:
         while self.track_info.track_ready is False:
              rospy.sleep(0.01)
         ##
+        self.policy = False
+        self.dyn_srv = Server(predictorDynConfig, self.dyn_callback)
         
         self.cur_ego_odom = Odometry()        
         self.cur_ego_pose = PoseStamped()
@@ -130,7 +132,9 @@ class Predictor:
         
         self.vehicle_model = CasadiDynamicBicycleFull(0.0, ego_dynamics_config, track=self.track_info.track)
         self.gp_mpcc_ego_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = mpcc_tv_params, name="mpcc_tv_params", track_name="test_track")
+        self.passive_controller = MPCC_H2H_approx(self.vehicle_model, self.track_info.track, control_params = mpcc_passive_params, name="mpcc_passive_params", track_name="test_track")
         self.gp_mpcc_ego_controller.initialize()
+        self.passive_controller.initialize()
         self.warm_start()
         
         
@@ -147,6 +151,14 @@ class Predictor:
             # self.status_pub.publish(msg)          
             rate.sleep()
 
+
+
+    def dyn_callback(self,config,level):        
+        
+        self.policy = config.logging_prediction_results
+        
+        return config
+    
     def tar_pred_callback(self,tar_pred_msg):        
         self.tv_pred = rosmsg_to_prediction(tar_pred_msg)
         
@@ -208,7 +220,9 @@ class Predictor:
         compose_history = lambda state_history, input_history: (np.array(state_history), np.array(input_history))
         ego_warm_start_history = compose_history(state_history_ego, input_history_ego)
         
-        self.gp_mpcc_ego_controller.set_warm_start(*ego_warm_start_history)
+        
+        self.gp_mpcc_ego_controller.set_warm_start(*ego_warm_start_history)            
+        self.passive_controller.set_warm_start(*ego_warm_start_history)
         print("warm start done")
 
 
@@ -241,10 +255,18 @@ class Predictor:
 
         # self.tv_pred = None
         # if self.cur_ego_state.p.s > 15.5 or self.cur_ego_state.p.s < 3.5:            
-        info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
+        if self.policy:
+            info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
+            tar_state_pred = self.gp_mpcc_ego_controller.get_prediction()
+        else:   
+            info, b, exitflag = self.passive_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = self.target_policy_name)
+            tar_state_pred = self.passive_controller.get_prediction()
+        
         # else:                        
         #     info, b, exitflag = self.gp_mpcc_ego_controller.step(self.cur_ego_state, tv_state=self.cur_tar_state, tv_pred=self.tv_pred if self.use_predictions_from_module else None, policy = "timid")
-        tar_state_pred = self.gp_mpcc_ego_controller.get_prediction()
+        
+        
+        
         
         
 
@@ -265,8 +287,12 @@ class Predictor:
         if not info["success"]:
             print(f"EGO infeasible - Exitflag: {exitflag}")                            
         else:
-            pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
-            cmd_accel = self.gp_mpcc_ego_controller.x_pred[1,9]             
+            if self.policy:
+                pred_v_lon = self.gp_mpcc_ego_controller.x_pred[:,0] 
+                cmd_accel = self.gp_mpcc_ego_controller.x_pred[1,9]  
+            else:           
+                pred_v_lon = self.passive_controller.x_pred[:,0] 
+                cmd_accel = self.passive_controller.x_pred[1,9]  
             if cmd_accel < 0.0:                
                 vel_cmd = pred_v_lon[6]
             else: 
