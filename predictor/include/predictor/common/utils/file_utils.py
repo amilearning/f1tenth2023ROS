@@ -6,6 +6,7 @@ import sys
 sys.path.append("/home/orin1/gp-opponent-prediction-models/barcgp")
 
 gp_dir = os.path.expanduser('~') + '/barc_data/'
+pred_dir = os.path.join(gp_dir, 'predData/')
 train_dir = os.path.join(gp_dir, 'trainingData/')
 real_dir = os.path.join(gp_dir, 'realData/')
 multiEval_dir = os.path.join(gp_dir, 'MultiEvalData/')

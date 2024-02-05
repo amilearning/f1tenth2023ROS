@@ -19,23 +19,24 @@ import seaborn as sns
 
 time_horizon = 12
 
-def compute_liklihood(target_state: VehicleState, pred: VehiclePrediction, pred_horizon_idx):
-    
-    pose = np.array([target_state.x.x, target_state.x.y])
-    mean = np.array([pred.x[pred_horizon_idx], pred.y[pred_horizon_idx]])    
-    cov = np.array([[pred.xy_cov[pred_horizon_idx][0][0], 0], [0, pred.xy_cov[pred_horizon_idx][1][1]]])    
-    jitter = np.eye(2) * 1e-12
-    cov +=jitter
-    # Calculate the determinant of the covariance matrix    
-    det_cov = np.linalg.det(cov)
-    # Calculate the inverse of the covariance matrix
-    cov_inv = np.linalg.inv(cov)
-    # Calculate the likelihood
-    likelihood = (1 / (np.sqrt((2 * np.pi)**2 * det_cov))) * np.exp(-0.5 * (pose - mean).T @ cov_inv @ (pose - mean))
-    negative_log_liklihood = -np.log(likelihood) 
+def get_lat_lon_err(target_state: VehicleState, pred: VehiclePrediction, idx , track):
 
-    tar_pose_and_likelihood = np.array([target_state.x.x, target_state.x.y, negative_log_liklihood])
-    return tar_pose_and_likelihood
+
+    if len(pred.s) <1 and pred.x is not None:
+        f = track.global_to_local((pred.x[idx], pred.y[idx], pred.psi[idx]))
+        if f is not None:
+            s, x_tran, e_psi = f
+        else:
+            return None, None
+        lon_error = wrap_del_s(target_state.p.s, s , track)  
+        # lon_error = s - target_state.p.s
+        lat_error = x_tran - target_state.p.x_tran
+    else:
+        lat_error = target_state.p.x_tran - pred.x_tran[idx]    
+        lon_error = target_state.p.s - pred.s[idx]    
+        lon_error = wrap_del_s(target_state.p.s, pred.s[idx] , track)  
+
+    return lat_error, lon_error
 
 def main(args=None):
     
@@ -43,14 +44,16 @@ def main(args=None):
   
     # policy_names = ['timid', 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
     # policy_names = ['mild_200', 'aggressive_blocking', 'mild_5000', 'reverse']    
-    predictor_names = ['dkl_blocking', 'hdkl_blocking']
+    predictor_names = ['hdkl', 'dkl', 'gp','cav','mpcc']
     
-    liklihood_traces_list = []
-
+    
+    lat_error_list = []
+    lon_error_list =[]
     invalid_data_count = 0
     for predictor_name in predictor_names:
-        ab_p = os.path.join(lik_dir,predictor_name)
-        liklihood_traces = []
+        ab_p = os.path.join(pred_dir,predictor_name)
+        longitudinal_errors = []
+        lateral_erros = []
         for filename in os.listdir(ab_p):
             if filename.endswith(".pkl"):
                 dbfile = open(os.path.join(ab_p, filename), 'rb')        
@@ -59,56 +62,69 @@ def main(args=None):
             # scenario_data: RealData = pickle.load(dbfile)                        
                 N = scenario_data.N             
                 if N > time_horizon: 
-                    for t in range(N-1-time_horizon):
+                    for t in range(N-1-time_horizon):                      
                         ego_st = scenario_data.ego_states[t]
+                        
                         tar_st = scenario_data.tar_states[t]
-                        delta_s = wrap_del_s(tar_st.p.s, ego_st.p.s, track_)
-                        if abs(delta_s) < 100.0:
-                            
+                        delta_s = wrap_del_s(tar_st.p.s, ego_st.p.s, track_)                  
+                       
+                        if delta_s < 2.0  and delta_s > 0 and abs(tar_st.v.v_long) > 0.1:                     
+                        # if abs(delta_s) < 1.5  and tar_st.v.v_long > 0.1:
                             tar_pred = scenario_data.tar_pred[t]
                             pred_horizon = len(tar_pred.s)
-                            terminal_tar_st = scenario_data.tar_states[t+pred_horizon-1]
-                            terminal_liklihood = compute_liklihood(terminal_tar_st, tar_pred, pred_horizon-1)
-                            liklihood_traces.append(terminal_liklihood.copy())
+                            terminal_tar_st = scenario_data.tar_states[t+pred_horizon-1]                            
+                            lat_error, lon_error = get_lat_lon_err(terminal_tar_st, tar_pred, pred_horizon-1, track_)                            
+                            # if lon_error is not None:
+                            #     if abs(lon_error) > 0.6 and (predictor_name != 'cav'):                                    
+                            #         print(lon_error)
+                            #         continue
+                          
+                            if lat_error is not None and abs(lon_error) < 1.0 :
+                                longitudinal_errors.append((lon_error**2))
+                                lateral_erros.append((lat_error**2))
+
         
                 dbfile.close()
-        liklihood_traces_list.append(liklihood_traces)
+        print(str(predictor_name) + ' _lon mean =' + str(np.sqrt(np.mean(longitudinal_errors))) + '  std = ' + str(np.std(np.sqrt(longitudinal_errors))))
+        print(str(predictor_name) + ' _lat mean =' + str(np.sqrt(np.mean(lateral_erros)))+ '  std = ' + str(np.std(np.sqrt(lateral_erros))))
+        
+        lat_error_list.append(lateral_erros) 
+        lon_error_list.append(longitudinal_errors)
         
         
-    
-    
-    likelihoods = []
-    for i, predictor_data in enumerate(liklihood_traces_list):
-        # Extract x, y positions, and likelihood for the current predictor type
-        x, y, likelihood = zip(*predictor_data)
-        
-        
-        likelihoods.append(likelihood)
+ 
+    # Predictor names
+    predictors = ["H-DKL", "DKL", "GP", "CAV", "MPCC"]
 
-    pred_likelihoods = likelihoods
-    likelihoods = np.hstack(likelihoods)
-    min_val = likelihoods.min()
-    max_val = likelihoods.max()
+    # Convert to DataFrame for easier plotting
+    df_lat_errors = pd.DataFrame(lat_error_list).transpose()
+    df_lat_errors.columns = predictors
 
+    df_long_errors = pd.DataFrame(lon_error_list).transpose()
+    df_long_errors.columns = predictors
 
-    sns.set(style="white")
+    # Melt the DataFrames for seaborn
+    df_lat_melted = df_lat_errors.melt(var_name='Predictor', value_name='Lateral Error')
+    df_long_melted = df_long_errors.melt(var_name='Predictor', value_name='Longitudinal Error')
 
-    predictor_data = pred_likelihoods
+    # Create subplots
+    fig, axs = plt.subplots(1, 2, figsize=(20, 6), sharey=True)
 
-    num_predictor_types = len(predictor_data)
-    fig, ax = plt.subplots(figsize=(8, 4))
+    # Lateral Error Boxplot without outliers
+    sns.boxplot(x='Predictor', y='Lateral Error', data=df_lat_melted, ax=axs[0], showfliers=False)
+    axs[0].set_title('Lateral Error Distribution by Predictor')
+    axs[0].set_xticklabels(predictors, rotation=0)
 
-    colors = ["red", "blue"]
+    # Longitudinal Error Boxplot without outliers
+    sns.boxplot(x='Predictor', y='Longitudinal Error', data=df_long_melted, ax=axs[1], showfliers=False)
+    axs[1].set_title('Longitudinal Error Distribution by Predictor')
+    axs[1].set_xticklabels(predictors, rotation=0)
 
-    for i, data in enumerate(predictor_data):
-        sns.histplot(data=data, kde=True, ax=ax, color=colors[i], alpha=0.5, label=f'{["DKL", "H-DKL"][i]}')
-
-    ax.set_xlabel('Negative Log Likelihood', fontsize=14)
-    ax.legend(fontsize=14)
-    ax.set_xlim(-1.4, 8)  # Adjust the limits as needed
-
+    plt.tight_layout()
     plt.show()
 
+
+    print(1)
 
     # fig, axs = plt.subplots(1, len(liklihood_traces_list), figsize=(12, 4))
     # for i, predictor_data in enumerate(liklihood_traces_list):
