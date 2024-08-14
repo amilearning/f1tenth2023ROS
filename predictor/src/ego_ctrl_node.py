@@ -159,6 +159,7 @@ class Predictor:
 
     def tar_pred_callback(self,tar_pred_msg):        
         self.tv_pred = rosmsg_to_prediction(tar_pred_msg)
+        # self.tv_pred.xy_cov = np.repeat(np.diag([0.01, 0.01])[np.newaxis, :, :], len(self.tv_pred.s), axis=0)                    
         
 
     def ego_odom_callback(self,msg):

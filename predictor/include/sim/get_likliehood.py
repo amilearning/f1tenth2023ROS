@@ -43,7 +43,7 @@ def main(args=None):
   
     # policy_names = ['timid', 'mild_200', 'aggressive_blocking',  'mild_5000' ,'reverse']
     # policy_names = ['mild_200', 'aggressive_blocking', 'mild_5000', 'reverse']    
-    predictor_names = ['dkl_blocking', 'hdkl_blocking']
+    predictor_names = ['dkl_reverse', 'hdkl_reverse']
     
     liklihood_traces_list = []
 
@@ -63,12 +63,13 @@ def main(args=None):
                         ego_st = scenario_data.ego_states[t]
                         tar_st = scenario_data.tar_states[t]
                         delta_s = wrap_del_s(tar_st.p.s, ego_st.p.s, track_)
-                        if abs(delta_s) < 100.0:
+                        if abs(delta_s) < 2.0 and delta_s > 0.0:
                             
                             tar_pred = scenario_data.tar_pred[t]
                             pred_horizon = len(tar_pred.s)
                             terminal_tar_st = scenario_data.tar_states[t+pred_horizon-1]
                             terminal_liklihood = compute_liklihood(terminal_tar_st, tar_pred, pred_horizon-1)
+                            
                             liklihood_traces.append(terminal_liklihood.copy())
         
                 dbfile.close()
@@ -85,12 +86,49 @@ def main(args=None):
         
         likelihoods.append(likelihood)
 
+    
+        
+    print('dkl mean = '+  str(np.mean(likelihoods[0])))
+    print('dkl std = '+  str(np.std(likelihoods[0])))
+    print('hdkl mean = '+  str(np.mean(likelihoods[1])))
+    print('hdkl std = '+  str(np.std(likelihoods[1])))
+    
+    # from scipy.stats import ranksums
+    # list1_flat = likelihoods[0]
+    # list2_flat = likelihoods[1]
+    # statistic, p_value = ranksums(list1_flat, list2_flat)
+    # alpha = 0.05
+    # if p_value < alpha:
+    #     print("Reject the null hypothesis. There is a statistically significant difference between the distributions.")
+    # else:
+    #     print("Fail to reject the null hypothesis. There is not enough evidence to conclude a difference between the distributions.")
+    
+    # min_length = min(len(list1_flat), len(list2_flat))
+
+    # # Use only the overlapping data points
+    # list1_flat = list1_flat[:min_length]
+    # list2_flat = list2_flat[:min_length]
+
+
+    # from scipy.stats import wilcoxon, ttest_rel
+    # wilcoxon_stat, wilcoxon_p_value = wilcoxon(list1_flat, list2_flat)
+    # print("Wilcoxon signed-rank test:")
+    # print("Test statistic:", wilcoxon_stat)
+    # print("p-value:", wilcoxon_p_value)
+
+    # # Perform paired t-test
+    # t_stat, t_p_value = ttest_rel(list1_flat, list2_flat)
+    # print("\nPaired t-test:")
+    # print("T-statistic:", t_stat)
+    # print("p-value:", t_p_value)
+        
+
     pred_likelihoods = likelihoods
     likelihoods = np.hstack(likelihoods)
     min_val = likelihoods.min()
     max_val = likelihoods.max()
 
-
+    
     sns.set(style="white")
 
     predictor_data = pred_likelihoods
@@ -101,11 +139,16 @@ def main(args=None):
     colors = ["red", "blue"]
 
     for i, data in enumerate(predictor_data):
-        sns.histplot(data=data, kde=True, ax=ax, color=colors[i], alpha=0.5, label=f'{["DKL", "H-DKL"][i]}')
+        # sns.histplot(data=(data-min_val)/(max_val-min_val) , kde=False, ax=ax, color=colors[i], alpha=0.5, label=f'{["DKL", "H-DKL"][i]}')
+        sns.histplot(data=data , kde=False, ax=ax, color=colors[i], alpha=0.5, label=f'{["DKL", "H-DKL"][i]}')
 
-    ax.set_xlabel('Negative Log Likelihood', fontsize=14)
+
+              
+    ax.tick_params(axis='both', which='major', labelsize=10)
+
+    ax.set_xlabel('Negative Log Likelihood', fontsize=10)
     ax.legend(fontsize=14)
-    ax.set_xlim(-1.4, 8)  # Adjust the limits as needed
+    # ax.set_xlim(-1.4, 8)  # Adjust the limits as needed
 
     plt.show()
 

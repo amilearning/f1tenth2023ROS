@@ -688,6 +688,7 @@ def prediction_to_rosmsg(vehicle_prediction_obj: VehiclePrediction):
         ros_msg.e_psi = array.array('f', vehicle_prediction_obj.e_psi)
     if vehicle_prediction_obj.s is not None:
         ros_msg.s = array.array('f', vehicle_prediction_obj.s)
+ 
     if vehicle_prediction_obj.x_tran is not None:
         ros_msg.x_tran = array.array('f', vehicle_prediction_obj.x_tran)
     if vehicle_prediction_obj.u_a is not None:
@@ -842,7 +843,7 @@ class LaptimeRecorder():
         self.n_lap = 0
         self.init_s = 0
         self.track_length = track.track_length
-        self.num_max_lap =  3 #  5 # np.inf for experiment
+        self.num_max_lap =  np.inf #  3 # np.inf for experiment
         print("track length is set as = " + str(self.track_length))        
         self.laptimes = []
         self.cumulative_laptime = 0.0

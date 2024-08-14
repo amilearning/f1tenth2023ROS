@@ -145,6 +145,19 @@ class GPController(ABC):
             return input_
        
 
+
+
+    def unstandardize_statistics(self,mean,std):
+        
+        if self.means_y is not None:
+            new_mean = mean.squeeze().T * self.stds_y + self.means_y
+            new_std = std.squeeze().T *self.stds_y
+            return new_mean, new_std
+            #  (data * unnormalized_std) + unnormalized_mean
+        else:
+            return mean,std
+    
+
     def outputToReal(self, output):
         if self.means_y is not None:
             return output * self.stds_y + self.means_y
@@ -856,7 +869,8 @@ class GPController(ABC):
 
     def set_evaluation_mode(self):
         self.model.eval()
-        self.likelihood.eval()
+        if self.likelihood is not None:
+            self.likelihood.eval()
 
     def save_model(self, name):
         model_to_save = dict()

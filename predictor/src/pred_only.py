@@ -49,6 +49,7 @@ from predictor.path_generator import PathGenerator
 # from predictor.prediction.gp_thetapolicy_predictor import GPThetaPolicyPredictor
 
 from predictor.prediction.covGP.covGPNN_predictor import CovGPPredictor
+from predictor.prediction.multipathPP.multipathPP_predictor import MultipathPPPredictor
 
 from predictor.prediction.trajectory_predictor import ConstantAngularVelocityPredictor, NLMPCPredictor
 from predictor.h2h_configs import *
@@ -155,7 +156,8 @@ class Predictor:
 
         # Subscribers
         self.ego_pred_sub = rospy.Subscriber('/ego_pred', VehiclePredictionROS, self.ego_pred_callback)  
-        self.gt_tar_pred_sub = rospy.Subscriber('/mpcc_pred', VehiclePredictionROS, self.gt_tar_pred_callback)  
+        # self.gt_tar_pred_sub = rospy.Subscriber('/mpcc_pred', VehiclePredictionROS, self.gt_tar_pred_callback)  
+        self.gt_tar_pred_sub = rospy.Subscriber('/gt_tar_pred', VehiclePredictionROS, self.gt_tar_pred_callback)  
         
         self.ego_odom_sub = rospy.Subscriber(ego_odom_topic, Odometry, self.ego_odom_callback)                        
         # self.ego_pose_sub = rospy.Subscriber(ego_pose_topic, PoseStamped, self.ego_pose_callback)                        
@@ -181,6 +183,7 @@ class Predictor:
         #                   2: NMPC
         #                   3 : GP
         #                   4: COVGP
+        #                   5: Multipathpp
         self.predictor_type = 0
         ### setup ego controller to compute the ego prediction         
         
@@ -209,6 +212,8 @@ class Predictor:
         self.gp_predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "naiveGP", args= args.copy())                            
         self.nosim_predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "nosimtsGP", args= args.copy())                            
         self.predictor = CovGPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "simtsGP", args= args.copy())                    
+
+        self.multipathpp_predictor = MultipathPPPredictor(N=self.n_nodes, track=self.track_info.track,  use_GPU=use_GPU, M=M, cov_factor=np.sqrt(2.0), input_predict_model = "multipathpp", args= args.copy())                    
         
         # N=10, track: RadiusArclengthTrack = None, interval=0.1, startup_cycles=5, clear_timeout=1, destroy_timeout=5,  cov: float = 0):
 
@@ -418,6 +423,8 @@ class Predictor:
                     self.tv_pred = self.nmpc_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
                 elif self.predictor_type == 3:
                     self.tv_pred = self.gp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
+                elif self.predictor_type == 5:
+                    self.tv_pred = self.multipathpp_predictor.get_prediction(ego_state = self.cur_ego_state, target_state = self.cur_tar_state, ego_prediction = self.ego_pred)
                 elif self.predictor_type ==0:                    
                     # self.tv_pred = self.gt_tar_pred
                     # self.tv_pred.xy_cov = np.repeat(np.diag([0.01, 0.01])[np.newaxis, :, :], len(self.tv_pred.s), axis=0)                    
